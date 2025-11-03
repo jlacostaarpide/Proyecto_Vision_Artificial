@@ -43,10 +43,18 @@
     <ClCompile Include="VideoAcquisition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Capturar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="VideoAcquisition.h">
       <Filter>Header Files</Filter>
     </QtMoc>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Capturar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

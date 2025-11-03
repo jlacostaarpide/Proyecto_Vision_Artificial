@@ -110,6 +110,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Capturar.cpp" />
     <ClCompile Include="VideoAcquisition.cpp" />
     <QtRcc Include="ProyectoPSM.qrc" />
     <QtUic Include="ProyectoPSM.ui" />
@@ -119,6 +120,9 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="VideoAcquisition.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Capturar.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

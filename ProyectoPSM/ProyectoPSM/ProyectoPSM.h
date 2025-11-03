@@ -17,5 +17,13 @@ private:
 	CVideoAcquisition* Camera;
     Mat LastImage;
     int ImageIndex;
+
+private slots:
+    void EnableButtons(bool StartCapture);
+    void NewImage(Mat Img);
+    void SaveImage();
+    void GetImage();
+	void ClearImage();
+	void ShowImage();
 };
 
