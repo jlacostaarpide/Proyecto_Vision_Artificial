@@ -1,41 +1,90 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
+# Build directories
+[Bb]uild/
+[bB]in/
+[Dd]ebug*/
+[Rr]elease*/
+x64/
+x86/
+out/
 *.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
+*.o
+*.lo
+*.slo
 *.ilk
-
-# Debugger Files
 *.pdb
-
-# Compiled Dynamic libraries
+*.idb
+*.exe
+*.dll
 *.so
 *.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
 *.lib
-
-# Executables
-*.exe
-*.out
+*.a
 *.app
+*.out
 
-# debug information files
-*.dwo
+# Precompiled headers / IntelliSense cache
+*.pch
+*.gch
+*.ipch
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+*.VC.db-shm
+*.VC.db-wal
+
+# Visual Studio folders
+.vs/
+.vscode/
+.idea/
+
+# Qt generated files
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.pro.user
+*.pri.user
+*.qmake.stash
+
+# Temporary / backup files
+*.log
+*.tlog
+*.tmp
+*.bak
+*.swp
+*.sdf
+*.cache
+*.db
+*.suo
+*.user
+*.ncb
+*.aps
+*.lastbuildstate
+
+# CMake build system
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+
+# OpenCV cache (if using prebuilt libs)
+opencv_build/
+*.manifest
+
+# Other IDE or system files
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignore large data or test files
+*.zip
+*.7z
+*.tar
+*.gz
+*.mp4
+*.avi
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tiff
