@@ -1,23 +1,31 @@
 #include "ProyectoPSM.h"
+#include <filesystem>
 
 ProyectoPSM::ProyectoPSM(QWidget *parent)
     : QMainWindow(parent)
 {
     ui.setupUi(this);
+	if (!std::filesystem::exists("Database")) {
+		std::filesystem::create_directory("Database");
+	}
+
 
     Camera = new CVideoAcquisition();
     if (Camera->CameraOK) {
-		ui.pbtnCapturar->setEnabled(true);
+		ui.pbtnEncender->setEnabled(true);
+		ui.pbtnCapturar->setEnabled(false);
 
 		ImageIndex = 0;
+		SavedImageIndex = 1;
+		ui.boxImageNumber->setValue(SavedImageIndex);
 		Camera->SetCameraAutoExposure();
 
-		connect(ui.pbtnCapturar, SIGNAL(toggled(bool)), this, SLOT(EnableButtons(bool)));
-		connect(ui.pbtnCapturar, SIGNAL(toggled(bool)), Camera, SLOT(StartStopCapture(bool)));
-		connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
-		connect(ui.pbtnUlt, SIGNAL(clicked()), this, SLOT(GetImage()));
-		connect(ui.pbtnLimpiar, SIGNAL(clicked()), this, SLOT(ClearImage()));
+		connect(ui.pbtnEncender, SIGNAL(toggled(bool)), this, SLOT(EnableButtons(bool)));
+		connect(ui.pbtnEncender, SIGNAL(toggled(bool)), Camera, SLOT(StartStopCapture(bool)));
 		connect(Camera, SIGNAL(NewImageSignal(Mat)), this, SLOT(NewImage(Mat)));
+		connect(ui.pbtnCapturar, SIGNAL(clicked()), this, SLOT(VisualizeImage()));
+		connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
+		connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
 	}
 	else {
 		ui.lblImagen->setText("ERROR: No se ha podido establecer comunicación con la cámara.");
@@ -30,10 +38,16 @@ ProyectoPSM::~ProyectoPSM()
 
 void ProyectoPSM::EnableButtons(bool StartCapture)
 {
-	ui.pbtnCapturar->setEnabled(!StartCapture);
-	ui.pbtnGuardar->setEnabled(StartCapture);
-	ui.pbtnUlt->setEnabled(StartCapture);
-	ui.pbtnLimpiar->setEnabled(!StartCapture);
+	if (!StartCapture) {
+		ui.pbtnEncender->setText("Encender");
+		ui.pbtnCapturar->setEnabled(false);
+	
+		ui.lblImagen->clear();
+	}
+	else {
+		ui.pbtnCapturar->setEnabled(StartCapture);
+		ui.pbtnEncender->setText("Apagar");
+	}
 }
 
 void ProyectoPSM::NewImage(Mat Img)
@@ -47,26 +61,40 @@ void ProyectoPSM::NewImage(Mat Img)
 
 void ProyectoPSM::ShowImage()
 {
-	if (!LastImage.empty()) {
+	if (!LastImage.empty() and (ui.pbtnCapturar->isEnabled())) {
 		ui.lblImagen->setPixmap(QPixmap::fromImage(QImage(LastImage.data, LastImage.cols, LastImage.rows, LastImage.step, QImage::Format_BGR888)));
+	}
+}
+
+void ProyectoPSM::VisualizeImage()
+{
+	ui.tabWidget->setCurrentIndex(1);
+	SavedImageIndex = ui.boxImageNumber->value();
+	string texto = "Guardar siguiente imagen como: " + to_string(SavedImageIndex);
+	ui.txtImageName->setText(QString::fromStdString(texto));
+	if (!LastImage.empty()) {
+		CapturedImage = LastImage.clone();
+		ui.lblImagenCapturada->setPixmap(QPixmap::fromImage(QImage(CapturedImage.data, CapturedImage.cols, CapturedImage.rows, CapturedImage.step, QImage::Format_BGR888)));
 	}
 }
 
 void ProyectoPSM::SaveImage()
 {
-	if (!LastImage.empty()) {
-		string Filename = "Image_" + to_string(ImageIndex) + ".png";
-		imwrite(Filename, LastImage);
+	if (!CapturedImage.empty()) {
+		string Name = "prueba_" + to_string(SavedImageIndex);
+		string Path = "Database//" + Name + ".jpg";
+		imwrite(Path, CapturedImage);
+		ui.txtImageName->setText(QString::fromStdString("Image saved!"));
+		SavedImageIndex++;
+		ui.boxImageNumber->setValue(SavedImageIndex);
+		ReturnTab();
 	}
 }
 
-void ProyectoPSM::ClearImage()
-{
-	ui.lblImagen->clear();
-}
 
-void ProyectoPSM::GetImage()
-{
-	ShowImage();
-}
 
+
+void ProyectoPSM::ReturnTab()
+{
+	ui.tabWidget->setCurrentIndex(0);
+}

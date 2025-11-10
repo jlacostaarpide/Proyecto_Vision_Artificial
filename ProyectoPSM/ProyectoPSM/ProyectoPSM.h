@@ -16,14 +16,16 @@ private:
     Ui::ProyectoPSMClass ui;
 	CVideoAcquisition* Camera;
     Mat LastImage;
+	Mat CapturedImage;
     int ImageIndex;
+	int SavedImageIndex;
 
 private slots:
     void EnableButtons(bool StartCapture);
     void NewImage(Mat Img);
     void SaveImage();
-    void GetImage();
-	void ClearImage();
 	void ShowImage();
+	void VisualizeImage();
+	void ReturnTab();
 };
 
