@@ -1,8 +1,12 @@
 #pragma once
 
+#include <vector>
+#include <string>
+
 #include <QtWidgets/QMainWindow>
 #include "ui_ProyectoPSM.h"
 #include "VideoAcquisition.h"
+#include "NameHelper.h"
 
 class ProyectoPSM : public QMainWindow
 {
@@ -19,6 +23,7 @@ private:
 	Mat CapturedImage;
     int ImageIndex;
 	int SavedImageIndex;
+    std::vector<std::string> NameList;
 
 private slots:
     void EnableButtons(bool StartCapture);

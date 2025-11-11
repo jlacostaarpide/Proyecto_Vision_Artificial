@@ -46,6 +46,9 @@
     <ClCompile Include="Capturar.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="NameHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="VideoAcquisition.h">
@@ -54,6 +57,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Capturar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="NameHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
