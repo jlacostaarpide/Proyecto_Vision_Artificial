@@ -13,7 +13,7 @@ std::vector<std::string> NameHelper::GenerarNombres()
 {
     std::vector<std::string> nameList;
 
-    const int FOTOS_POR_COMBINACION = 3;
+    const int FOTOS_POR_COMBINACION = 5;
 
     std::vector<std::string> codigos = { "07", "08", "09" };
 
@@ -21,7 +21,7 @@ std::vector<std::string> NameHelper::GenerarNombres()
         "000", "045", "090", "135", "180", "225", "270", "315"
     };
 
-    const std::vector<std::string> angulosCenitales = { "10", "40", "50", "90" };
+    const std::vector<std::string> angulosCenitales = { "10", "30", "50", "70", "90" };
 
     // Bucle 1: Códigos
     for (const std::string& codigo : codigos) {
