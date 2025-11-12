@@ -21,21 +21,20 @@ std::vector<std::string> NameHelper::GenerarNombres()
         "000", "045", "090", "135", "180", "225", "270", "315"
     };
 
-    const std::vector<std::string> angulosCenitales = { "10", "30", "50", "70", "90" };
+    const std::vector<std::string> angulosCenitales = { "10", "40", "70", "90" };
 
-    // Bucle 1: Códigos
-    for (const std::string& codigo : codigos) {
+    // Bucle 1: Ángulos (verticales)
+    for (const std::string& angulo : angulosCenitales) {
 
-        // Bucle 2: Orientaciones (ej. "000", "045"...)
-        for (const std::string& orientacion : orientaciones) {
+        // Bucle 2: Códigos (07, 08, 09)
+        for (const std::string& codigo : codigos) {
 
-            // Bucle 3: Ángulos (ej. "10", "40"...)
-            for (const std::string& angulo : angulosCenitales) {
+            // Bucle 3: Orientaciones (horizontales)
+            for (const std::string& orientacion : orientaciones) {
 
-                // Bucle 4: Número de secuencia (ej. 1, 2, 3)
+                // Bucle 4: Número de secuencia (1 a 5)
                 for (int i = 1; i <= FOTOS_POR_COMBINACION; ++i) {
 
-                    // Formato: Código_Orientación_ÁnguloCenital_NumSecuencia
                     std::string numSecuencia = padCeros(i, 3);
 
                     std::string nombreFinal = codigo + "_" +
