@@ -84,7 +84,7 @@ desktop.ini
 *.mp4
 *.avi
 *.png
-*.jpg
+# *.jpg
 *.jpeg
 *.bmp
 *.tiff
