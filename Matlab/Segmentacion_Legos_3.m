@@ -9,7 +9,7 @@ addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 20
 addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database")
 
 % Juan:
-addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Matlab\lego_imagenes");
+addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\tests");
 addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database");
 
 %% 1. CARGA DE LA IMAGEN
