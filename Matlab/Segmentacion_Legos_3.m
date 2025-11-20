@@ -13,12 +13,13 @@ addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Seña
 addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database");
 
 %% 1. CARGA DE LA IMAGEN
-nombre_imagen = 'IMG_7651.jpg';
+nombre_imagen = 'IMG_7650.jpg';
 %nombre_imagen = '08_270_70_004.jpg';
 
 I = imread(nombre_imagen);
 I_double = im2double(I);
 fprintf('Imagen cargada correctamente:\n');
+figure; imshow(I_double);
 
 %% 2. PRE-PROCESAMIENTO: CORRECCIÓN DE BRILLO
 % Pendiente de implementar
@@ -37,65 +38,84 @@ S = I_hsv(:,:,2);
 V = I_hsv(:,:,3);
 
 figure('Name', 'Análisis de Canales HSV', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.4]);
-subplot(1,3,1); imshow(H); colormap(gca, 'hsv'); title('Canal H (Matiz)');
-subplot(1,3,2); imshow(S); colormap(gca, 'jet'); title('Canal S (Saturación)');
-subplot(1,3,3); imshow(V); colormap(gca, 'gray'); title('Canal V (Valor)');
+subplot(1,3,1); imshow(H,[]); title('Canal H (Matiz)');
+subplot(1,3,2); imshow(S,[]); title('Canal S (Saturación)');
+subplot(1,3,3); imshow(V); title('Canal V (Valor)');
 
-%% 4. SEGMENTACIÓN OTSU EN CANAL S
-% Maximizar la varianza inter-clase sobre el canal S.
-level_otsu = graythresh(S);
-fprintf('Umbral de Otsu calculado para Saturación: %.4f\n', level_otsu);
+%% 4. SEGMENTACIÓN COMBINANDO H Y S
 
-% Binarización
-mask = imbinarize(S, level_otsu);
+% --- 4.1. Estimar el color del fondo (mesa) ---
+% Consideramos "fondo" los píxeles de saturación baja
+mask_fondo = S < 0.25;          % umbral bajo de saturación
+H_fondo = mean(H(mask_fondo), 'all');   % tono medio del fondo
+
+% Distancia de cada píxel al tono del fondo
+dist_H = abs(H - H_fondo);
+
+% Máscara 1: píxeles cuyo tono es distinto del fondo
+% (las piezas tienen un matiz muy distinto al de la mesa)
+umbral_distH = 0.06;            % puedes probar 0.05–0.10
+mask_H = dist_H > umbral_distH;
+figure; imshow(mask_H);
+
+% --- 4.2. Máscara basada en saturación (como antes) ---
+level_otsu_S = graythresh(S);
+fprintf('Umbral de Otsu para S: %.4f\n', level_otsu_S);
+mask_S = imbinarize(S, level_otsu_S);
+figure; imshow(mask_S);
+
+% --- 4.3. Máscara final: unión de ambas ---
+% Si un píxel tiene suficiente saturación O es cromáticamente distinto
+% del fondo, lo consideramos pieza.
+mask = mask_H | mask_S;
 
 %% 5. PROCESAMIENTO MORFOLÓGICO (LIMPIEZA Y RECONSTRUCCIÓN)
-% Relleno de huecos:
-%    Corregir los brillos especulares (blancos) que tienen S=0
-mask_filled = imfill(mask, 'holes');
 
-% Apertura Morfológica:
-%    Elimina ruido "sal" (pequeños puntos blancos) 
-se_noise = strel('disk', 3);
-mask_clean = imopen(mask_filled, se_noise);
+% Cerrar pequeños huecos y “puentes” entre bloques
+se_bridge = strel('disk', 4);
+mask = imclose(mask, se_bridge);
 
-% Eliminación de bordes:
-%    Elimina objetos que tocan el borde de la imagen
-mask_final = imclearborder(mask_clean);
+% Rellenar huecos interiores
+mask = imfill(mask, 'holes');
+
+% Pequeña apertura para eliminar ruido muy pequeño
+se_noise = strel('disk', 2);
+mask = imopen(mask, se_noise);
+
+% Eliminar objetos diminutos
+mask = bwareaopen(mask, 500);
+
+% Si en tus imágenes no esperas piezas tocando el borde, puedes mantenerlo.
+% Si sí pueden tocar el borde, mejor comentar esta línea.
+mask_final = imclearborder(mask);
 
 %% 6. ANÁLISIS DE COMPONENTES CONEXAS Y EXTRACCIÓN DE CARACTERÍSTICAS
-% Etiquetado con conectividad-8 (para agrupar píxeles diagonales)
 [L, num_inicial] = bwlabel(mask_final, 8);
-
-% Extracción de propiedades geométricas
-stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Eccentricity');
+stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', ...
+                       'Perimeter', 'Circularity', 'Eccentricity', 'Image');
 
 %% 7. FILTRADO DE OBJETOS
 if ~isempty(stats)
-    % Convertir áreas a vector
     all_areas = [stats.Area];
     max_area = max(all_areas);
-    
-    % Criterio 1: Filtrado por Área Relativa
-    % Se conservan objetos con al menos el 5% del área del objeto más grande.
-    % Esto hace el filtro robusto al zoom/resolución de la imagen.
-    umbral_area = 0.05 * max_area; 
-    
-    % Criterio 2: Filtrado por Circularidad
-    % Elimina formas muy irregulares.
-    % Lego cuadrado ~0.78.
+
+    % Filtro por área relativa
+    umbral_area = 0.05 * max_area;
     all_circ = [stats.Circularity];
-    umbral_circ = 0.2; % Valor conservador para no borrar piezas complejas
-    
+
+    % OJO: las piezas LEGO tienen formas bastante irregulares
+    % Baja el umbral de circularidad o elimínalo.
+    umbral_circ = 0.05;
     valid_idx = find((all_areas > umbral_area) & (all_circ > umbral_circ));
+
     final_mask_filtered = ismember(L, valid_idx);
-    
-    % Recalcular estadísticas
-    stats_final = regionprops(final_mask_filtered, 'Area', 'Centroid', 'BoundingBox', 'Circularity', 'Image');
+
+    stats_final = regionprops(final_mask_filtered, 'Area', 'Centroid', ...
+        'BoundingBox', 'Circularity', 'Image');
     num_final = length(stats_final);
 else
     final_mask_filtered = mask_final;
-    stats_final ="";
+    stats_final = "";
     num_final = 0;
 end
 
