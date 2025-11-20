@@ -2,13 +2,17 @@
 
 clear; close all; clc;
 
-addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\matlab_imagen\Matlab - Imagen")
-addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\legocodes")
+% addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\matlab_imagen\Matlab - Imagen")
+% addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\legocodes")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G03_COD789")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
 
 %% 1. CARGA DE LA IMAGEN
 % nombre_imagen = 'IMG_7647.jpg';
 nombre_imagen = 'IMG_7643.jpg';
 nombre_imagen = '4_legos.jpg';
+% nombre_imagen = '07_270_70_003.jpg'
+% nombre_imagen = '08_270_70_003.jpg';
 
 I = imread(nombre_imagen);
 I_double = im2double(I);
@@ -43,6 +47,22 @@ fprintf('Umbral de Otsu calculado para Saturación: %.4f\n', level_otsu);
 % Binarización
 mask = imbinarize(S, level_otsu);
 
+figure('Name', 'Otsu y Binarización', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+subplot(2, 2, 1);
+imshow(S); colormap(gca, 'jet'); colorbar;
+title('Canal Saturación (Entrada)');
+
+subplot(2, 2, 2);
+imhist(S); hold on;
+line([level_otsu, level_otsu], ylim, 'Color', 'r', 'LineWidth', 2);
+text(level_otsu, max(ylim)*0.8, sprintf(' Umbral: %.3f', level_otsu), 'Color', 'r', 'FontWeight', 'bold');
+title('Histograma + Corte de Otsu');
+xlabel('Intensidad de Saturación'); ylabel('Cantidad de Píxeles');
+
+subplot(2, 2, [3, 4]);
+imshow(mask);
+title('Máscara Binaria (antes de limpiar)');
+
 %% 5. PROCESAMIENTO MORFOLÓGICO (LIMPIEZA Y RECONSTRUCCIÓN)
 % Relleno de huecos:
 %    Corregir los brillos especulares (blancos) que tienen S=0
@@ -56,6 +76,20 @@ mask_clean = imopen(mask_filled, se_noise);
 % Eliminación de bordes:
 %    Elimina objetos que tocan el borde de la imagen
 mask_final = imclearborder(mask_clean);
+
+figure('Name', 'Limpieza Morfológica', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+subplot(2, 2, 1);
+imshow(mask);
+title({'PASO 1: Binaria Original', '(Con agujeros y ruido)'});
+subplot(2, 2, 2);
+imshow(mask_filled);
+title({'PASO 2: Relleno de Huecos', '(imfill: recupera studs brillantes)'});
+subplot(2, 2, 3);
+imshow(mask_clean);
+title({'PASO 3: Eliminación de Ruido', '(imopen: borra puntos pequeños)'});
+subplot(2, 2, 4);
+imshow(mask_final);
+title({'PASO 4: Máscara Final', '(imclearborder: quita bordes)'});
 
 %% 6. ANÁLISIS DE COMPONENTES CONEXAS Y EXTRACCIÓN DE CARACTERÍSTICAS
 % Etiquetado con conectividad-8 (para agrupar píxeles diagonales)
