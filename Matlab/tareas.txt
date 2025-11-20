@@ -1,0 +1,12 @@
+para segmentar morado, hacer gamma. pero no va bien. como prueba, desplazar el umbral para abajo en la imagen actual. 
+
+el morado va muy mal con canal, valorar aportacion del canal H, donde morado destaca mas (gemini)
+
+
+batch de varias imagenes
+
+mejorar procesado morfologico
+
+mejorar filtrado?
+
+correccion de brillo/contraste para imagenes de la camara chusta

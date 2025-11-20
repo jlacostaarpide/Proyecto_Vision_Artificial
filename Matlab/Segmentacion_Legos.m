@@ -40,8 +40,12 @@ subplot(1,3,2); imshow(S); colormap(gca, 'jet'); title('Canal S (Saturación)');
 subplot(1,3,3); imshow(V); colormap(gca, 'gray'); title('Canal V (Valor)');
 
 %% 4. SEGMENTACIÓN OTSU EN CANAL S
+% Aplicar gamma < 1 para expandir los valores bajos de saturación
+gamma_val = 0.5; 
+% S = S .^ gamma_val;
 % Maximizar la varianza inter-clase sobre el canal S.
 level_otsu = graythresh(S);
+level_otsu = 0.38;
 fprintf('Umbral de Otsu calculado para Saturación: %.4f\n', level_otsu);
 
 % Binarización
