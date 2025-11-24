@@ -1,9 +1,14 @@
 para segmentar morado, hacer gamma. pero no va bien. como prueba, desplazar el umbral para abajo en la imagen actual. 
+	RESULTS: gamma 0.15 es ideal pero es muy basto y con otras imagenes fallara. descartamos por ahora. 
 
-el morado va muy mal con canal, valorar aportacion del canal H, donde morado destaca mas (gemini)
+	PARA FONDOS CLAROS, gamma 1.4 oscurece en general. 
 
 
-batch de varias imagenes
+el morado va muy mal con canal, valorar aportacion del canal H, donde morado destaca mas (gemini): HECHO, validar en otros colores y tal. 
+
+Pendiente: Papel del canal V + gamma en imagenes oscuras. 
+
+batch de varias imagenes. HECHO
 
 mejorar procesado morfologico
 
