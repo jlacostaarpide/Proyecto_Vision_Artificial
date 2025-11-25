@@ -24,7 +24,7 @@ imagenes = {
 % 4: Análisis V (Detección de Oscuros + Histograma Invertido)
 % 5: Limpieza Morfológica
 % 6: Resultado Final
-% show_figures = [1, 1, 1, 1, 1, 1]; 
+% show_figures = [1, 1, 1, 0, 1, 1]; 
 show_figures = [0, 0, 0, 0, 0, 1]; 
 
 for i = 1:length(imagenes)
@@ -58,14 +58,13 @@ for i = 1:length(imagenes)
     end
 
     % 4. ANÁLISIS CANAL S (Original)
-    gamma_val = 1; 
+    gamma_val = 1.4; 
     S_proc = S .^ gamma_val;
     level_otsu_S = graythresh(S_proc);
     mask_S = imbinarize(S_proc, level_otsu_S);
     
     fprintf('  > S: Umbral Otsu = %.4f\n', level_otsu_S);
     
-    % FIGURA 2: Lógica S
     if show_figures(2) == 1
         figure('Name', 'Canal S', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
         subplot(2, 2, 1);
@@ -180,7 +179,8 @@ for i = 1:length(imagenes)
         all_circ = [stats.Circularity];
         umbral_circ = 0.2; 
         
-        valid_idx = find((all_areas > umbral_area) & (all_circ > umbral_circ));
+        valid_idx = find((all_areas > umbral_area));
+        % valid_idx = find((all_areas > umbral_area) & (all_circ > umbral_circ));
         final_mask_filtered = ismember(L, valid_idx);
         
         stats_final = regionprops(final_mask_filtered, 'Area', 'Centroid', 'BoundingBox', 'Circularity', 'Image');
