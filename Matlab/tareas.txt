@@ -8,6 +8,8 @@ el morado va muy mal con canal, valorar aportacion del canal H, donde morado des
 
 Pendiente: Papel del canal V + gamma en imagenes oscuras. 
 
+en el canal H, en vez de umbral fijo, probar otsu + gamma. como?
+
 batch de varias imagenes. HECHO
 
 mejorar procesado morfologico
@@ -15,3 +17,10 @@ mejorar procesado morfologico
 mejorar filtrado?
 
 correccion de brillo/contraste para imagenes de la camara chusta
+
+
+primero cierre, luego apertura, imclose, imopen (para quitar metidos feos). peeero, todo esto despues de hacer lo de discriminar por area
+
+para hacer fill: mascara al contorno. coger la mascara negada de tu pieza, deprarla para quitar las impurezas, y te queda algo que cuando dilates...
+
+ecualizar el canal V en percentiles 1 y 95, luego sustituir ese canal V en la imagen. (previo a todo el procesado o al final). asi las imagenes oscuras florece

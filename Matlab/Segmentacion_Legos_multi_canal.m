@@ -24,8 +24,8 @@ imagenes = {
 % 4: Análisis V (Detección de Oscuros + Histograma Invertido)
 % 5: Limpieza Morfológica
 % 6: Resultado Final
-% show_figures = [1, 1, 1, 0, 1, 1]; 
-show_figures = [0, 0, 0, 0, 0, 1]; 
+% show_figures = [1, 1, 1, 0, 1, 1, 1]; 
+show_figures = [0, 0, 0, 0, 1, 1, 1]; 
 
 for i = 1:length(imagenes)
     nombre_imagen = imagenes{i};
@@ -48,6 +48,16 @@ for i = 1:length(imagenes)
     H = I_hsv(:,:,1);
     S = I_hsv(:,:,2);
     V = I_hsv(:,:,3);
+
+    % --- ECUALIZACIÓN DEL CANAL V (Percentiles 1% y 95%) ---
+    % Esto "enciende" las imágenes oscuras estirando el histograma
+    % El segundo valor es 0.05 porque stretchlim pide el % de saturación por arriba (100-95=5)
+    limits = stretchlim(V, [0.01 0.05]); 
+    V_eq = imadjust(V, limits, []); 
+    % Actualizamos las variables para el resto del código
+    I_hsv(:,:,3) = V_eq; % Actualizamos la matriz HSV global
+    % I_corrected_V = hsv2rgb(I_hsv);
+    % V = V_eq;            % Actualizamos la variable suelta V
     
     % FIGURA 1: Canales Originales
     if show_figures(1) == 1
@@ -57,32 +67,64 @@ for i = 1:length(imagenes)
         subplot(1,3,3); imshow(V); colormap(gca, 'gray'); title('Canal V (Valor)');
     end
 
-    % 4. ANÁLISIS CANAL S (Original)
-    gamma_val = 1.4; 
+    % 4. ANÁLISIS CANAL S (Multi-level Otsu)
+    gamma_val = 1; 
     S_proc = S .^ gamma_val;
-    level_otsu_S = graythresh(S_proc);
+    multilevel_otsu_S = multithresh(S_proc,2);
+
+    % Calculamos 2 umbrales para obtener 3 clases:
+    % Clase 1: Fondo oscuro/bajo S
+    % Clase 2: Zona intermedia (¿Fondo o LEGO?)
+    % Clase 3: Saturación alta (LEGO seguro)
+    thresh_vals = multithresh(S_proc, 2);
+    
+    % Clasificamos la imagen en 1, 2 y 3 basada en esos umbrales
+    L_quantized = imquantize(S_proc, thresh_vals);
+    
+    % Calculamos qué porcentaje de la imagen ocupa la Clase 2 (Intermedia)
+    num_pixels = numel(S_proc);
+    count_mid = sum(L_quantized(:) == 2);
+    ratio_mid = count_mid / num_pixels;
+    
+    % Si la clase intermedia ocupa más del 15% (0.15) de la imagen, asumimos
+    % que es demasiado grande para ser piezas de LEGO y es parte del fondo.
+    umbral_area_max_mid = 0.15; 
+    
+    if ratio_mid > umbral_area_max_mid
+        % Caso A: La clase media es enorme -> Es FONDO.
+        level_otsu_S = thresh_vals(2);
+    else
+        % Caso B: La clase media es pequeña -> Es parte del LEGO.
+        level_otsu_S = thresh_vals(1);
+    end
+    
+    fprintf('  > S: Umbrales Otsu detectados: [%.4f, %.4f]\n', thresh_vals(1), thresh_vals(2))
     mask_S = imbinarize(S_proc, level_otsu_S);
     
-    fprintf('  > S: Umbral Otsu = %.4f\n', level_otsu_S);
-    
     if show_figures(2) == 1
-        figure('Name', 'Canal S', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+        figure('Name', 'Canal S - MultiOtsu', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
         subplot(2, 2, 1);
-        imshow(S); colormap(gca, 'jet'); colorbar;
+        imshow(S_proc); colormap(gca, 'jet'); colorbar;
         title('Canal Saturación (Entrada)');
         
         subplot(2, 2, 2);
-        imhist(S); hold on;
-        line([level_otsu_S, level_otsu_S], ylim, 'Color', 'r', 'LineWidth', 2);
-        text(level_otsu_S, max(ylim)*0.8, sprintf(' Umbral: %.3f', level_otsu_S), 'Color', 'r', 'FontWeight', 'bold');
-        title('Histograma + Corte de Otsu');
-        xlabel('Intensidad de Saturación'); ylabel('Cantidad de Píxeles');
+        imhist(S_proc); hold on;
+        % Dibujamos los dos candidatos en azul suave
+        xline(thresh_vals(1), '--b', 'LineWidth', 1);
+        xline(thresh_vals(2), '--b', 'LineWidth', 1);
+        % Dibujamos el elegido en rojo fuerte
+        xline(level_otsu_S, 'r', 'LineWidth', 2);
+        
+        text(level_otsu_S, max(ylim)*0.8, sprintf(' Th: %.3f', level_otsu_S), 'Color', 'r', 'FontWeight', 'bold');
+        title({'Histograma', sprintf('Clase Media: %.1f%%. Umbral: %.1f%%', ratio_mid*100, umbral_area_max_mid)});
+        xlabel('Intensidad S'); ylabel('Píxeles');
         
         subplot(2, 2, [3, 4]);
         imshow(mask_S);
-        title('Máscara Binaria (antes de limpiar)');
+        title(['Máscara Binaria S (Umbral Otsu: ' num2str(level_otsu_S) ')']);
     end
-    
+
+
     % 5. ANÁLISIS CANAL H (Rescate Morado)
     % Rango Morado/Rosa: 0.68 a 0.88 aprox.
     % Condición de seguridad: S debe ser > 40% del umbral de Otsu calculado antes
@@ -167,7 +209,39 @@ for i = 1:length(imagenes)
         title({'PASO 4: Máscara Final', '(imclearborder: quita bordes)'});
     end
 
-    % 8. RESULTADOS Y FILTRADO
+    % 8. PROCESADO MORFÓLOGICO AVANZADO
+    % OPERACIÓN DE CIERRE
+    %    Un disco de radio 8-15 suele ir bien. Si separas mucho las piezas,
+    %    baja este número. Si las piezas se rompen mucho, súbelo.
+    radio_pegamento = 12; 
+    se_merge = strel('disk', radio_pegamento);
+    mask_merged = imclose(mask_final, se_merge);
+    
+    % RELLENO
+    mask_merged = imfill(mask_merged, 'holes');
+    
+    % APERTURA FINAL (Suavizar contornos)
+    se_smooth = strel('disk', 5);
+    mask_final_consolidated = imopen(mask_merged, se_smooth);
+
+    if show_figures(6) == 1
+        figure('Name', 'Procesado Morfológico Avanzado', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+        subplot(2, 2, 1); imshow(mask_final); title('1. Unión S+H+V');
+        
+        subplot(2, 2, 2); imshow(mask_merged); 
+        title(sprintf('4. CIERRE (Pegamento R=%d)', radio_pegamento));
+        
+        subplot(2, 2, 3); imshow(mask_final_consolidated); 
+        title('5. APERTURA (Suavizado Final)');
+        
+        % Superposición para ver qué ha cambiado
+        subplot(2, 2, 4); 
+        % imshow(labeloverlay(mask_final_consolidated, mask_final, 'Colormap', 'spring', 'Transparency', 0.5));        imshow(pair_img);
+        title('Cyan: Original / Rosa: Añadido por Cierre');
+    end
+    mask_final = mask_final_consolidated;
+
+    % 9. RESULTADOS Y FILTRADO
     [L, num_inicial] = bwlabel(mask_final, 8);
     stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Eccentricity', 'Image');
     
@@ -181,20 +255,19 @@ for i = 1:length(imagenes)
         
         valid_idx = find((all_areas > umbral_area));
         % valid_idx = find((all_areas > umbral_area) & (all_circ > umbral_circ));
-        final_mask_filtered = ismember(L, valid_idx);
+        mask_filtered = ismember(L, valid_idx);
         
-        stats_final = regionprops(final_mask_filtered, 'Area', 'Centroid', 'BoundingBox', 'Circularity', 'Image');
+        stats_final = regionprops(mask_filtered, 'Area', 'Centroid', 'BoundingBox', 'Circularity', 'Image');
         num_final = length(stats_final);
     else
-        final_mask_filtered = mask_final;
+        mask_filtered = mask_final;
         stats_final = [];
         num_final = 0;
     end
-    
     fprintf('  > Objetos Detectados: %d\n', num_final);
 
-    % 9. VISUALIZACIÓN DE RESULTADOS
-    if show_figures(6) == 1
+    % 10. VISUALIZACIÓN DE RESULTADOS
+    if show_figures(7) == 1
         figure('Name', 'Resultados Finales de Segmentación', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
         
         % Imagen Original
@@ -233,6 +306,7 @@ for i = 1:length(imagenes)
                 
                 % Extraer la pieza con fondo negro
                 bb = stats_final(k).BoundingBox;
+                % img_crop = imcrop(I_corrected_V, bb);
                 img_crop = imcrop(I_corrected, bb);
                 
                 % Recortar la máscara correspondiente a el objeto
