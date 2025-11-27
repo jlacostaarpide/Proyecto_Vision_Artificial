@@ -10,11 +10,13 @@ addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database")
 
 % Juan:
 addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\tests");
-addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database");
+addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G01_COD123");
+addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G02_COD456");
+addpath("C:\Users\jlaco\OneDrive\Escritorio\Académico\UPNA\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G03_COD789");
 
 %% 1. CARGA DE LA IMAGEN
 nombre_imagen = 'IMG_7650.jpg';
-%nombre_imagen = '08_270_70_004.jpg';
+nombre_imagen = '08_270_70_004.jpg';
 
 I = imread(nombre_imagen);
 I_double = im2double(I);
@@ -56,13 +58,13 @@ dist_H = abs(H - H_fondo);
 % (las piezas tienen un matiz muy distinto al de la mesa)
 umbral_distH = 0.06;            % puedes probar 0.05–0.10
 mask_H = dist_H > umbral_distH;
-figure; imshow(mask_H);
+%figure; imshow(mask_H);
 
 % --- 4.2. Máscara basada en saturación (como antes) ---
 level_otsu_S = graythresh(S);
 fprintf('Umbral de Otsu para S: %.4f\n', level_otsu_S);
 mask_S = imbinarize(S, level_otsu_S);
-figure; imshow(mask_S);
+%figure; imshow(mask_S);
 
 % --- 4.3. Máscara final: unión de ambas ---
 % Si un píxel tiene suficiente saturación O es cromáticamente distinto
