@@ -1,5 +1,7 @@
 #include "ProyectoPSM.h"
 #include <filesystem>
+#include <QFileDialog>
+#include "Segmentacion.h"
 
 ProyectoPSM::ProyectoPSM(QWidget *parent)
     : QMainWindow(parent)
@@ -34,10 +36,15 @@ ProyectoPSM::ProyectoPSM(QWidget *parent)
 		connect(ui.pbtnCapturar, SIGNAL(clicked()), this, SLOT(VisualizeImage()));
 		connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
 		connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
+		connect(ui.pbtnAbrirImag, SIGNAL(clicked()), this, SLOT(SelectImage()));
+
 	}
 	else {
 		ui.lblImagen->setText("ERROR: No se ha podido establecer comunicación con la cámara.");
 		ui.pbtnCapturar->setEnabled(false);
+
+		//Este connect es para probar que funciona qt sin tener la cámara conectada, eliminar después
+		connect(ui.pbtnSegmentar, SIGNAL(clicked()), this, SLOT(SelectImage()));
 	}
 }
 
@@ -109,10 +116,76 @@ void ProyectoPSM::SaveImage()
 	}
 }
 
-
-
-
 void ProyectoPSM::ReturnTab()
 {
 	ui.tabWidget->setCurrentIndex(0);
+}
+
+
+void ProyectoPSM::SelectImage()
+{
+	ui.tabWidget->setCurrentIndex(2);
+
+	// Abrir diálogo de selección de fichero
+	OpenPicture();
+	//Hacer segmentación
+	cv::Mat seg = Segmentacion::Segment(LastImage);
+	if (!seg.empty()) {
+		cv::Mat seg_rgb;
+		cv::cvtColor(seg, seg_rgb, cv::COLOR_BGR2RGB);
+		QImage qseg(reinterpret_cast<const uchar*>(seg_rgb.data), seg_rgb.cols, seg_rgb.rows, static_cast<int>(seg_rgb.step), QImage::Format_RGB888);
+		ui.lblImagSegmentada->setPixmap(QPixmap::fromImage(qseg.copy()).scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+		ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
+	}
+
+}
+
+void ProyectoPSM::OpenPicture()
+{
+	QString fileName = QFileDialog::getOpenFileName(this, tr("Open Image"), "", tr("Image Files (*.png *.jpg *.bmp);;All Files (*)"));
+	if (fileName.isEmpty()) return;
+
+	qDebug() << "SelectImage: ruta seleccionada:" << fileName;
+
+	// Comprobar existencia con QFile (maneja unicode correctamente)
+	if (!QFile::exists(fileName)) {
+		qDebug() << "SelectImage: fichero no existe según QFile()";
+		return;
+	}
+
+	// Leer binario con QFile y decodificar con OpenCV (evita problemas de codificación de ruta)
+	QFile f(fileName);
+	if (!f.open(QIODevice::ReadOnly)) {
+		qDebug() << "SelectImage: no se puede abrir el fichero con QFile()";
+		return;
+	}
+	QByteArray fileData = f.readAll();
+	f.close();
+
+	std::vector<uchar> vec(fileData.begin(), fileData.end());
+	cv::Mat image = cv::imdecode(vec, cv::IMREAD_COLOR); // devuelve BGR
+	if (image.empty()) {
+		qDebug() << "SelectImage: imdecode falló. Intentando QImage como fallback.";
+	}
+
+	qDebug() << "SelectImage: imagen decodificada:" << image.cols << "x" << image.rows << " channels:" << image.channels();
+
+	// Convertir BGR -> RGB para QImage
+	cv::Mat rgb;
+	cv::cvtColor(image, rgb, cv::COLOR_BGR2RGB);
+
+	QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
+	QPixmap pix = QPixmap::fromImage(qimg.copy()); // copy() asegura memoria propia
+
+	if (pix.isNull()) {
+		qDebug() << "SelectImage: QPixmap nulo tras la conversion.";
+		return;
+	}
+
+	QPixmap scaled = pix.scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+	ui.lblImagNoSegmentada->setPixmap(scaled);
+	ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
+
+	// Guardar para uso posterior
+	LastImage = image.clone();
 }

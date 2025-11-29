@@ -32,5 +32,7 @@ private slots:
 	void ShowImage();
 	void VisualizeImage();
 	void ReturnTab();
+	void SelectImage();
+	void OpenPicture();
 };
 
