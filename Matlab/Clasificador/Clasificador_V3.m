@@ -131,7 +131,7 @@ tabulate(labels_train)
 %% 2) EXTRAER CARACTERÍSTICAS PARA TODAS LAS IMÁGENES DE ENTRENAMIENTO
 
 numTrain = numel(images_train);
-Xtrain   = zeros(numTrain, numcarac); %Tiene que coincidir con el numero de extractColorFeatures  
+Xtrain   = zeros(numTrain, numcarac); %Tiene que coincidir con extractColorFeatures  
 
 for i = 1:numTrain
     I = images_train{i};
@@ -139,29 +139,60 @@ for i = 1:numTrain
 end
 Ytrain = labels_train;
 
-% %% 3) ENTRENAR CLASIFICADOR k-NN
-% 
-% Mdl = fitcknn(Xtrain, Ytrain, ...
-%               'NumNeighbors', 3, ...
-%               'Standardize', true);
+%% 3) PARTIR EN 80% TRAIN / 20% TEST (ESTRATIFICADO POR CLASE)
 
-%% 3) CREAR TABLA PARA CLASSIFICATION LEARNER
+rng(1);   % para reproducibilidad
 
- feat = {'H_mean_circ', 'H_var_circ', ...
-            'S_median', 'S_IQR', ...
-            'V_median', 'V_IQR', ...
-            'S_mean', 'V_mean'};
- 
+cv = cvpartition(Ytrain,'HoldOut',0.2);   % 20% test
+
+idxTrain = training(cv);   % índices lógicos de train
+idxTest  = test(cv);       % índices lógicos de test
+
+X_tr = Xtrain(idxTrain,:);   % características train
+Y_tr = Ytrain(idxTrain);     % etiquetas train
+
+X_te = Xtrain(idxTest,:);    % características test
+Y_te = Ytrain(idxTest);      % etiquetas test
+
+fprintf('Tamaño train: %d muestras\n', size(X_tr,1));
+fprintf('Tamaño test : %d muestras\n', size(X_te,1));
+
+%% 4) ENTRENAR CLASIFICADOR k-NN SOLO CON EL 80% TRAIN
+
+Mdl = fitcknn(X_tr, Y_tr, ...
+              'NumNeighbors', 5, ...   % o 3, lo que te haya ido mejor
+              'Standardize', true);
+
+%% 5) EVALUAR EN EL 20% TEST
+
+Y_pred = predict(Mdl, X_te);
+
+% Matriz de confusión
+[cm, order] = confusionmat(Y_te, Y_pred);
+
+figure;
+confusionchart(cm, order);
+title('Matriz de confusión (20% test)');
+
+% Exactitud global
+acc = sum(diag(cm)) / sum(cm(:));
+fprintf('Accuracy global en test: %.2f %%\n', 100*acc);
+
+% Exactitud por clase
+acc_por_clase = diag(cm) ./ sum(cm,2);
+tabla_acc = table(order, acc_por_clase, ...
+                  'VariableNames', {'Clase','Accuracy'});
+disp(tabla_acc);
+
+%% 6) (OPCIONAL) CREAR TABLA PARA CLASSIFICATION LEARNER CON TODO EL CONJUNTO
+
+feat = {'H_mean_circ', 'H_var_circ', ...
+        'S_median', 'S_IQR', ...
+        'V_median', 'V_IQR', ...
+        'S_mean', 'V_mean'};
+
 T = array2table(Xtrain, 'VariableNames', feat);
 T.Label = Ytrain;   % columna de respuesta (categorical)
 
-% Guardar por si quieres cargarla otro día
 save('legoFeatures_TrainingSet8carac.mat','T');
-
 disp('✔ Tabla T creada en workspace con features y Label');
-
-% %% 4) GUARDAR MODELO ENTRENADO
-% 
-% save('legoModel_porCodigoTercerBloque.mat','Mdl','codigoClases','classNames');
-% disp("✔ Modelo entrenado y guardado como legoModel_porCodigoTercerBloque.mat");
-

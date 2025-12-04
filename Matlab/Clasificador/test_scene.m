@@ -1,31 +1,52 @@
-%% TEST DE UNA ESCENA
-
-clear; close all; clc;
-
-%basePath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G01_COD123";
-%basePath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G02_COD456";
-basePath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G03_COD789";
-basePath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\tests\";
+%% TEST CLASIFICADOR PIEZAS LEGO
 
 
-addpath(basePath);
+%% === 1) CARGAR MODELO ENTRENADO ===
 
-%load('legoModel_porCodigoPrimerBloque.mat','Mdl','classNames','codigoClases');
-%load('legoModel_porCodigoSegundoBloque.mat','Mdl','classNames','codigoClases');
-load('legoModel_porCodigoTercerBloque.mat','Mdl','classNames','codigoClases');
+load('legoFeatures_TrainingSet8carac.mat');   % el modelo exportado desde Classification Learner
+% Alternativa si usaste fitcknn:
+% load('legoModel_porCodigo.mat'); % variable Mdl
 
-nombre_imagen = fullfile(basePath, 'amarillas.jpg');  % por ejemplo
-[images_final, stats_final, num_final, I_corrected] = segmentarPiezas2(nombre_imagen);
+%% === 2) SELECCIONAR IMAGEN A TESTEAR ===
 
-numPiezas = sum(~cellfun('isempty', images_final));
+testImage = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\tests\amarillas_camara.jpg';
 
-figure;
-for k = 1:numPiezas
-    I_piece = images_final{k};
-    feat_k  = extractColorFeatures(I_piece);
-    label_k = predict(Mdl, feat_k);
+fprintf("\n--- Clasificando imagen: %s ---\n", testImage);
 
-    subplot(2,2,k);
-    imshow(I_piece);
-    title(sprintf('Pred: %s', string(label_k)));
+%% === 3) SEGMENTAR LA IMAGEN ===
+
+[pieces_test, stats_test, num_test, Icorr] = segmentarPiezas2(testImage);
+
+if num_test == 0
+    error("❌ No se detectaron piezas en la imagen de test");
 end
+
+%% === 4) CLASIFICAR CADA PIEZA DETECTADA ===
+
+figure('Name','Clasificación Test','NumberTitle','off');
+
+for k = 1:num_test
+    Ipiece = pieces_test{k};
+
+    % 1) Extraer features (fila 1×D)
+    feat = extractColorFeatures(Ipiece);   % p.ej. 1x8 double
+    
+    % 2) Convertir a tabla con los mismos nombres que en el entrenamiento
+    featTable = array2table(feat, ...
+        'VariableNames', trainedModel.RequiredVariables);
+    
+    % 3) Predecir usando el modelo exportado
+    predictedLabel = trainedModel.predictFcn(featTable);
+
+    % Si usas un KNN manual:
+    % predictedLabel = predict(Mdl, feat);
+
+    % === MOSTRAR RESULTADO ===
+    subplot(1, num_test, k);
+    imshow(Ipiece);
+    title(sprintf('Pred: %s', string(predictedLabel)), 'FontSize',14);
+end
+
+
+
+
