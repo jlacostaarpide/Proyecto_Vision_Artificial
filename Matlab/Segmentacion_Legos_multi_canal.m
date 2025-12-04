@@ -12,8 +12,7 @@ addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
 
 %% 1. CARGA DE LA IMAGEN
 
-imagenes = {
-    
+imagenes = {    
     % 'IMG_7647.jpg';
     % 'IMG_7643.jpg';
     % '4_legos.jpg';
@@ -21,6 +20,8 @@ imagenes = {
     % '07_315_10_005.jpg';
     % '09_270_70_001.jpg';
     % '09_270_70_003.jpg';
+
+    % '08_270_40_003.jpg';
     
     % '01_270_70_003.jpg';
     % '04_270_10_003.jpg';
@@ -37,16 +38,36 @@ imagenes = {
     % '12_270_70_003.jpg';
 };
 
+sweep_codes   = [8];      % Ej: [8] o [8, 9] (Código de pieza)
+sweep_orient  = [0, 45, 90, 135, 180, 225, 270, 315];  % Ej: [0, 45, 90, 135...] (Orientación)
+sweep_zenith  = [40];        % Ej: [10, 40, 70, 90] (Ángulo Cenital)
+sweep_seq     = 1;         % Ej: 1:5 o [1, 3, 5] (Número de secuencia)
+
+for c = sweep_codes
+    for o = sweep_orient
+        for z = sweep_zenith
+            for s = sweep_seq
+                nombre_generado = sprintf('%02d_%03d_%02d_%03d.jpg', c, o, z, s);
+                imagenes{end+1} = nombre_generado; 
+            end
+        end
+    end
+end
+
 % SELECTOR DE FIGURAS (6 VENTANAS)
 % 1: Canales HSV
 % 2: Análisis S (Otsu + Histograma original)
 % 3: Análisis H (Detección de Morado)
-% 4: Análisis V (Detección de Oscuros + Histograma Invertido)
+% 4: Análisis V: Eliminado por ahora
 % 5: Limpieza Morfológica
-% 6: Limpieza Morfológica parte 2
-% 7: Resultado Final
-show_figures = [1, 1, 1, 0, 1, 1]; 
-% show_figures = [0, 0, 0, 0, 0, 1]; 
+% 6: Resultado Final
+% show_figures = [1, 1, 1, 0, 1, 1]; 
+show_figures = [0, 0, 0, 0, 0, 0]; 
+
+save_images = true;
+output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\Segmented";
+
+fprintf('Procesando %d imágenes\n', length(imagenes));
 
 for i = 1:length(imagenes)
     nombre_imagen = imagenes{i};
@@ -330,6 +351,29 @@ for i = 1:length(imagenes)
                 
                 imshow(img_crop_masked);
                 title(sprintf('Pieza #%d', k));
+                if save_images
+                    % Crear carpeta si no existe
+                    if ~exist(output_folder, 'dir')
+                        mkdir(output_folder);
+                    end
+                    
+                    % Obtener nombre base y extensión
+                    [~, name_base, ext_orig] = fileparts(nombre_imagen);
+                    
+                    if num_final > 1
+                        % char(97) es 'a'. Usamos 96 + k para sacar a, b, c...
+                        suffix = sprintf('_%c', char(96 + k));
+                    else
+                        suffix = ''; % Sin sufijo si solo hay una pieza
+                    end
+                    
+                    % Construir nombre final: segmented_NombreOriginal_a.jpg
+                    nombre_guardado = sprintf('segmented_%s%s%s', name_base, suffix, ext_orig);
+                    ruta_completa = fullfile(output_folder, nombre_guardado);
+                    
+                    imwrite(img_crop_masked, ruta_completa);
+                    fprintf('   > Guardado: %s\n', nombre_guardado);
+                end
             end
         end
     end
