@@ -4,17 +4,37 @@ clear; close all; clc;
 
 % addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\matlab_imagen\Matlab - Imagen")
 % addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\legocodes")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G01_COD123")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G02_COD456")
 addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G03_COD789")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G04_COD101112")
 addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
 
 %% 1. CARGA DE LA IMAGEN
+
 imagenes = {
-    'IMG_7647.jpg';
-    'IMG_7643.jpg';
-    '4_legos.jpg';
-    '07_270_70_003.jpg';
-    '07_315_10_005.jpg';
-    '08_270_70_003.jpg';
+    
+    % 'IMG_7647.jpg';
+    % 'IMG_7643.jpg';
+    % '4_legos.jpg';
+    % '07_270_70_003.jpg';
+    % '07_315_10_005.jpg';
+    % '09_270_70_001.jpg';
+    % '09_270_70_003.jpg';
+    
+    % '01_270_70_003.jpg';
+    % '04_270_10_003.jpg';
+    % '04_045_10_003.jpg';
+    % '04_270_40_003.jpg';
+    % '04_045_40_003.jpg';
+    % '04_270_70_003.jpg';
+    % '04_045_70_003.jpg';
+    % '04_270_90_003.jpg';
+    % '10_270_70_003.jpg';
+    % '11_270_70_003.jpg';
+    % '11_135_70_003.jpg';
+    % '11_45_90_002.jpg';
+    % '12_270_70_003.jpg';
 };
 
 % SELECTOR DE FIGURAS (6 VENTANAS)
@@ -23,9 +43,10 @@ imagenes = {
 % 3: Análisis H (Detección de Morado)
 % 4: Análisis V (Detección de Oscuros + Histograma Invertido)
 % 5: Limpieza Morfológica
-% 6: Resultado Final
-% show_figures = [1, 1, 1, 0, 1, 1, 1]; 
-show_figures = [0, 0, 0, 0, 1, 1, 1]; 
+% 6: Limpieza Morfológica parte 2
+% 7: Resultado Final
+show_figures = [1, 1, 1, 0, 1, 1]; 
+% show_figures = [0, 0, 0, 0, 0, 1]; 
 
 for i = 1:length(imagenes)
     nombre_imagen = imagenes{i};
@@ -88,7 +109,7 @@ for i = 1:length(imagenes)
     
     % Si la clase intermedia ocupa más del 15% (0.15) de la imagen, asumimos
     % que es demasiado grande para ser piezas de LEGO y es parte del fondo.
-    umbral_area_max_mid = 0.15; 
+    umbral_area_max_mid = 0.095; 
     
     if ratio_mid > umbral_area_max_mid
         % Caso A: La clase media es enorme -> Es FONDO.
@@ -192,29 +213,11 @@ for i = 1:length(imagenes)
     mask_clean = imopen(mask_filled, se_noise);
     mask_final = imclearborder(mask_clean);
     
-    % FIGURA 5: Morfología
-    if show_figures(5) == 1
-        figure('Name', 'Limpieza Morfológica', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
-        subplot(2, 2, 1);
-        imshow(mask_combined);
-        title({'PASO 1: Binaria Original', '(Con agujeros y ruido, S + H + V)'});
-        subplot(2, 2, 2);
-        imshow(mask_filled);
-        title({'PASO 2: Relleno de Huecos', '(imfill: recupera studs brillantes)'});
-        subplot(2, 2, 3);
-        imshow(mask_clean);
-        title({'PASO 3: Eliminación de Ruido', '(imopen: borra puntos pequeños)'});
-        subplot(2, 2, 4);
-        imshow(mask_final);
-        title({'PASO 4: Máscara Final', '(imclearborder: quita bordes)'});
-    end
-
-    % 8. PROCESADO MORFÓLOGICO AVANZADO
     % OPERACIÓN DE CIERRE
     %    Un disco de radio 8-15 suele ir bien. Si separas mucho las piezas,
     %    baja este número. Si las piezas se rompen mucho, súbelo.
-    radio_pegamento = 12; 
-    se_merge = strel('disk', radio_pegamento);
+    radio_disco = 12; 
+    se_merge = strel('disk', radio_disco);
     mask_merged = imclose(mask_final, se_merge);
     
     % RELLENO
@@ -223,22 +226,28 @@ for i = 1:length(imagenes)
     % APERTURA FINAL (Suavizar contornos)
     se_smooth = strel('disk', 5);
     mask_final_consolidated = imopen(mask_merged, se_smooth);
-
-    if show_figures(6) == 1
-        figure('Name', 'Procesado Morfológico Avanzado', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
-        subplot(2, 2, 1); imshow(mask_final); title('1. Unión S+H+V');
-        
-        subplot(2, 2, 2); imshow(mask_merged); 
-        title(sprintf('4. CIERRE (Pegamento R=%d)', radio_pegamento));
-        
-        subplot(2, 2, 3); imshow(mask_final_consolidated); 
-        title('5. APERTURA (Suavizado Final)');
-        
-        % Superposición para ver qué ha cambiado
-        subplot(2, 2, 4); 
-        % imshow(labeloverlay(mask_final_consolidated, mask_final, 'Colormap', 'spring', 'Transparency', 0.5));        imshow(pair_img);
-        title('Cyan: Original / Rosa: Añadido por Cierre');
+    
+    % FIGURA 5: Morfología
+    if show_figures(5) == 1
+        figure('Name', 'Limpieza Morfológica', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+        subplot(2, 3, 1);
+        imshow(mask_combined);
+        title({'1: Binaria Original', '(Con agujeros y ruido, S + H)'});
+        subplot(2, 3, 2);
+        imshow(mask_filled);
+        title({'2: Relleno de Huecos', '(imfill)'});
+        subplot(2, 3, 3);
+        imshow(mask_clean);
+        title({'3: Eliminación de Ruido', '(imopen: borra puntos pequeños)'});
+        subplot(2, 3, 4);
+        imshow(mask_final);
+        title({'4: Eliminación de bordes', '(imclearborder: quita bordes)'});
+        subplot(2, 3, 5); imshow(mask_merged); 
+        title(sprintf('5. CIERRE (Disco R=%d)', radio_disco));
+        subplot(2, 3, 6); imshow(mask_final_consolidated); 
+        title('6. APERTURA (Suavizado Final)');
     end
+
     mask_final = mask_final_consolidated;
 
     % 9. RESULTADOS Y FILTRADO
@@ -267,13 +276,13 @@ for i = 1:length(imagenes)
     fprintf('  > Objetos Detectados: %d\n', num_final);
 
     % 10. VISUALIZACIÓN DE RESULTADOS
-    if show_figures(7) == 1
+    if show_figures(6) == 1
         figure('Name', 'Resultados Finales de Segmentación', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
         
         % Imagen Original
         subplot(2, 2, 1);
         imshow(I);
-        title('Imagen Original');
+        title(sprintf('Imagen Original: %s', nombre_imagen), 'Interpreter', 'none');
         
         % Imagen con Corrección y Superposiciones
         subplot(2, 2, 2);
