@@ -37,14 +37,13 @@ ProyectoPSM::ProyectoPSM(QWidget *parent)
 		connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
 		connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
 		connect(ui.pbtnAbrirImag, SIGNAL(clicked()), this, SLOT(SelectImage()));
+		connect(ui.pbtnSegmentar, SIGNAL(clicked()), this, SLOT(SegmentAndSave()));
 
 	}
 	else {
 		ui.lblImagen->setText("ERROR: No se ha podido establecer comunicación con la cámara.");
 		ui.pbtnCapturar->setEnabled(false);
 
-		//Este connect es para probar que funciona qt sin tener la cámara conectada, eliminar después
-		connect(ui.pbtnSegmentar, SIGNAL(clicked()), this, SLOT(SelectImage()));
 	}
 }
 
@@ -122,70 +121,40 @@ void ProyectoPSM::ReturnTab()
 }
 
 
-void ProyectoPSM::SelectImage()
+// Carga una instantánea de la última imagen de la cámara y la segmenta (NO guarda en disco)
+void ProyectoPSM::SegmentAndSave()
 {
-	ui.tabWidget->setCurrentIndex(2);
+	if (LastImage.empty()) {
+		ui.txtImageName->setText(QString::fromStdString("No hay imagen disponible desde la cámara."));
+		qDebug() << "SegmentAndSave: LastImage está vacío.";
+		return;
+	}
 
-	// Abrir diálogo de selección de fichero
-	OpenPicture();
-	//Hacer segmentación
-	cv::Mat seg = Segmentacion::Segment(LastImage);
+	// Tomar una instantánea inmutable de la imagen mostrada por la cámara
+	CapturedImage = LastImage.clone(); // se guarda en variable para uso posterior si hace falta
+
+	// Mostrar la imagen sin segmentar en la UI
+	cv::Mat rgb;
+	cv::cvtColor(CapturedImage, rgb, cv::COLOR_BGR2RGB);
+	QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
+	ui.lblImagNoSegmentada->setPixmap(QPixmap::fromImage(qimg.copy()).scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+	ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
+
+	// Aplicar segmentación sobre la instantánea
+	cv::Mat seg = Segmentacion::Segment(CapturedImage);
 	if (!seg.empty()) {
 		cv::Mat seg_rgb;
 		cv::cvtColor(seg, seg_rgb, cv::COLOR_BGR2RGB);
 		QImage qseg(reinterpret_cast<const uchar*>(seg_rgb.data), seg_rgb.cols, seg_rgb.rows, static_cast<int>(seg_rgb.step), QImage::Format_RGB888);
 		ui.lblImagSegmentada->setPixmap(QPixmap::fromImage(qseg.copy()).scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 		ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
+		ui.txtImageName->setText(QString::fromStdString("Segmentación completada (sin guardar)."));
+	} else {
+		ui.lblImagSegmentada->clear();
+		ui.txtImageName->setText(QString::fromStdString("La segmentación no devolvió resultado."));
+		qDebug() << "SegmentAndSave: Segmentacion devolvió imagen vacía.";
 	}
 
-}
-
-void ProyectoPSM::OpenPicture()
-{
-	QString fileName = QFileDialog::getOpenFileName(this, tr("Open Image"), "", tr("Image Files (*.png *.jpg *.bmp);;All Files (*)"));
-	if (fileName.isEmpty()) return;
-
-	qDebug() << "SelectImage: ruta seleccionada:" << fileName;
-
-	// Comprobar existencia con QFile (maneja unicode correctamente)
-	if (!QFile::exists(fileName)) {
-		qDebug() << "SelectImage: fichero no existe según QFile()";
-		return;
-	}
-
-	// Leer binario con QFile y decodificar con OpenCV (evita problemas de codificación de ruta)
-	QFile f(fileName);
-	if (!f.open(QIODevice::ReadOnly)) {
-		qDebug() << "SelectImage: no se puede abrir el fichero con QFile()";
-		return;
-	}
-	QByteArray fileData = f.readAll();
-	f.close();
-
-	std::vector<uchar> vec(fileData.begin(), fileData.end());
-	cv::Mat image = cv::imdecode(vec, cv::IMREAD_COLOR); // devuelve BGR
-	if (image.empty()) {
-		qDebug() << "SelectImage: imdecode falló. Intentando QImage como fallback.";
-	}
-
-	qDebug() << "SelectImage: imagen decodificada:" << image.cols << "x" << image.rows << " channels:" << image.channels();
-
-	// Convertir BGR -> RGB para QImage
-	cv::Mat rgb;
-	cv::cvtColor(image, rgb, cv::COLOR_BGR2RGB);
-
-	QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
-	QPixmap pix = QPixmap::fromImage(qimg.copy()); // copy() asegura memoria propia
-
-	if (pix.isNull()) {
-		qDebug() << "SelectImage: QPixmap nulo tras la conversion.";
-		return;
-	}
-
-	QPixmap scaled = pix.scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-	ui.lblImagNoSegmentada->setPixmap(scaled);
-	ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
-
-	// Guardar para uso posterior
-	LastImage = image.clone();
+	// Cambiar a la pestaña de segmentación
+	ui.tabWidget->setCurrentIndex(2);
 }
