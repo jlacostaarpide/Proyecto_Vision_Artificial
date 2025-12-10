@@ -57,3 +57,12 @@ for i=1:8
     title('Boxplot de HmeanCirc por clase');
 end
 
+
+%%
+
+gplotmatrix(Xtrain,[],T.Label)
+
+
+
+
+

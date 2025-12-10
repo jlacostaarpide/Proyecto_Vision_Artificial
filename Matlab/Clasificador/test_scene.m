@@ -9,7 +9,7 @@ load('legoFeatures_TrainingSet8carac.mat');   % el modelo exportado desde Classi
 
 %% === 2) SELECCIONAR IMAGEN A TESTEAR ===
 
-testImage = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\tests\amarillas_camara.jpg';
+testImage = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\angulos225\05_225_10_003.jpg';
 
 fprintf("\n--- Clasificando imagen: %s ---\n", testImage);
 
@@ -18,35 +18,46 @@ fprintf("\n--- Clasificando imagen: %s ---\n", testImage);
 [pieces_test, stats_test, num_test, Icorr] = segmentarPiezas2(testImage);
 
 if num_test == 0
-    error("❌ No se detectaron piezas en la imagen de test");
+    error("No se detectaron piezas en la imagen de test");
 end
 
 %% === 4) CLASIFICAR CADA PIEZA DETECTADA ===
+figure('Name','Original + Clasificación','NumberTitle','off');
 
-figure('Name','Clasificación Test','NumberTitle','off');
+% -------------------------------------------------------------
+% SUBPLOT 1: IMAGEN ORIGINAL COMPLETA
+% -------------------------------------------------------------
+subplot(2,1,1);   % fila 1 de 2, columna única
+imshow(testImage);
+title('Imagen original', 'FontSize', 14);
+
+% -------------------------------------------------------------
+% SUBPLOT 2: PIEZAS SEGMENTADAS CON PREDICCIÓN
+% -------------------------------------------------------------
+subplot(2,1,2);   % fila 2 de 2, columna única
+
+% Creamos una cuadrícula interna para las piezas
+rows = 1;
+cols = num_test;
+
+tiledlayout(rows, cols, 'TileSpacing','compact');
 
 for k = 1:num_test
+    
     Ipiece = pieces_test{k};
 
-    % 1) Extraer features (fila 1×D)
-    feat = extractColorFeatures(Ipiece);   % p.ej. 1x8 double
-    
-    % 2) Convertir a tabla con los mismos nombres que en el entrenamiento
+    % 1) Extraer características
+    feat = extractColorFeatures(Ipiece);
+
+    % 2) Convertir a tabla si usas trainedModel de Classification Learner
     featTable = array2table(feat, ...
         'VariableNames', trainedModel.RequiredVariables);
-    
-    % 3) Predecir usando el modelo exportado
+
+    % 3) Predicción
     predictedLabel = trainedModel.predictFcn(featTable);
 
-    % Si usas un KNN manual:
-    % predictedLabel = predict(Mdl, feat);
-
-    % === MOSTRAR RESULTADO ===
-    subplot(1, num_test, k);
+    % Mostrar
+    nexttile;
     imshow(Ipiece);
-    title(sprintf('Pred: %s', string(predictedLabel)), 'FontSize',14);
+    title(sprintf('Pred: %s', string(predictedLabel)), 'FontSize', 12);
 end
-
-
-
-

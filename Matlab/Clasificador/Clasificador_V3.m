@@ -6,6 +6,48 @@ clear; close all; clc;
 
 numcarac = 8; % tiene q coincidir con el de extractColorFeatures
 
+%% Carpeta origen (donde están todas las imágenes)
+sourceFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G01_COD123";
+sourceFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G02_COD456";
+sourceFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\DB_G03_COD789";
+
+% Carpeta destino (a donde moveremos las de 225º)
+destFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\angulos225";
+
+% Crear carpeta destino si no existe
+if ~exist(destFolder, 'dir')
+    mkdir(destFolder);
+end
+
+% Listar todos los .jpg de la carpeta
+files = dir(fullfile(sourceFolder, '*.jpg'));
+
+for k = 1:length(files)
+    filename = files(k).name;
+
+    % Dividir el nombre por "_"
+    parts = split(filename, '_');
+
+    % Asegurar que tiene el formato esperado
+    if numel(parts) >= 3
+        angHor = parts{2};  % Segundo bloque → "225"
+        
+        % Comprobar si el ángulo horizontal es 225
+        if strcmp(angHor, "225")
+            % Rutas completas
+            sourceFile = fullfile(sourceFolder, filename);
+            destFile   = fullfile(destFolder, filename);
+            
+            % Mover archivo
+            movefile(sourceFile, destFile);
+            fprintf('Movido: %s\n', filename);
+        end
+    end
+end
+
+disp('Proceso completado.');
+
+
 %% 0) RUTAS BASE (AJUSTA ESTO A TU PC)
 basePath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\";
 
@@ -139,50 +181,48 @@ for i = 1:numTrain
 end
 Ytrain = labels_train;
 
-%% 3) PARTIR EN 80% TRAIN / 20% TEST (ESTRATIFICADO POR CLASE)
+%% 3) PARTIR EN 80% TRAIN / 20% VALIDACIÓN
 
 rng(1);   % para reproducibilidad
 
-cv = cvpartition(Ytrain,'HoldOut',0.2);   % 20% test
+cv = cvpartition(Ytrain,'HoldOut',0.2);   % 20% validación
 
-idxTrain = training(cv);   % índices lógicos de train
-idxTest  = test(cv);       % índices lógicos de test
+idxTrain = training(cv);
+idxVal   = test(cv);
 
-X_tr = Xtrain(idxTrain,:);   % características train
-Y_tr = Ytrain(idxTrain);     % etiquetas train
+X_tr = Xtrain(idxTrain,:);
+Y_tr = Ytrain(idxTrain);
 
-X_te = Xtrain(idxTest,:);    % características test
-Y_te = Ytrain(idxTest);      % etiquetas test
+X_val = Xtrain(idxVal,:);
+Y_val = Ytrain(idxVal);
 
-fprintf('Tamaño train: %d muestras\n', size(X_tr,1));
-fprintf('Tamaño test : %d muestras\n', size(X_te,1));
+fprintf('Tamaño train      : %d muestras\n', size(X_tr,1));
+fprintf('Tamaño validación : %d muestras\n', size(X_val,1));
 
 %% 4) ENTRENAR CLASIFICADOR k-NN SOLO CON EL 80% TRAIN
 
 Mdl = fitcknn(X_tr, Y_tr, ...
-              'NumNeighbors', 5, ...   % o 3, lo que te haya ido mejor
+              'NumNeighbors', 5, ...
               'Standardize', true);
 
-%% 5) EVALUAR EN EL 20% TEST
+%% 5) EVALUAR EN EL 20% VALIDACIÓN
 
-Y_pred = predict(Mdl, X_te);
+Y_pred = predict(Mdl, X_val);
 
-% Matriz de confusión
-[cm, order] = confusionmat(Y_te, Y_pred);
+[cm, order] = confusionmat(Y_val, Y_pred);
 
 figure;
 confusionchart(cm, order);
-title('Matriz de confusión (20% test)');
+title('Matriz de confusión (20% validación)');
 
-% Exactitud global
 acc = sum(diag(cm)) / sum(cm(:));
-fprintf('Accuracy global en test: %.2f %%\n', 100*acc);
+fprintf('Accuracy global en validación: %.2f %%\n', 100*acc);
 
-% Exactitud por clase
 acc_por_clase = diag(cm) ./ sum(cm,2);
 tabla_acc = table(order, acc_por_clase, ...
                   'VariableNames', {'Clase','Accuracy'});
 disp(tabla_acc);
+
 
 %% 6) (OPCIONAL) CREAR TABLA PARA CLASSIFICATION LEARNER CON TODO EL CONJUNTO
 
