@@ -18,7 +18,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -93,6 +93,9 @@
         </property>
         <property name="text">
          <string>Segmentar</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
         </property>
        </widget>
       </widget>
@@ -194,8 +197,8 @@
          <rect>
           <x>350</x>
           <y>80</y>
-          <width>281</width>
-          <height>261</height>
+          <width>521</width>
+          <height>461</height>
          </rect>
         </property>
         <property name="text">
