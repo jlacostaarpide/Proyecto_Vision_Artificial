@@ -4,7 +4,7 @@ clear; clc;
 numcarac = 8;  % mismo nº de características que en extractColorFeatures
 
 % Carpeta donde tienes las imágenes nuevas
-testFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\Clasificador';
+testFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\Clasificador_sin225';
 
 % Listar imágenes (ajusta extensiones si hace falta)
 filesJPG = dir(fullfile(testFolder, '*.jpg'));
@@ -97,5 +97,10 @@ disp(T(1:min(5,height(T)), :));
 
 %% 4) GUARDAR A .MAT PARA USAR EN CLASSIFICATION LEARNER
 
-save('legoFeatures_TEST_8carac.mat', 'T');
-disp('✔ Archivo legoFeatures_TEST_8carac.mat guardado con tabla T');
+save('legoFeatures_TEST_todas_sin225_8carac.mat', 'T3');
+disp('✔ Archivo legoFeatures_TEST_8carac.mat guardado con tabla T3');
+
+
+
+%%
+T3 = T;
