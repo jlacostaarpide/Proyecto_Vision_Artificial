@@ -2,12 +2,71 @@
 #include <filesystem>
 #include <QFileDialog>
 #include "Segmentacion.h"
-#include <thread>
+#include <chrono>
+#include <QMetaType>
+#include <QDebug>
+
+Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
+
+void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr, int targetW, int targetH)
+{
+    QImage qseg; // por defecto imagen vacía (se interpreta como no resultado)
+    try {
+        if (!snapshotPtr || snapshotPtr->empty()) {
+            emit finished(qseg);
+            return;
+        }
+
+        // Segmentación sobre la imagen recibida (ya reducida a tamaño de procesamiento)
+        cv::Mat seg = Segmentacion::Segment(*snapshotPtr);
+
+        if (!seg.empty()) {
+            // ajustar tamaño para mostrar en la UI si hace falta
+            cv::Mat seg_for_q;
+            if (targetW > 0 && targetH > 0 && (seg.cols != targetW || seg.rows != targetH)) {
+                cv::resize(seg, seg_for_q, cv::Size(targetW, targetH), 0, 0, cv::INTER_LINEAR);
+            } else {
+                seg_for_q = seg;
+            }
+
+            // convertir a RGB y construir QImage (hacer .copy() para asegurar que los datos sean independientes)
+            cv::Mat seg_rgb;
+            if (seg_for_q.channels() == 3) {
+                cv::cvtColor(seg_for_q, seg_rgb, cv::COLOR_BGR2RGB);
+                qseg = QImage(reinterpret_cast<const uchar*>(seg_rgb.data),
+                              seg_rgb.cols, seg_rgb.rows,
+                              static_cast<int>(seg_rgb.step),
+                              QImage::Format_RGB888).copy();
+            } else if (seg_for_q.channels() == 1) {
+                cv::Mat tmp;
+                cv::cvtColor(seg_for_q, tmp, cv::COLOR_GRAY2RGB);
+                qseg = QImage(reinterpret_cast<const uchar*>(tmp.data),
+                              tmp.cols, tmp.rows,
+                              static_cast<int>(tmp.step),
+                              QImage::Format_RGB888).copy();
+            } else {
+                // formatos exóticos: devolver vacío
+            }
+        }
+    }
+    catch (const std::exception &e) {
+        qDebug() << "SegmentationWorker exception:" << e.what();
+    }
+    catch (...) {
+        qDebug() << "SegmentationWorker unknown exception";
+    }
+
+    emit finished(qseg);
+}
 
 ProyectoPSM::ProyectoPSM(QWidget *parent)
     : QMainWindow(parent)
 {
     ui.setupUi(this);
+
+    // registrar tipo para queued connections
+    qRegisterMetaType<std::shared_ptr<cv::Mat>>("std::shared_ptr<cv::Mat>");
+
 	if (!std::filesystem::exists("Database")) {
 		std::filesystem::create_directory("Database");
 	}
@@ -23,6 +82,27 @@ ProyectoPSM::ProyectoPSM(QWidget *parent)
 	// inicializar flags de segmentación
 	LiveSegmentationEnabled = false;
 	SegProcessing = false;
+
+    // intervalo recomendado: por ejemplo 2000 ms (2 s). Ajusta según tus necesidades.
+    SegmentationIntervalMs = 2000;
+    LastSegmentationTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(SegmentationIntervalMs);
+
+    // crear worker y thread para segmentación (reutilizable)
+    segWorker = new SegmentationWorker();
+    segThread = new QThread(this);
+    segWorker->moveToThread(segThread);
+    connect(segThread, &QThread::finished, segWorker, &QObject::deleteLater);
+    // cuando el worker termine, actualizar UI (queued)
+    connect(segWorker, &SegmentationWorker::finished, this, &ProyectoPSM::UpdateSegmentationUI, Qt::QueuedConnection);
+    // emitir trabajo al worker
+    connect(this, &ProyectoPSM::requestSegmentation, segWorker, &SegmentationWorker::process, Qt::QueuedConnection);
+    segThread->start();
+
+    // crear y arrancar timer que pide frames periódicamente para segmentar
+    segTimer = new QTimer(this);
+    segTimer->setInterval(SegmentationIntervalMs);
+    connect(segTimer, &QTimer::timeout, this, &ProyectoPSM::onSegmentationTimer);
+    segTimer->start();
 
     if (Camera->CameraOK) {
 		ui.pbtnEncender->setEnabled(true);
@@ -52,7 +132,19 @@ ProyectoPSM::ProyectoPSM(QWidget *parent)
 }
 
 ProyectoPSM::~ProyectoPSM()
-{}
+{
+    // Detener el hilo de segmentación de manera ordenada
+    if (segThread) {
+        segThread->quit();
+        segThread->wait();
+        segThread = nullptr;
+        segWorker = nullptr; // será borrado por finished->deleteLater()
+    }
+    if (segTimer) {
+        segTimer->stop();
+        segTimer = nullptr;
+    }
+}
 
 void ProyectoPSM::EnableButtons(bool StartCapture)
 {
@@ -121,81 +213,45 @@ void ProyectoPSM::NewImage(Mat Img)
     if (Img.empty()) {
         return;
     }
-
-    // Mover cabecera de Img a LastImage para evitar una copia extra del header.
-    // (La data sigue compartida hasta que se haga un clone explícito.)
+    // Actualizar sólo la imagen en pantalla (sin lanzar segmentación aquí)
     LastImage = std::move(Img);
     ShowImage();
     ++ImageIndex;
+}
 
-    // Si no está activada la segmentación en vivo, salir pronto.
-    if (!LiveSegmentationEnabled) {
+// timer slot: tomar un frame cada intervalo y enviarlo al worker si está libre
+void ProyectoPSM::onSegmentationTimer()
+{
+    if (!LiveSegmentationEnabled)
         return;
+    if (SegProcessing.load())
+        return; // worker ocupado, ignorar esta toma
+    if (LastImage.empty())
+        return;
+
+    // marcar como ocupado
+    SegProcessing = true;
+
+    // crear snapshot reducido para acelerar la segmentación
+    cv::Mat proc;
+    const int srcW = LastImage.cols;
+    const int srcH = LastImage.rows;
+    int outW = min(SegmentationProcWidth, srcW);
+    int outH = static_cast<int>((double)outW * srcH / srcW);
+    if (outW <= 0 || outH <= 0) {
+        // fallback a copia completa si algo raro
+        proc = LastImage.clone();
+    } else {
+        cv::resize(LastImage, proc, cv::Size(outW, outH), 0, 0, cv::INTER_LINEAR);
     }
 
-    // Intentar poner el flag; si ya hay procesamiento en curso, ignorar este frame.
-    bool expected = false;
-    if (!SegProcessing.compare_exchange_strong(expected, true)) {
-        return;
-    }
-
-    // Guardar tamaño destino de la UI ahora (no acceder a ui desde el hilo worker).
+    // preparar target de visualización (tamaño del QLabel)
     const int targetW = ui.lblImagSegmentada->width();
     const int targetH = ui.lblImagSegmentada->height();
 
-    // Tomar snapshot profundo (independiente) para procesar fuera del hilo GUI.
-    cv::Mat snapshot = LastImage.clone();
-
-    // Lanzar trabajo en hilo aparte (detach). Se usa try/catch para garantizar que se libere el flag.
-    std::thread([this, snapshot, targetW, targetH]() mutable {
-        QImage qseg; // por defecto imagen vacía (se interpreta como no resultado)
-        try {
-            cv::Mat seg = Segmentacion::Segment(snapshot);
-
-            if (!seg.empty()) {
-                // reducir resolución antes de convertir a QImage para ahorrar CPU/memoria si hace falta
-                cv::Mat seg_for_q;
-                if (targetW > 0 && targetH > 0 && (seg.cols != targetW || seg.rows != targetH)) {
-                    cv::resize(seg, seg_for_q, cv::Size(targetW, targetH), 0, 0, cv::INTER_LINEAR);
-                } else {
-                    seg_for_q = seg;
-                }
-
-                // convertir a RGB y construir QImage (hacer .copy() para asegurar que los datos sean independientes)
-                cv::Mat seg_rgb;
-                if (seg_for_q.channels() == 3) {
-                    cv::cvtColor(seg_for_q, seg_rgb, cv::COLOR_BGR2RGB);
-                    qseg = QImage(reinterpret_cast<const uchar*>(seg_rgb.data),
-                                  seg_rgb.cols, seg_rgb.rows,
-                                  static_cast<int>(seg_rgb.step),
-                                  QImage::Format_RGB888).copy();
-                } else if (seg_for_q.channels() == 1) {
-                    // si la segmentación devolviera máscara en 1 canal, convertir a formato RGB simple
-                    cv::Mat tmp;
-                    cv::cvtColor(seg_for_q, tmp, cv::COLOR_GRAY2RGB);
-                    qseg = QImage(reinterpret_cast<const uchar*>(tmp.data),
-                                  tmp.cols, tmp.rows,
-                                  static_cast<int>(tmp.step),
-                                  QImage::Format_RGB888).copy();
-                } else {
-                    // soporte por si hay otro número de canales: devolver vacío
-                }
-            }
-        }
-        catch (const std::exception &e) {
-            qDebug() << "Segmentation thread exception:" << e.what();
-            // dejar qseg vacío para indicar fallo
-        }
-        catch (...) {
-            qDebug() << "Segmentation thread unknown exception";
-        }
-
-        // actualizar UI en hilo GUI
-        QMetaObject::invokeMethod(this, "UpdateSegmentationUI", Qt::QueuedConnection, Q_ARG(QImage, qseg));
-
-        // liberar flag de procesamiento siempre al final
-        SegProcessing = false;
-    }).detach();
+    // empaquetar y emitir trabajo (queued connection)
+    auto snapshotPtr = std::make_shared<cv::Mat>(std::move(proc));
+    emit requestSegmentation(snapshotPtr, targetW, targetH);
 }
 
 // slot que activa/desactiva la segmentación en vivo
@@ -205,11 +261,11 @@ void ProyectoPSM::EnableLiveSegmentation(bool enabled)
 	LiveSegmentationEnabled = enabled;
 	if (enabled) {
 		ui.lblImagNoSegmentada->setText(QString::fromStdString("Segmentacion en vivo ACTIVADA"));
-	}
-	else {
+	} else {
 		ui.lblImagNoSegmentada->setText(QString::fromStdString("Segmentacion en vivo DESACTIVADA"));
-		// limpiar el resultado en pantalla si quieres
 		ui.lblImagSegmentada->clear();
+        // reset flag por seguridad
+        SegProcessing = false;
 	}
 }
 
@@ -225,5 +281,7 @@ void ProyectoPSM::UpdateSegmentationUI(const QImage& segImage)
 		ui.lblImagSegmentada->setPixmap(pix.scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 		ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
 	}
-	
+
+    // liberar flag de procesamiento para permitir la siguiente toma
+    SegProcessing = false;
 }
