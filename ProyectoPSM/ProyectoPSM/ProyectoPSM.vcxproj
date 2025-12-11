@@ -112,6 +112,7 @@
   <ItemGroup>
     <ClCompile Include="Capturar.cpp" />
     <ClCompile Include="NameHelper.cpp" />
+    <ClCompile Include="Segmentacion.cpp" />
     <ClCompile Include="VideoAcquisition.cpp" />
     <QtRcc Include="ProyectoPSM.qrc" />
     <QtUic Include="ProyectoPSM.ui" />
@@ -125,6 +126,7 @@
   <ItemGroup>
     <ClInclude Include="Capturar.h" />
     <ClInclude Include="NameHelper.h" />
+    <QtMoc Include="Segmentacion.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

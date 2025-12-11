@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1332</width>
-    <height>777</height>
+    <height>791</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,7 +18,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -43,7 +43,7 @@
        <widget class="QPushButton" name="pbtnEncender">
         <property name="geometry">
          <rect>
-          <x>790</x>
+          <x>700</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -59,7 +59,7 @@
        <widget class="QPushButton" name="pbtnCapturar">
         <property name="geometry">
          <rect>
-          <x>880</x>
+          <x>790</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -72,7 +72,7 @@
        <widget class="QSpinBox" name="boxImageNumber">
         <property name="geometry">
          <rect>
-          <x>681</x>
+          <x>610</x>
           <y>550</y>
           <width>71</width>
           <height>22</height>
@@ -80,6 +80,22 @@
         </property>
         <property name="maximum">
          <number>500</number>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="pbtnSegmentar">
+        <property name="geometry">
+         <rect>
+          <x>880</x>
+          <y>550</y>
+          <width>80</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Segmentar</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
         </property>
        </widget>
       </widget>
@@ -143,6 +159,50 @@
         </property>
         <property name="text">
          <string>Guardar siguiente imagen como: </string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="tab_3">
+       <attribute name="title">
+        <string>Página</string>
+       </attribute>
+       <widget class="QPushButton" name="pbtnAbrirImag">
+        <property name="geometry">
+         <rect>
+          <x>880</x>
+          <y>550</y>
+          <width>121</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Seleccionar imagen</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblImagNoSegmentada">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>80</y>
+          <width>281</width>
+          <height>261</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>TextLabel</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblImagSegmentada">
+        <property name="geometry">
+         <rect>
+          <x>350</x>
+          <y>80</y>
+          <width>521</width>
+          <height>461</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>TextLabel</string>
         </property>
        </widget>
       </widget>
