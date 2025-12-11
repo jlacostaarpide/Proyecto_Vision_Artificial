@@ -2,7 +2,7 @@ function [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(n
 % SEGMENTARPIEZAS  Segmenta las piezas LEGO de una imagen.
 %   [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(nombre_imagen)
 %   - nombre_imagen: string con el nombre o ruta de la imagen.
-%   - images_final : cell array (1x4) con las piezas recortadas, fondo negro.
+%   - images_final : cell array con las piezas recortadas, fondo negro.
 %   - stats_final  : struct de regionprops de las piezas.
 %   - num_final    : número de piezas detectadas.
 %   - I_corrected  : imagen corregida (ahora igual que la original).
@@ -10,7 +10,7 @@ function [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(n
     % 1. CARGA DE LA IMAGEN
     I = imread(nombre_imagen);
     I_double = im2double(I);
-    I_corrected = I_double;   % de momento sin corrección de iluminación adicional
+    I_corrected = I_double;   % de momento sin corrección extra
 
     % 2. TRANSFORMACIÓN A HSV
     I_hsv = rgb2hsv(I_corrected);
@@ -18,13 +18,11 @@ function [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(n
     S = I_hsv(:,:,2);
     V = I_hsv(:,:,3);
 
-    % --- ECUALIZACIÓN DEL CANAL V (Percentiles 1% y 95%) ---
+    % --- ECUALIZACIÓN DEL CANAL V (Percentiles 1% y 5%) ---
     limits = stretchlim(V, [0.01 0.05]); 
     V_eq = imadjust(V, limits, []); 
     I_hsv(:,:,3) = V_eq;
-    V = V_eq;                            % usamos el V ecualizado en lo que sigue
-    % Si quisieras trabajar en RGB corregido, podrías hacer:
-    % I_corrected = hsv2rgb(I_hsv);
+    V = V_eq;
 
     % 4. ANÁLISIS CANAL S (Multi-level Otsu)
     gamma_val = 1; 
@@ -37,28 +35,23 @@ function [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(n
     count_mid = sum(L_quantized(:) == 2);
     ratio_mid = count_mid / num_pixels;
 
-    % Si la clase media ocupa demasiado, la consideramos fondo
     umbral_area_max_mid = 0.15; 
     if ratio_mid > umbral_area_max_mid
-        % Clase intermedia enorme -> fondo
         level_otsu_S = thresh_vals(2);
     else
-        % Clase intermedia pequeña -> parte del LEGO
-        level_otsu_S = thresh_vals(2); %se puede cambiar
+        level_otsu_S = thresh_vals(2);  % aquí podrías jugar si quisieras
     end
 
     mask_S = imbinarize(S_proc, level_otsu_S);
 
-    % 5. ANÁLISIS CANAL H (rescate morado/rosa)
-    % Rango Morado/Rosa: 0.68 a 0.88
-    % Condición de seguridad: S > 40% del umbral Otsu de S
+    % 5. ANÁLISIS CANAL H (morado/rosa)
     min_sat_H = 0.4 * level_otsu_S;
     mask_H_purple = (H >= 0.68) & (H <= 0.88) & (S > min_sat_H);
 
-    % 6. ANÁLISIS CANAL V (oscuro) – aquí lo dejamos desactivado como en tu script
+    % 6. CANAL V (oscuro) desactivado
     V_inv = imcomplement(V);
     level_otsu_V = graythresh(V_inv); %#ok<NASGU>
-    mask_V_dark = false(size(V_inv));   % desactivado
+    mask_V_dark = false(size(V_inv));
 
     % 7. FUSIÓN Y MORFOLOGÍA BÁSICA
     mask_combined = mask_S | mask_H_purple | mask_V_dark;
@@ -68,7 +61,7 @@ function [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(n
     mask_clean = imopen(mask_filled, se_noise);
     mask_final = imclearborder(mask_clean);
 
-    % 8. PROCESADO MORFOLÓGICO AVANZADO (cierre + apertura)
+    % 8. MORFOLOGÍA AVANZADA
     radio_pegamento = 12; 
     se_merge = strel('disk', radio_pegamento);
     mask_merged = imclose(mask_final, se_merge);
@@ -88,10 +81,6 @@ function [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(n
         max_area = max(all_areas);
         
         umbral_area = 0.05 * max_area; 
-        % all_circ = [stats.Circularity];
-        % umbral_circ = 0.2; 
-        
-        % Aquí filtramos solo por área (como en tu versión final)
         valid_idx = find(all_areas > umbral_area);
         mask_filtered = ismember(L, valid_idx);
         
@@ -104,22 +93,27 @@ function [images_final, stats_final, num_final, I_corrected] = segmentarPiezas(n
         num_final = 0;
     end
 
-    % 10. EXTRAER LAS PIEZAS INDIVIDUALES CON FONDO NEGRO
-
-images_final = cell(1, num_final);    % una celda por pieza detectada
-
-if num_final > 0
-    for k = 1:num_final
-        bb = stats_final(k).BoundingBox;
-        img_crop = imcrop(I_corrected, bb);
-
-        mask_local = stats_final(k).Image;
-        mask_local = imresize(mask_local, [size(img_crop,1), size(img_crop,2)], 'nearest');
-
-        img_crop_masked = img_crop;
-        mask_3ch = cat(3, mask_local, mask_local, mask_local);
-        img_crop_masked(~mask_3ch) = 0;  % fondo negro
-
-        images_final{k} = img_crop_masked;
+    % === FILTRO EXTRA: SOLO ACEPTAR IMÁGENES CON UNA ÚNICA PIEZA ===
+    if num_final ~= 1
+        % Si hay 0 o más de 1 piezas, no devolvemos nada útil
+        images_final = {};
+        stats_final  = struct([]);
+        num_final    = 0;
+        return;
     end
+
+    % 10. EXTRAER LA ÚNICA PIEZA CON FONDO NEGRO
+    images_final = cell(1, num_final);    % aquí num_final es 1
+
+    bb = stats_final(1).BoundingBox;
+    img_crop = imcrop(I_corrected, bb);
+
+    mask_local = stats_final(1).Image;
+    mask_local = imresize(mask_local, [size(img_crop,1), size(img_crop,2)], 'nearest');
+
+    img_crop_masked = img_crop;
+    mask_3ch = cat(3, mask_local, mask_local, mask_local);
+    img_crop_masked(~mask_3ch) = 0;  % fondo negro
+
+    images_final{1} = img_crop_masked;
 end

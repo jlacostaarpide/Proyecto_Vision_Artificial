@@ -1,7 +1,7 @@
 clear all;close all;clc;
-load('legoFeatures_TEST_8carac.mat'); % T todas 
-load('legoFeatures_TEST_225_8carac.mat'); % T2 225
-load('legoFeatures_TEST_todas_sin225_8carac.mat'); % T3 todas - 225
+load('legoFeatures_TRAIN_8carac.mat'); % T todas 
+load('legoFeatures_TRAIN_225_8carac.mat'); % T2 225
+load('legoFeatures_TRAIN_todas_sin225_8carac.mat'); % T3 todas - 225
 
 %%
 
@@ -27,40 +27,40 @@ L_test = T.Label(I(1201:end),:);
 % con las test con el predict.
 
 %% 2) RUTA DE LA IMAGEN A CLASIFICAR
-imgPath = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\Clasificador\02_270_10_003.jpg';
-
-
-fprintf('\n--- Clasificando imagen: %s ---\n', imgPath);
-
-% 3) SEGMENTAR LA IMAGEN
-[pieces_test, stats_test, num_test, Icorr] = segmentarPiezas2(imgPath);
-
-if num_test == 0
-    error('No se detectaron piezas en la imagen de test');
-end
-
-% 4) CLASIFICAR CADA PIEZA
-for k = 1:num_test
-    
-    Ipiece = pieces_test{k};
-
-    % 1) Extraer características (1 x D)
-    feat = extractColorFeatures(Ipiece);   % p.ej. 1x8 double
-
-    % 2) Convertir a tabla con los mismos nombres que en el entrenamiento
-    featTable = array2table(feat, ...
-        'VariableNames', trainedModel.RequiredVariables);
-
-    % 3) Predecir usando el modelo exportado
-    predictedLabel = trainedModel.predictFcn(featTable);
-
-    fprintf('Pieza %d -> Predicción: %s\n', k, string(predictedLabel));
-
-    % (Opcional) Mostrar la pieza con el label
-    figure;
-    imshow(Ipiece);
-    title(sprintf('Pieza %d - Pred: %s', k, string(predictedLabel)), 'FontSize', 14);
-end
+% imgPath = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\Clasificador\02_270_10_003.jpg';
+% 
+% 
+% fprintf('\n--- Clasificando imagen: %s ---\n', imgPath);
+% 
+% % 3) SEGMENTAR LA IMAGEN
+% [pieces_test, stats_test, num_test, Icorr] = segmentarPiezas2(imgPath);
+% 
+% if num_test == 0
+%     error('No se detectaron piezas en la imagen de test');
+% end
+% 
+% % 4) CLASIFICAR CADA PIEZA
+% for k = 1:num_test
+%     
+%     Ipiece = pieces_test{k};
+% 
+%     % 1) Extraer características (1 x D)
+%     feat = extractColorFeatures(Ipiece);   % p.ej. 1x8 double
+% 
+%     % 2) Convertir a tabla con los mismos nombres que en el entrenamiento
+%     featTable = array2table(feat, ...
+%         'VariableNames', trainedModel.RequiredVariables);
+% 
+%     % 3) Predecir usando el modelo exportado
+%     predictedLabel = trainedModel.predictFcn(featTable);
+% 
+%     fprintf('Pieza %d -> Predicción: %s\n', k, string(predictedLabel));
+% 
+%     % (Opcional) Mostrar la pieza con el label
+%     figure;
+%     imshow(Ipiece);
+%     title(sprintf('Pieza %d - Pred: %s', k, string(predictedLabel)), 'FontSize', 14);
+% end
 
 %% CLASIFICAR PIEZAS (UNA POR IMAGEN) Y GUARDAR RESULTADOS EN .TXT
 clear; clc;
