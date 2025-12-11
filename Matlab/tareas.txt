@@ -1,0 +1,36 @@
+para segmentar morado, hacer gamma. pero no va bien. como prueba, desplazar el umbral para abajo en la imagen actual. 
+	RESULTS: gamma 0.15 es ideal pero es muy basto y con otras imagenes fallara. descartamos por ahora. 
+
+	PARA FONDOS CLAROS, gamma 1.4 oscurece en general. 
+
+
+el morado va muy mal con canal, valorar aportacion del canal H, donde morado destaca mas (gemini): HECHO, validar en otros colores y tal. 
+
+Pendiente: Papel del canal V + gamma en imagenes oscuras. 
+
+en el canal H, en vez de umbral fijo, probar otsu + gamma. como?
+
+batch de varias imagenes. HECHO
+
+mejorar procesado morfologico
+
+mejorar filtrado?
+
+correccion de brillo/contraste para imagenes de la camara chusta
+
+
+primero cierre, luego apertura, imclose, imopen (para quitar metidos feos). peeero, todo esto despues de hacer lo de discriminar por area
+
+para hacer fill: mascara al contorno. coger la mascara negada de tu pieza, depurarla para quitar las impurezas, y te queda algo que cuando dilates...
+
+ecualizar el canal V en percentiles 1 y 95, luego sustituir ese canal V en la imagen. (previo a todo el procesado o al final). asi las imagenes oscuras florece
+Gamma en v en vez de normalizar
+
+con transformada de hough un algoritmo para sacar información de los contornos de las fichas que igual es util. da info de inclinacion+longitud de lados en un espacio 1D
+
+
+
+
+La figura amarilla 12, puede dar problemas con el multiotsu por el fondo blanco. igual estaría bien coger mas umbrales, o bien algo basado en lineas rectas
+
+'11_45_90_002.jpg'; gracias al hijo de navallas
