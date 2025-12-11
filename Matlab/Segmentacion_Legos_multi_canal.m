@@ -36,19 +36,33 @@ imagenes = {
     % '11_135_70_003.jpg';
     % '11_45_90_002.jpg';
     % '12_270_70_003.jpg';
+
+    '01_000_40_001.jpg';
+    % '02_090_40_001.jpg';
+    % '03_270_10_001.jpg';
+    % '05_315_10_001.jpg';
+    % '06_000_70_001.jpg';
+    % '06_135_90_001.jpg';
+    % '07_000_10_004.jpg';
+    % '08_000_40_001.jpg';
+    % '08_045_40_001.jpg';
+    % '08_180_40_004.jpg';
+    % '09_000_70_004.jpg';
+    % '10_135_10_001.jpg';
+    % '11_135_10_001.jpg';
 };
 
-sweep_codes   = [8];      % Ej: [8] o [8, 9] (Código de pieza)
+sweep_codes   = [1,2,3,4,5,6,7,8,9,10,11,12];      % Ej: [8] o [8, 9] (Código de pieza)
 sweep_orient  = [0, 45, 90, 135, 180, 225, 270, 315];  % Ej: [0, 45, 90, 135...] (Orientación)
-sweep_zenith  = [40];        % Ej: [10, 40, 70, 90] (Ángulo Cenital)
-sweep_seq     = 1;         % Ej: 1:5 o [1, 3, 5] (Número de secuencia)
+sweep_zenith  = [10, 40, 70, 90];        % Ej: [10, 40, 70, 90] (Ángulo Cenital)
+sweep_seq     = [1, 4];         % Ej: 1:5 o [1, 3, 5] (Número de secuencia)
 
 for c = sweep_codes
     for o = sweep_orient
         for z = sweep_zenith
             for s = sweep_seq
                 nombre_generado = sprintf('%02d_%03d_%02d_%03d.jpg', c, o, z, s);
-                imagenes{end+1} = nombre_generado; 
+                % imagenes{end+1} = nombre_generado; 
             end
         end
     end
@@ -62,9 +76,9 @@ end
 % 5: Limpieza Morfológica
 % 6: Resultado Final
 % show_figures = [1, 1, 1, 0, 1, 1]; 
-show_figures = [0, 0, 0, 0, 0, 0]; 
+show_figures = [0, 0, 0, 0, 0, 1]; 
 
-save_images = true;
+save_images = false;
 output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\Segmented";
 
 fprintf('Procesando %d imágenes\n', length(imagenes));
@@ -91,16 +105,6 @@ for i = 1:length(imagenes)
     S = I_hsv(:,:,2);
     V = I_hsv(:,:,3);
 
-    % --- ECUALIZACIÓN DEL CANAL V (Percentiles 1% y 95%) ---
-    % Esto "enciende" las imágenes oscuras estirando el histograma
-    % El segundo valor es 0.05 porque stretchlim pide el % de saturación por arriba (100-95=5)
-    limits = stretchlim(V, [0.01 0.05]); 
-    V_eq = imadjust(V, limits, []); 
-    % Actualizamos las variables para el resto del código
-    I_hsv(:,:,3) = V_eq; % Actualizamos la matriz HSV global
-    % I_corrected_V = hsv2rgb(I_hsv);
-    % V = V_eq;            % Actualizamos la variable suelta V
-    
     % FIGURA 1: Canales Originales
     if show_figures(1) == 1
         figure('Name', 'Análisis de Canales HSV', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.4]);
@@ -110,7 +114,7 @@ for i = 1:length(imagenes)
     end
 
     % 4. ANÁLISIS CANAL S (Multi-level Otsu)
-    gamma_val = 1; 
+    gamma_val = 1.4; 
     S_proc = S .^ gamma_val;
     multilevel_otsu_S = multithresh(S_proc,2);
 
@@ -297,19 +301,21 @@ for i = 1:length(imagenes)
     fprintf('  > Objetos Detectados: %d\n', num_final);
 
     % 10. VISUALIZACIÓN DE RESULTADOS
-    if show_figures(6) == 1
-        figure('Name', 'Resultados Finales de Segmentación', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
-        
-        % Imagen Original
-        subplot(2, 2, 1);
-        imshow(I);
-        title(sprintf('Imagen Original: %s', nombre_imagen), 'Interpreter', 'none');
-        
-        % Imagen con Corrección y Superposiciones
-        subplot(2, 2, 2);
-        imshow(I_corrected); hold on;
-        title(sprintf('Detección Final: %d Piezas (Corrección Brillo + HSV + Otsu + Morfología)', num_final));
-        
+    if (show_figures(6) == 1 || save_images)
+        if show_figures(6) == 1
+            figure('Name', 'Resultados Finales de Segmentación', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+            
+            % Imagen Original
+            subplot(2, 2, 1);
+            imshow(I);
+            title(sprintf('Imagen Original: %s', nombre_imagen), 'Interpreter', 'none');
+            
+            % Imagen con Corrección y Superposiciones
+            subplot(2, 2, 2);
+            imshow(I_corrected); hold on;
+            title(sprintf('Detección Final: %d Piezas (Corrección Brillo + HSV + Otsu + Morfología)', num_final));
+        end
+
         for k = 1:num_final
             % Datos
             c = stats_final(k).Centroid;
@@ -317,26 +323,26 @@ for i = 1:length(imagenes)
             circ = stats_final(k).Circularity;
             area = stats_final(k).Area;
             
-            % Dibujar Bounding Box
-            rectangle('Position', bb, 'EdgeColor', 'g', 'LineWidth', 2);
-            
-            % Marcar Centroide
-            plot(c(1), c(2), 'r+', 'MarkerSize', 10, 'LineWidth', 2);
-            
-            % Etiquetar
-            str_label = sprintf('#%d\nC: %.2f\nA: %d', k, circ, round(area));
-            text(bb(1), bb(2)-20, str_label, 'Color', 'yellow', 'FontWeight', 'bold', 'FontSize', 8, 'BackgroundColor', 'k');
+            if show_figures(6) == 1
+                % Dibujar Bounding Box
+                rectangle('Position', bb, 'EdgeColor', 'g', 'LineWidth', 2);
+                
+                % Marcar Centroide
+                plot(c(1), c(2), 'r+', 'MarkerSize', 10, 'LineWidth', 2);
+                
+                % Etiquetar
+                str_label = sprintf('#%d\nC: %.2f\nA: %d', k, circ, round(area));
+                text(bb(1), bb(2)-20, str_label, 'Color', 'yellow', 'FontWeight', 'bold', 'FontSize', 8, 'BackgroundColor', 'k');
+            end
         end
         hold off;
         
         % Visualización de Objetos Individuales
         if num_final > 0
             for k = 1:min(num_final, 4)
-                subplot(2, 4, 4+k);
-                
+                              
                 % Extraer la pieza con fondo negro
                 bb = stats_final(k).BoundingBox;
-                % img_crop = imcrop(I_corrected_V, bb);
                 img_crop = imcrop(I_corrected, bb);
                 
                 % Recortar la máscara correspondiente a el objeto
@@ -347,10 +353,24 @@ for i = 1:length(imagenes)
                 img_crop_masked = img_crop;
                 % Replicar máscara para 3 canales RGB
                 mask_3ch = cat(3, mask_local, mask_local, mask_local);
-                img_crop_masked(~mask_3ch) = 0; 
-                
-                imshow(img_crop_masked);
-                title(sprintf('Pieza #%d', k));
+                img_crop_masked(~mask_3ch) = 0;
+
+                hsv_crop = rgb2hsv(img_crop_masked);
+                V_crop = hsv_crop(:,:,3);
+                p1 = prctile(V_crop(:), 1);        
+                p95 = prctile(V_crop(:), 95);      
+                v_eq = (V_crop - p1) / (p95 - p1);  
+                v_eq = max(0, min(1, v_eq));
+                hsv_crop(:,:,3) = v_eq;
+
+                img_crop_enhanced = hsv2rgb(hsv_crop);
+
+                if show_figures(6) == 1
+                    subplot(2, 4, 4+k);
+
+                    imshow(img_crop_enhanced);
+                    title(sprintf('Pieza #%d', k));
+                end
                 if save_images
                     % Crear carpeta si no existe
                     if ~exist(output_folder, 'dir')
@@ -371,7 +391,7 @@ for i = 1:length(imagenes)
                     nombre_guardado = sprintf('segmented_%s%s%s', name_base, suffix, ext_orig);
                     ruta_completa = fullfile(output_folder, nombre_guardado);
                     
-                    imwrite(img_crop_masked, ruta_completa);
+                    imwrite(img_crop_enhanced, ruta_completa);
                     fprintf('   > Guardado: %s\n', nombre_guardado);
                 end
             end
