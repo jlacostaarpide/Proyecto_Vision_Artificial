@@ -40,8 +40,8 @@ git checkout -b feature/nuevo-login
 > Buenas prácticas para nombres: Usa prefijos como `feature/` (nueva funcionalidad), `fix/` (corregir un error) o `docs/` (documentación).
 
 💻 **En GitHub Desktop:**
-1. Ve al menú superior y selecciona **“Branch → New Branch…”**.  
-2. Escribe un nombre como `feature/nuevo-login` y haz clic en **“Create Branch”**.  
+1. Ve al menú superior y selecciona **“Branch → New Branch…”**.
+2. Escribe un nombre como `feature/nuevo-login` y haz clic en **“Create Branch”**.
 3. GitHub Desktop te cambiará automáticamente a esa nueva rama.
 
 ### Cambiar entre Ramas Existentes
@@ -57,8 +57,8 @@ git checkout main
 ```
 
 💻 **En GitHub Desktop:**
-1. Haz clic en el menú desplegable de ramas (arriba, donde muestra el nombre actual).  
-2. Selecciona la rama a la que quieras cambiar.  
+1. Haz clic en el menú desplegable de ramas (arriba, donde muestra el nombre actual).
+2. Selecciona la rama a la que quieras cambiar.
 3. Para volver a `main`, simplemente selecciónala desde la lista.
 
 ---
@@ -82,9 +82,9 @@ git commit -m "Terminada la validación del formulario"
 ```
 
 💻 **En GitHub Desktop:**
-1. Realiza tus cambios en el código desde tu editor (VSCode, etc.).  
-2. GitHub Desktop detectará automáticamente los archivos modificados en el panel izquierdo.  
-3. Marca las casillas de los archivos que quieres incluir en el commit.  
+1. Realiza tus cambios en el código desde tu editor (VSCode, etc.).
+2. GitHub Desktop detectará automáticamente los archivos modificados en el panel izquierdo.
+3. Marca las casillas de los archivos que quieres incluir en el commit.
 4. Escribe un mensaje descriptivo en la parte inferior (“Summary”) y haz clic en **“Commit to <nombre-de-la-rama>”**.
 
 ---
@@ -103,8 +103,8 @@ git push -u origin feature/nuevo-login
 ```
 
 💻 **En GitHub Desktop:**
-1. Una vez hecho tu commit, verás un botón azul **“Publish branch”** en la parte superior.  
-2. Haz clic allí para subir la rama al repositorio remoto.  
+1. Una vez hecho tu commit, verás un botón azul **“Publish branch”** en la parte superior.
+2. Haz clic allí para subir la rama al repositorio remoto.
 
 ### Siguientes Veces
 
@@ -119,26 +119,53 @@ git push
 
 ---
 
-## 5. El Pull Request (PR): Proponer tus Cambios
+## 5. Actualizar tu Rama con Main (IMPORTANTE)
 
-El Pull Request (PR) es la "solicitud de integración" para fusionar (merge) tu rama de trabajo con la rama main. Es el foro de discusión de tus cambios.
+Antes de entregar tu trabajo, es probable que tus compañeros hayan subido cosas nuevas a main. Debes meter esos cambios de main en tu rama para comprobar que tu código no rompe nada.
 
-1. Ve a la página de tu repositorio en GitHub.
-2. GitHub detectará tu nueva rama y mostrará un botón verde: "Compare & pull request".
-3. Haz clic, pon un título claro y una descripción de lo que has hecho.
-4. El equipo revisa el código, deja comentarios si es necesario y, finalmente, aprueba los cambios.
-5. Un responsable (o tú mismo, si tienes permisos) hace clic en el botón "Merge pull request".
+```bash
+# 1. Asegúrate de estar en TU rama
+git checkout mi-rama
+
+# 2. Descarga la info de la nube (sin fusionar aún)
+git fetch origin
+
+# 3. Fusiona lo nuevo de main DENTRO de tu rama
+git merge origin/main
+
+# 4. Si hay conflictos, arréglalos, haz commit y sube el resultado
+git push
+```
 
 💻 **En GitHub Desktop:**
-1. Haz clic en **“View on GitHub”** (aparece al lado del botón Push).  
-2. Se abrirá el repositorio en tu navegador con la opción de crear el **Pull Request**.  
-3. Desde ahí, sigue los mismos pasos para completar y enviar tu PR.
+
+1. Asegúrate de que en "Current Branch" estás en tu rama.
+2. Haz clic en “Fetch origin” para actualizar datos.
+3. Ve al menú superior: “Branch” → “Merge into current branch…”.
+4. En la lista, selecciona main (debería decir algo como "Merge main into mi-rama").
+5. Haz clic en el botón azul de confirmar.
+6. Si todo sale bien, haz clic en “Push origin” para subir esa actualización.
 
 ¡Listo! Tu código ahora es parte oficial de la rama main.
 
 ---
 
-## 6. Limpieza Después de Fusionar (Merge)
+## 6. El Pull Request (PR): Entregar el Trabajo
+
+Ahora que tu rama está actualizada con lo último de main y probada, estás listo para integrarla oficialmente.
+
+1. Ve a la página de tu repositorio en GitHub.
+2. GitHub detectará tu rama y mostrará el botón "Compare & pull request".
+3. Pon un título y descripción.
+4. Verificación: GitHub te dirá "Able to merge" (porque ya resolviste los conflictos en el paso 5).
+5. Un compañero (o tú) revisa y hace clic en "Merge pull request".
+
+💻 **En GitHub Desktop:**
+- Usa **“View on GitHub”** → “Create Pull Request”.
+
+---
+
+## 7. Limpieza
 
 Una vez que tu PR ha sido fusionado en main, tu rama de trabajo ya no es necesaria y puede borrarse para mantener el repositorio limpio.
 
@@ -154,9 +181,9 @@ git branch -d feature/nuevo-login
 ```
 
 💻 **En GitHub Desktop:**
-1. Cambia a la rama `main` desde el menú de ramas.  
-2. Haz clic en **“Fetch origin”** y luego **“Pull origin”** para actualizarla.  
-3. Ve al menú **“Branch → Delete…”** y selecciona la rama que ya fusionaste.  
+1. Cambia a la rama `main` desde el menú de ramas.
+2. Haz clic en **“Fetch origin”** y luego **“Pull origin”** para actualizarla.
+3. Ve al menú **“Branch → Delete…”** y selecciona la rama que ya fusionaste.
 4. GitHub también te ofrecerá borrar la rama remota después del merge, directamente desde la página web del PR.
 
 ---
@@ -172,8 +199,8 @@ git checkout -b mi-nueva-rama
 ```
 
 💻 **En GitHub Desktop:**
-1. Selecciona la rama `main`.  
-2. Haz clic en **“Fetch origin” → “Pull origin”**.  
+1. Selecciona la rama `main`.
+2. Haz clic en **“Fetch origin” → “Pull origin”**.
 3. Ve a **“Branch → New Branch…”**, nómbrala y créala.
 
 ### Trabajar y Guardar Progreso
@@ -186,21 +213,23 @@ git push
 ```
 
 💻 **En GitHub Desktop:**
-1. Modifica tus archivos.  
-2. Revisa los cambios en el panel izquierdo.  
-3. Escribe un mensaje de commit y presiona **“Commit to <rama>”**.  
+1. Modifica tus archivos.
+2. Revisa los cambios en el panel izquierdo.
+3. Escribe un mensaje de commit y presiona **“Commit to <rama>”**.
 4. Luego haz clic en **“Push origin”**.
 
 > (Recuerda usar `git push -u origin mi-nueva-rama` la primera vez)
 
 ### Terminar y Proponer
 
-1. Ir a GitHub.  
-2. Crear Pull Request.  
-3. Esperar a que se revise y se fusione (Merge).
+1. Estando en tu rama: Branch → Merge into current branch... → Select main.
+2. Resolver conflictos (si los hay) y hacer Push.
+3. Ir a GitHub.
+4. Crear Pull Request.
+5. Esperar a que se revise y se fusione (Merge).
 
 💻 **En GitHub Desktop:**
-- Usa **“View on GitHub”** → “Create Pull Request”.  
+- Usa **“View on GitHub”** → “Create Pull Request”.
 
 ### Limpiar
 
@@ -211,5 +240,5 @@ git branch -d mi-nueva-rama
 ```
 
 💻 **En GitHub Desktop:**
-1. Cambia a `main` → “Fetch origin” → “Pull origin”.  
+1. Cambia a `main` → “Fetch origin” → “Pull origin”.
 2. Elimina la rama fusionada desde **Branch → Delete**.
