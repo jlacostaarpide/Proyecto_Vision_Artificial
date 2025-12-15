@@ -20,9 +20,9 @@ imagenes = {
     % '07_315_10_005.jpg';
     % '09_270_70_001.jpg';
     % '09_270_70_003.jpg';
-
+    % 
     % '08_270_40_003.jpg';
-
+    % 
     % '01_270_70_003.jpg';
     % '04_270_10_003.jpg';
     % '04_045_10_003.jpg';
@@ -36,20 +36,20 @@ imagenes = {
     % '11_135_70_003.jpg';
     % '11_45_90_002.jpg';
     % '12_270_70_003.jpg';
-
-    % '01_000_40_001.jpg';
-    % '02_090_40_001.jpg';
-    % '03_270_10_001.jpg';
-    % '05_315_10_001.jpg';
-    % '06_000_70_005.jpg';
+    % 
+    '01_000_40_001.jpg';
+    '02_090_40_001.jpg';
+    '03_270_10_001.jpg';
+    '05_315_10_001.jpg';
+    '06_000_70_005.jpg';
     '06_135_90_001.jpg';
-    % '07_000_10_004.jpg';
-    % '08_000_40_001.jpg';
-    % '08_045_40_001.jpg';
-    % '08_180_40_004.jpg';
+    '07_000_10_004.jpg';
+    '08_000_40_001.jpg';
+    '08_045_40_001.jpg';
+    '08_180_40_004.jpg';
     '09_000_70_004.jpg';
-    % '10_135_10_001.jpg';
-    % '11_135_10_001.jpg';
+    '10_135_10_001.jpg';
+    '11_135_10_001.jpg';
 };
 
 sweep_codes   = [1,2,3,4,5,6,7,8,9,10,11,12];      % Ej: [8] o [8, 9] (Código de pieza)
@@ -75,8 +75,8 @@ end
 % 4: Análisis V: Eliminado por ahora
 % 5: Limpieza Morfológica
 % 6: Resultado Final
-show_figures = [1, 1, 1, 1, 1, 1];
-% show_figures = [0, 0, 0, 0, 0, 1];
+% show_figures = [1, 1, 1, 0, 1, 1];
+show_figures = [0, 0, 0, 0, 0, 1];
 
 save_images = false;
 output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\Segmented";
@@ -116,65 +116,64 @@ for i = 1:length(imagenes)
     % 4. ANÁLISIS CANAL S (Multi-level Otsu)
     gamma_val = 1.4;
     S_proc = S .^ gamma_val;
-    multilevel_otsu_S = multithresh(S_proc,2);
-
-    % Calculamos 2 umbrales para obtener 3 clases:
-    % Clase 1: Fondo oscuro/bajo S
-    % Clase 2: Zona intermedia (¿Fondo o LEGO?)
-    % Clase 3: Saturación alta (LEGO seguro)
+    
+    % Calculamos 2 umbrales
     thresh_vals = multithresh(S_proc, 2);
-    fprintf('  > S: Umbrales Otsu detectados: [%.4f, %.4f]\n', thresh_vals(1), thresh_vals(2))
-
-    % Clasificamos la imagen en 1, 2 y 3 basada en esos umbrales
-    L_quantized = imquantize(S_proc, thresh_vals);
-
-    % Calculamos qué porcentaje de la imagen ocupa la Clase 2 (Intermedia)
-    num_pixels = numel(S_proc);
-    count_mid = sum(L_quantized(:) == 2);
-    ratio_mid = count_mid / num_pixels;
-
-    % Si la clase intermedia ocupa más del 15% (0.15) de la imagen, asumimos
-    % que es demasiado grande para ser piezas de LEGO y es parte del fondo.
-    umbral_area_max_mid = 0.15;
-
-
 
     % Máscaras base
     mask_S_high = S_proc > thresh_vals(2);
     mask_S_mid  = (S_proc > thresh_vals(1)) & (S_proc <= thresh_vals(2));
     
-    % Decisión Clase Media
-    mask_S_mid = bwareaopen(mask_S_mid, 10); 
-    stats = regionprops(mask_S_mid, 'Area', 'Solidity', 'BoundingBox');
+    % Máscara de la Clase Media
+    L_quantized = imquantize(S_proc, thresh_vals);
+    mask_mid_temp = (L_quantized == 2);
     
-    keep_mid_layer = false;
+    % Ratio de área
+    num_pixels = numel(S_proc);
+    count_mid = sum(mask_mid_temp(:));
+    ratio_mid = count_mid / num_pixels;
     
-    % Criterios
-    % min_lego_area = 400;  % Ajusta según el tamaño de tus piezas en la foto
-    min_solidity  = 0.6;
+    fprintf('  > S: Ratio Clase Media: %.2f%% ', ratio_mid*100);
     
-    % Buscamos si AL MENOS UN objeto cumple los requisitos
-    if ~isempty(stats)
-        % Obtenemos el área y solidez máxima encontrada en esta capa
-        max_blob_area = max([stats.Area]);
+    % DECISIÓN POR RANGOS
+    umbral_inferior = 0.05;
+    umbral_superior = 0.12;
+    
+    use_lower_thresh = false;
+    
+    if ratio_mid < umbral_inferior
+        % Poco área -> Es un LEGO
+        use_lower_thresh = true;
+        fprintf('(Bajo < 8%% -> ACEPTADO)\n');
         
-        % Buscamos el objeto más grande y vemos si es sólido
-        idx_max = find([stats.Area] == max_blob_area, 1);
-        solidity_of_biggest = stats(idx_max).Solidity;
-        
-        if ratio_mid > umbral_area_max_mid && solidity_of_biggest > min_solidity
-            keep_mid_layer = true;
+    elseif ratio_mid > umbral_superior
+        % Mucha área -> Es Fondo/Ruido
+        use_lower_thresh = false;
+    else
+        % Análisis de solidez
+        stats = regionprops(mask_mid_temp, 'Area', 'Solidity');
+        if ~isempty(stats)
+            [~, idx] = max([stats.Area]); % Miramos solo el objeto más grande
+            solidez_mid = stats(idx).Solidity;
+            
+            % Si es sólido (>0.6), es un LEGO. Si no, es ruido.
+            if solidez_mid > 0.6
+                use_lower_thresh = true;
+            else
+                use_lower_thresh = false;
+            end
+        else
+            use_lower_thresh = false;
         end
     end
     
-    if keep_mid_layer
-        level_otsu_S = thresh_vals(2);
-        fprintf('  > S: Umbral superior seleccionado\n');
-    else
-        fprintf('  > S: Umbral inferior seleccionado\n');
+    % Asignación final del umbral
+    if use_lower_thresh
         level_otsu_S = thresh_vals(1);
+    else
+        level_otsu_S = thresh_vals(2);
     end
-
+    
     mask_S = imbinarize(S_proc, level_otsu_S);
 
     if show_figures(2) == 1
@@ -192,7 +191,7 @@ for i = 1:length(imagenes)
         xline(level_otsu_S, 'r', 'LineWidth', 2);
 
         text(level_otsu_S, max(ylim)*0.8, sprintf(' Th: %.3f', level_otsu_S), 'Color', 'r', 'FontWeight', 'bold');
-        title({'Histograma', sprintf('Clase Media: %.1f%%. Umbral: %.1f%%', ratio_mid*100, umbral_area_max_mid)});
+        title({'Histograma', sprintf('Clase Media: %.1f%%.', ratio_mid*100)});
         xlabel('Intensidad S'); ylabel('Píxeles');
 
         subplot(2, 2, [3, 4]);
@@ -206,7 +205,7 @@ for i = 1:length(imagenes)
     % Rango Morado/Rosa: 0.68 a 0.88 aprox.
     % Condición de seguridad: S debe ser > 40% del umbral de Otsu calculado antes
     % para no detectar ruido gris de fondo como morado.
-    min_sat_H_purple = 0.1 * thresh_vals(2);
+    min_sat_H_purple = 0.4 * level_otsu_S;
     min_sat_H_pink = 1 * level_otsu_S;
     mask_H_purple = (H >= 0.58) & (H <= 0.92) & (S > min_sat_H_purple);
     mask_H_pink = (H >= 0.01) & (H <= 0.065) & (S > min_sat_H_pink);
