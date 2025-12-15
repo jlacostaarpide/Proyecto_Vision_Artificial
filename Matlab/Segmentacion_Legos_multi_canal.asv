@@ -123,58 +123,74 @@ for i = 1:length(imagenes)
     % Clase 2: Zona intermedia (¿Fondo o LEGO?)
     % Clase 3: Saturación alta (LEGO seguro)
     thresh_vals = multithresh(S_proc, 2);
-    fprintf('  > S: Umbrales Otsu detectados: [%.4f, %.4f]\n', thresh_vals(1), thresh_vals(2))
 
     % Clasificamos la imagen en 1, 2 y 3 basada en esos umbrales
     L_quantized = imquantize(S_proc, thresh_vals);
 
-    % Calculamos qué porcentaje de la imagen ocupa la Clase 2 (Intermedia)
-    num_pixels = numel(S_proc);
-    count_mid = sum(L_quantized(:) == 2);
-    ratio_mid = count_mid / num_pixels;
-
-    % Si la clase intermedia ocupa más del 15% (0.15) de la imagen, asumimos
-    % que es demasiado grande para ser piezas de LEGO y es parte del fondo.
-    umbral_area_max_mid = 0.15;
-
-
+    % % Calculamos qué porcentaje de la imagen ocupa la Clase 2 (Intermedia)
+    % num_pixels = numel(S_proc);
+    % count_mid = sum(L_quantized(:) == 2);
+    % ratio_mid = count_mid / num_pixels;
+    % 
+    % % Si la clase intermedia ocupa más del 15% (0.15) de la imagen, asumimos
+    % % que es demasiado grande para ser piezas de LEGO y es parte del fondo.
+    % umbral_area_max_mid = 0.095;
+    % 
+    % if ratio_mid > umbral_area_max_mid
+    %     % Caso A: La clase media es enorme -> Es FONDO.
+    %     level_otsu_S = thresh_vals(2);
+    % else
+    %     % Caso B: La clase media es pequeña -> Es parte del LEGO.
+    %     level_otsu_S = thresh_vals(1);
+    % end
 
     % Máscaras base
-    mask_S_high = S_proc > thresh_vals(2);
-    mask_S_mid  = (S_proc > thresh_vals(1)) & (S_proc <= thresh_vals(2));
+    mask_high = S_proc > thresh_vals(2);
+    mask_mid  = (S_proc > thresh_vals(1)) & (S_proc <= thresh_vals(2));
     
     % Decisión Clase Media
-    mask_S_mid = bwareaopen(mask_S_mid, 10); 
-    stats = regionprops(mask_S_mid, 'Area', 'Solidity', 'BoundingBox');
+    mask_mid = bwareaopen(mask_mid, 10); 
+    stats = regionprops(mask_mid, 'Area', 'Solidity', 'BoundingBox');
     
     keep_mid_layer = false;
     
-    % Criterios
-    % min_lego_area = 400;  % Ajusta según el tamaño de tus piezas en la foto
-    min_solidity  = 0.6;
+    % Criterios para considerar que "Aquí hay un LEGO":
+    min_lego_area = 400;  % Ajusta según el tamaño de tus piezas en la foto
+    min_solidity  = 0.6;  % Un LEGO es sólido (cercano a 1). El ruido es difuso (<0.5).
     
     % Buscamos si AL MENOS UN objeto cumple los requisitos
     if ~isempty(stats)
         % Obtenemos el área y solidez máxima encontrada en esta capa
         max_blob_area = max([stats.Area]);
         
-        % Buscamos el objeto más grande y vemos si es sólido
+        % Truco: Buscamos el objeto más grande y vemos si es sólido
         idx_max = find([stats.Area] == max_blob_area, 1);
         solidity_of_biggest = stats(idx_max).Solidity;
         
-        if ratio_mid > umbral_area_max_mid && solidity_of_biggest > min_solidity
+        if max_blob_area > min_lego_area && solidity_of_biggest > min_solidity
             keep_mid_layer = true;
+            fprintf('  > S (Clase Media): ACEPTADA. Encontrado objeto de Área %d y Solidez %.2f\n', max_blob_area, solidity_of_biggest);
+        else
+            fprintf('  > S (Clase Media): RECHAZADA. Solo contiene ruido disperso (Max Area: %d)\n', max_blob_area);
         end
+    else
+        fprintf('  > S (Clase Media): Vacía.\n');
     end
     
+    % 3. Construcción de la Máscara Final S
     if keep_mid_layer
-        level_otsu_S = thresh_vals(2);
-        fprintf('  > S: Umbral superior seleccionado\n');
+        % Opción A: Sumamos la máscara media ORIGINAL (como pedías)
+        mask_S = mask_high | mask_mid; 
+        level_otsu_S = thresh_vals(1); % Para el gráfico
     else
-        fprintf('  > S: Umbral inferior seleccionado\n');
-        level_otsu_S = thresh_vals(1);
+        % Opción B: Nos quedamos solo con la alta
+        mask_S = mask_high;
+        level_otsu_S = thresh_vals(2); % Para el gráfico
     end
 
+
+
+    fprintf('  > S: Umbrales Otsu detectados: [%.4f, %.4f]\n', thresh_vals(1), thresh_vals(2))
     mask_S = imbinarize(S_proc, level_otsu_S);
 
     if show_figures(2) == 1
@@ -197,7 +213,6 @@ for i = 1:length(imagenes)
 
         subplot(2, 2, [3, 4]);
         imshow(mask_S);
-        imshowpair(mask_S_high, mask_S_mid);
         title(['Máscara Binaria S (Umbral Otsu: ' num2str(level_otsu_S) ')']);
     end
 
