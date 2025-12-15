@@ -60,7 +60,28 @@ end
 
 %%
 
-gplotmatrix(Xtrain,[],T.Label)
+gplotmatrix(table2array(T_train(:,1:end-3)),[],L_train)
+
+%%
+
+figure; gplotmatrix(table2array(T(:,1:end-3)),[],T.Label); % como le hemos metido 3 columnas nuevas que no queremos ver, hacemos desde columna 1 hasta end-3.
+figure; gplotmatrix(table2array(T2(:,1:end-3)),[],T2.Label);
+figure; gplotmatrix(table2array(T3(:,1:end-3)),[],T3.Label);
+
+%%
+figure; gplotmatrix(table2array(T(:,1:4)),[],T.Label,[],'*'); % como le hemos metido 3 columnas nuevas que no queremos ver, hacemos desde columna 1 hasta end-3.
+figure; gplotmatrix(table2array(T2(:,1:4)),[],T2.Label,[],'*');
+figure; gplotmatrix(table2array(T3(:,1:4)),[],T3.Label,[],'*');
+
+
+%%
+
+% Train:
+while 1, pause, n=randi(1200); fprintf('+ %d - %d\n',trainedModel.predictFcn(T_train(n,1:end-3)),L_train(n)), end
+
+% Test
+while 1, pause, n=randi(352); fprintf('+ %d - %d\n',trainedModel.predictFcn(T_test(n,1:end-3)),L_test(n)), end
+
 
 
 
