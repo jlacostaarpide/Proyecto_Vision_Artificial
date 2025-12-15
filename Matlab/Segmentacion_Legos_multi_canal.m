@@ -13,30 +13,30 @@ addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
 %% 1. CARGA DE LA IMAGEN
 
 imagenes = {
-    % 'IMG_7647.jpg';
-    % 'IMG_7643.jpg';
-    % '4_legos.jpg';
-    % '07_270_70_003.jpg';
-    % '07_315_10_005.jpg';
-    % '09_270_70_001.jpg';
-    % '09_270_70_003.jpg';
-    % 
-    % '08_270_40_003.jpg';
-    % 
-    % '01_270_70_003.jpg';
-    % '04_270_10_003.jpg';
-    % '04_045_10_003.jpg';
-    % '04_270_40_003.jpg';
-    % '04_045_40_003.jpg';
-    % '04_270_70_003.jpg';
-    % '04_045_70_003.jpg';
-    % '04_270_90_003.jpg';
-    % '10_270_70_003.jpg';
-    % '11_270_70_003.jpg';
-    % '11_135_70_003.jpg';
-    % '11_45_90_002.jpg';
-    % '12_270_70_003.jpg';
-    % 
+    'IMG_7647.jpg';
+    'IMG_7643.jpg';
+    '4_legos.jpg';
+    '07_270_70_003.jpg';
+    '07_315_10_005.jpg';
+    '09_270_70_001.jpg';
+    '09_270_70_003.jpg';
+
+    '08_270_40_003.jpg';
+
+    '01_270_70_003.jpg';
+    '04_270_10_003.jpg';
+    '04_045_10_003.jpg';
+    '04_270_40_003.jpg';
+    '04_045_40_003.jpg';
+    '04_270_70_003.jpg';
+    '04_045_70_003.jpg';
+    '04_270_90_003.jpg';
+    '10_270_70_003.jpg';
+    '11_270_70_003.jpg';
+    '11_135_70_003.jpg';
+    '11_45_90_002.jpg';
+    '12_270_70_003.jpg';
+
     '01_000_40_001.jpg';
     '02_090_40_001.jpg';
     '03_270_10_001.jpg';
@@ -132,20 +132,19 @@ for i = 1:length(imagenes)
     num_pixels = numel(S_proc);
     count_mid = sum(mask_mid_temp(:));
     ratio_mid = count_mid / num_pixels;
-    
-    fprintf('  > S: Ratio Clase Media: %.2f%% ', ratio_mid*100);
+        
+    fprintf('  > S: Umbrales Otsu detectados: [%.4f, %.4f]\n', thresh_vals(1), thresh_vals(2))
+    fprintf('  > S: Ratio Clase Media: %.2f%% \n', ratio_mid*100);
     
     % DECISIÓN POR RANGOS
-    umbral_inferior = 0.05;
-    umbral_superior = 0.12;
+    umbral_inferior = 0.055;
+    umbral_superior = 0.17;
     
     use_lower_thresh = false;
     
     if ratio_mid < umbral_inferior
         % Poco área -> Es un LEGO
         use_lower_thresh = true;
-        fprintf('(Bajo < 8%% -> ACEPTADO)\n');
-        
     elseif ratio_mid > umbral_superior
         % Mucha área -> Es Fondo/Ruido
         use_lower_thresh = false;
@@ -194,10 +193,13 @@ for i = 1:length(imagenes)
         title({'Histograma', sprintf('Clase Media: %.1f%%.', ratio_mid*100)});
         xlabel('Intensidad S'); ylabel('Píxeles');
 
-        subplot(2, 2, [3, 4]);
-        imshow(mask_S);
+        subplot(2, 2, 3);
         imshowpair(mask_S_high, mask_S_mid);
-        title(['Máscara Binaria S (Umbral Otsu: ' num2str(level_otsu_S) ')']);
+        title('Máscaras Binarias S');
+        
+        subplot(2, 2, 4);
+        imshow(mask_S);
+        title(['Máscara Binaria Final S (Umbral Otsu: ' num2str(level_otsu_S) ')']);
     end
 
 
@@ -316,7 +318,7 @@ for i = 1:length(imagenes)
         all_areas = [stats.Area];
         max_area = max(all_areas);
 
-        umbral_area = 0.05 * max_area;
+        umbral_area = 0.15 * max_area;
         all_circ = [stats.Circularity];
         umbral_circ = 0.2;
 
