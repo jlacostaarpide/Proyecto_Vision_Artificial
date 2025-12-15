@@ -13,13 +13,13 @@ addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
 %% 1. CARGA DE LA IMAGEN
 
 imagenes = {
-    % 'IMG_7647.jpg';
-    % 'IMG_7643.jpg';
-    % '4_legos.jpg';
-    % '07_270_70_003.jpg';
-    % '07_315_10_005.jpg';
-    % '09_270_70_001.jpg';
-    % '09_270_70_003.jpg';
+    'IMG_7647.jpg';
+    'IMG_7643.jpg';
+    '4_legos.jpg';
+    '07_270_70_003.jpg';
+    '07_315_10_005.jpg';
+    '09_270_70_001.jpg';
+    '09_270_70_003.jpg';
 
     % '08_270_40_003.jpg';
 
@@ -37,7 +37,7 @@ imagenes = {
     % '11_45_90_002.jpg';
     % '12_270_70_003.jpg';
 
-    '01_000_40_001.jpg';
+    % '01_000_40_001.jpg';
     % '02_090_40_001.jpg';
     % '03_270_10_001.jpg';
     % '05_315_10_001.jpg';
@@ -75,8 +75,8 @@ end
 % 4: Análisis V: Eliminado por ahora
 % 5: Limpieza Morfológica
 % 6: Resultado Final
-show_figures = [1, 1, 1, 1, 1, 1];
-% show_figures = [0, 0, 0, 0, 0, 1];
+% show_figures = [1, 1, 1, 0, 1, 1];
+show_figures = [0, 0, 0, 0, 0, 1];
 
 save_images = false;
 output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\Segmented";
@@ -171,16 +171,14 @@ for i = 1:length(imagenes)
     end
 
 
-    % 5. ANÁLISIS CANAL H (Rosa y Morado)
+    % 5. ANÁLISIS CANAL H (Rescate Morado)
     % Rango Morado/Rosa: 0.68 a 0.88 aprox.
     % Condición de seguridad: S debe ser > 40% del umbral de Otsu calculado antes
     % para no detectar ruido gris de fondo como morado.
-    min_sat_H = 0.1 * thresh_vals(2);
-    % min_sat_H = 0.4 * level_otsu_S;
-    mask_H_purple = (H >= 0.58) & (H <= 0.92) & (S > min_sat_H);
-    mask_H_pink = (H >= 0.01) & (H <= 0.11) & (S > min_sat_H);
+    min_sat_H = 0.4 * level_otsu_S;
+    mask_H_purple = (H >= 0.68) & (H <= 0.88) & (S > min_sat_H);
 
-    mask_H = mask_H_purple | mask_H_pink;
+    fprintf('  > H: Detectando rango morado [0.68 - 0.88]\n');
 
     % FIGURA 3: Lógica H
     if show_figures(3) == 1
@@ -199,8 +197,8 @@ for i = 1:length(imagenes)
         title('H (Solo zonas con Sat > min)');
 
         subplot(2, 2, [3, 4]);
-        imshowpair(mask_H_purple, mask_H_pink, 'ColorChannels', 'green-magenta');
-        title('Máscara H (Morado y Rosa)');
+        imshow(mask_H_purple);
+        title('Máscara H (Morado)');
     end
 
     % 6. ANÁLISIS CANAL V (Colores Oscuros)
@@ -214,7 +212,7 @@ for i = 1:length(imagenes)
     % DESACTIVAR MASCARA EN CANAL V
     mask_V_dark(:) = 0;
 
-    % fprintf('  > V: Umbral Otsu (Invertido) = %.4f\n', level_otsu_V);
+    fprintf('  > V: Umbral Otsu (Invertido) = %.4f\n', level_otsu_V);
 
     % FIGURA 4: Lógica V
     if show_figures(4) == 1
@@ -232,7 +230,7 @@ for i = 1:length(imagenes)
 
     % 7. FUSIÓN Y MORFOLOGÍA
     % UNIÓN LÓGICA (OR)
-    mask_combined = mask_S | mask_H | mask_V_dark;
+    mask_combined = mask_S | mask_H_purple | mask_V_dark;
 
     % LIMPIEZA
     mask_filled = imfill(mask_combined, 'holes');
