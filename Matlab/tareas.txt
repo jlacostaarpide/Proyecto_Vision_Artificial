@@ -1,3 +1,23 @@
+Tareas pendientes: 
+
+- Mejorar selección de umbral para el multithresh. Buscar métricas.
+- Ajustar máscara de rosa (Nivel de S + rango de H). Idea: Multithresh en canal H. Cuantos niveles?
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------------------------------------------------------
+
+
+
 para segmentar morado, hacer gamma. pero no va bien. como prueba, desplazar el umbral para abajo en la imagen actual. 
 	RESULTS: gamma 0.15 es ideal pero es muy basto y con otras imagenes fallara. descartamos por ahora. 
 
