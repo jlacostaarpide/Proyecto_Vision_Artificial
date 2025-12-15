@@ -38,18 +38,18 @@ imagenes = {
     % '12_270_70_003.jpg';
 
     '01_000_40_001.jpg';
-    % '02_090_40_001.jpg';
-    % '03_270_10_001.jpg';
-    % '05_315_10_001.jpg';
-    % '06_000_70_001.jpg';
-    % '06_135_90_001.jpg';
-    % '07_000_10_004.jpg';
-    % '08_000_40_001.jpg';
-    % '08_045_40_001.jpg';
-    % '08_180_40_004.jpg';
-    % '09_000_70_004.jpg';
-    % '10_135_10_001.jpg';
-    % '11_135_10_001.jpg';
+    '02_090_40_001.jpg';
+    '03_270_10_001.jpg';
+    '05_315_10_001.jpg';
+    '06_000_70_005.jpg';
+    '06_135_90_001.jpg';
+    '07_000_10_004.jpg';
+    '08_000_40_001.jpg';
+    '08_045_40_001.jpg';
+    '08_180_40_004.jpg';
+    '09_000_70_004.jpg';
+    '10_135_10_001.jpg';
+    '11_135_10_001.jpg';
 };
 
 sweep_codes   = [1,2,3,4,5,6,7,8,9,10,11,12];      % Ej: [8] o [8, 9] (Código de pieza)
@@ -175,10 +175,10 @@ for i = 1:length(imagenes)
     % Rango Morado/Rosa: 0.68 a 0.88 aprox.
     % Condición de seguridad: S debe ser > 40% del umbral de Otsu calculado antes
     % para no detectar ruido gris de fondo como morado.
-    min_sat_H = 0.1 * thresh_vals(2);
-    % min_sat_H = 0.4 * level_otsu_S;
-    mask_H_purple = (H >= 0.58) & (H <= 0.92) & (S > min_sat_H);
-    mask_H_pink = (H >= 0.01) & (H <= 0.11) & (S > min_sat_H);
+    min_sat_H_purple = 0.1 * thresh_vals(2);
+    min_sat_H_pink = 1 * level_otsu_S;
+    mask_H_purple = (H >= 0.58) & (H <= 0.92) & (S > min_sat_H_purple);
+    mask_H_pink = (H >= 0.01) & (H <= 0.065) & (S > min_sat_H_pink);
 
     mask_H = mask_H_purple | mask_H_pink;
 
@@ -194,7 +194,8 @@ for i = 1:length(imagenes)
         % Visualización: Mostramos solo los píxeles con saturación suficiente
         % para ver dónde busca realmente el algoritmo
         H_masked = H;
-        H_masked(S < min_sat_H) = NaN; % Lo ponemos transparente/negro
+        H_masked(S < min_sat_H_purple) = NaN; % Lo ponemos transparente/negro
+        H_masked(S < min_sat_H_pink) = NaN;
         imshow(H_masked); colormap(gca, 'hsv');
         title('H (Solo zonas con Sat > min)');
 
