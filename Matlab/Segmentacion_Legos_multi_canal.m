@@ -79,7 +79,7 @@ end
 show_figures = [0, 0, 0, 0, 0, 1];
 
 save_images = false;
-output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\Segmented";
+output_folder = "C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Matlab\Segmented";
 
 fprintf('Procesando %d imágenes\n', length(imagenes));
 
