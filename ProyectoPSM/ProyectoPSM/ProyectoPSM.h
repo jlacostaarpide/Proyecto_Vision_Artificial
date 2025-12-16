@@ -1,4 +1,3 @@
-#pragma once
 
 #include <vector>
 #include <string>
@@ -15,13 +14,14 @@
 #include "VideoAcquisition.h"
 #include "NameHelper.h"
 
+//Procesa la imagen en segundo plano y calcula el bbox y thumbnail
 class SegmentationWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit SegmentationWorker(QObject *parent = nullptr) : QObject(parent) {}
+    SegmentationWorker(QObject *parent = nullptr) : QObject(parent) {}
 public slots:
-    void process(std::shared_ptr<cv::Mat> snapshot, int targetW, int targetH);
+    void process(shared_ptr<Mat> snapshot);
 signals:
     // bounding box normalizado [0..1]
     void finishedBox(const QRectF &box);
@@ -38,7 +38,7 @@ public:
     ~ProyectoPSM();
 
 signals:
-    void requestSegmentation(std::shared_ptr<cv::Mat> snapshot, int targetW, int targetH);
+    void requestSegmentation(shared_ptr<Mat> snapshot, int targetW, int targetH);
 
 private:
     Ui::ProyectoPSMClass ui;
@@ -47,13 +47,13 @@ private:
 	Mat CapturedImage;
     int ImageIndex;
 	int SavedImageIndex;
-    std::vector<std::string> NameList;
+    vector<string> NameList;
 
     // para segmentación en vivo
     bool LiveSegmentationEnabled;
-    std::atomic<bool> SegProcessing;
+    atomic<bool> SegProcessing;
 
-    std::chrono::steady_clock::time_point LastSegmentationTime;
+    chrono::steady_clock::time_point LastSegmentationTime;
     int SegmentationIntervalMs; // intervalo entre tomas (ms)
 
     // worker/thread para segmentación
