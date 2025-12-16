@@ -251,7 +251,8 @@ for i = 1:length(imagenes)
 
     % FIGURA 4: Lógica V
     if show_figures(4) == 1
-        figure('Name', 'Canal V', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);        subplot(1, 3, 1);
+        figure('Name', 'Canal V', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);        
+        subplot(1, 3, 1);
         imshow(V_inv); title('V Invertido (Negro=Blanco)');
 
         subplot(1, 3, 2);
@@ -267,16 +268,16 @@ for i = 1:length(imagenes)
     % UNIÓN LÓGICA (OR)
     mask_combined = mask_S | mask_H | mask_V_dark;
 
-    % LIMPIEZA
-    mask_filled = imfill(mask_combined, 'holes');
+    % PERÍMETRO Y LIMPIEZA
+    se_suture = strel('disk', 3); 
+    mask_sutured = imclose(mask_combined, se_suture);
+    mask_filled = imfill(mask_sutured, 'holes');
     se_noise = strel('disk', 3);
     mask_clean = imopen(mask_filled, se_noise);
     mask_final = imclearborder(mask_clean);
 
     % OPERACIÓN DE CIERRE
-    %    Un disco de radio 8-15 suele ir bien. Si separas mucho las piezas,
-    %    baja este número. Si las piezas se rompen mucho, súbelo.
-    radio_disco = 12;
+    radio_disco = 14;
     se_merge = strel('disk', radio_disco);
     mask_merged = imclose(mask_final, se_merge);
 
@@ -284,7 +285,7 @@ for i = 1:length(imagenes)
     mask_merged = imfill(mask_merged, 'holes');
 
     % APERTURA FINAL (Suavizar contornos)
-    se_smooth = strel('disk', 5);
+    se_smooth = strel('disk', 4);
     mask_final_consolidated = imopen(mask_merged, se_smooth);
 
     % FIGURA 5: Morfología
