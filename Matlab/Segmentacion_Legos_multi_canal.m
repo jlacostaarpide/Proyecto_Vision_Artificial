@@ -4,11 +4,11 @@ clear; close all; clc;
 
 % addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\matlab_imagen\Matlab - Imagen")
 % addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\legocodes")
-addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G01_COD123")
-addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G02_COD456")
-addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G03_COD789")
-addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G04_COD101112")
-addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
+addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G01_COD123")
+addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G02_COD456")
+addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G03_COD789")
+addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G04_COD101112")
+addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\tests")
 
 %% 1. CARGA DE LA IMAGEN
 
