@@ -49,18 +49,25 @@ hold off;
 
 %% 4) Boxplot de HmeanCirc por clase
 for i=1:8
-    Carac = Xtrain(:,i);
+    Carac = T(:,i);
     figure;
-    boxplot(Carac, Ytrain);
+    boxplot(Carac, Ytrain); % Ytrain?
     xlabel('Clase');
     ylabel('HmeanCirc');
     title('Boxplot de HmeanCirc por clase');
 end
 
-
 %%
 
-gplotmatrix(Xtrain,[],T.Label)
+figure; gplotmatrix(table2array(T(:,1:end-3)),[],T.Label); % como le hemos metido 3 columnas nuevas que no queremos ver, hacemos desde columna 1 hasta end-3.
+
+%%
+figure; gplotmatrix(table2array(T(:,1:4)),[],T.Label,[],'*'); % como le hemos metido 3 columnas nuevas que no queremos ver, hacemos desde columna 1 hasta end-3.
+
+%%
+% Test
+while 1, pause, n=randi(size(T_test,1)); fprintf('+ %d - %d\n',trainedModel.predictFcn(T_test(n,1:end-3)),T_test.Label(n,1)), end
+
 
 
 
