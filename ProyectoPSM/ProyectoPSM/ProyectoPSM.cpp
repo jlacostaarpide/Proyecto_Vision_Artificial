@@ -5,70 +5,86 @@
 #include <chrono>
 #include <QMetaType>
 #include <QDebug>
+#include <QPainter>
 
-Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
+Q_DECLARE_METATYPE(shared_ptr<Mat>)
 
-void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr, int targetW, int targetH)
+//Recibe la imagen reducida y calcula el bounding box normalizado y el thumbnail segmentado
+void SegmentationWorker::process(shared_ptr<Mat> snapshotPtr )
 {
-    QImage qseg; // por defecto imagen vacía (se interpreta como no resultado)
+	// resultados por defecto
+    QRectF normalizedBox(0,0,0,0); 
+    QImage qthumb; 
+
     try {
+		// comprobar entrada
         if (!snapshotPtr || snapshotPtr->empty()) {
-            emit finished(qseg);
+            emit finishedBox(normalizedBox);
+            emit finishedThumbnail(qthumb);
             return;
         }
 
-        // Segmentación sobre la imagen recibida (ya reducida a tamaño de procesamiento)
-        cv::Mat seg = Segmentacion::Segment(*snapshotPtr);
+        // Obtiene máscara binaria en tamaño reducido (worker thread)
+        Mat mask = Segmentacion::SegmentMask(*snapshotPtr);
+        if (!mask.empty()) {
+            // encontrar contornos y bbox del mayor contorno
+            vector<vector<Point>> contours;
+            findContours(mask, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+            if (!contours.empty()) {
+                size_t best = 0;
+                double bestArea = 0;
+                for (size_t i = 0; i < contours.size(); ++i) {
+                    double a = contourArea(contours[i]);
+                    if (a > bestArea) { bestArea = a; best = i; }
+                }
+                Rect r = boundingRect(contours[best]);
+                double iw = static_cast<double>(snapshotPtr->cols);
+                double ih = static_cast<double>(snapshotPtr->rows);
+                if (iw > 0 && ih > 0) {
+                    normalizedBox = QRectF(r.x / iw, r.y / ih, r.width / iw, r.height / ih);
+                }
 
-        if (!seg.empty()) {
-            // ajustar tamaño para mostrar en la UI si hace falta
-            cv::Mat seg_for_q;
-            if (targetW > 0 && targetH > 0 && (seg.cols != targetW || seg.rows != targetH)) {
-                cv::resize(seg, seg_for_q, cv::Size(targetW, targetH), 0, 0, cv::INTER_LINEAR);
-            } else {
-                seg_for_q = seg;
-            }
+                // construir thumbnail pequeño: aplicar máscara sobre snapshot reducido
+                Mat masked;
+                snapshotPtr->copyTo(masked, mask); // masked contiene sólo la parte segmentada
 
-            // convertir a RGB y construir QImage (hacer .copy() para asegurar que los datos sean independientes)
-            cv::Mat seg_rgb;
-            if (seg_for_q.channels() == 3) {
-                cv::cvtColor(seg_for_q, seg_rgb, cv::COLOR_BGR2RGB);
-                qseg = QImage(reinterpret_cast<const uchar*>(seg_rgb.data),
-                              seg_rgb.cols, seg_rgb.rows,
-                              static_cast<int>(seg_rgb.step),
-                              QImage::Format_RGB888).copy();
-            } else if (seg_for_q.channels() == 1) {
-                cv::Mat tmp;
-                cv::cvtColor(seg_for_q, tmp, cv::COLOR_GRAY2RGB);
-                qseg = QImage(reinterpret_cast<const uchar*>(tmp.data),
-                              tmp.cols, tmp.rows,
-                              static_cast<int>(tmp.step),
-                              QImage::Format_RGB888).copy();
-            } else {
-                // formatos exóticos: devolver vacío
+                const int thumbW = 160; // ancho de thumbnail
+                int srcW = masked.cols;
+                int srcH = masked.rows;
+                int thumbH = max(1, (int)((double)thumbW * srcH / max(1, srcW)));
+                Mat thumb;
+                resize(masked, thumb, cv::Size(thumbW, thumbH), 0, 0, INTER_LINEAR);
+
+                // convertir a QImage RGB
+                Mat thumb_rgb;
+                if (thumb.channels() == 3) cvtColor(thumb, thumb_rgb, COLOR_BGR2RGB);
+                else cvtColor(thumb, thumb_rgb, COLOR_GRAY2RGB);
+                qthumb = QImage(reinterpret_cast<const uchar*>(thumb_rgb.data),
+                                thumb_rgb.cols, thumb_rgb.rows,
+                                static_cast<int>(thumb_rgb.step), QImage::Format_RGB888).copy();
             }
         }
     }
-    catch (const std::exception &e) {
+    catch (const exception &e) {
         qDebug() << "SegmentationWorker exception:" << e.what();
     }
     catch (...) {
         qDebug() << "SegmentationWorker unknown exception";
     }
 
-    emit finished(qseg);
+    emit finishedBox(normalizedBox);
+    emit finishedThumbnail(qthumb);
 }
 
-ProyectoPSM::ProyectoPSM(QWidget *parent)
-    : QMainWindow(parent)
+ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
 {
     ui.setupUi(this);
 
     // registrar tipo para queued connections
-    qRegisterMetaType<std::shared_ptr<cv::Mat>>("std::shared_ptr<cv::Mat>");
+    qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
 
-	if (!std::filesystem::exists("Database")) {
-		std::filesystem::create_directory("Database");
+	if (!filesystem::exists("Database")) {
+		filesystem::create_directory("Database");
 	}
 
 	NameList = NameHelper::GenerarNombres();
@@ -82,18 +98,21 @@ ProyectoPSM::ProyectoPSM(QWidget *parent)
 	// inicializar flags de segmentación
 	LiveSegmentationEnabled = false;
 	SegProcessing = false;
+    segInFlight = 0;
+    segThumbNext = 0;
 
-    // intervalo recomendado: por ejemplo 2000 ms (2 s). Ajusta según tus necesidades.
-    SegmentationIntervalMs = 2000;
-    LastSegmentationTime = std::chrono::steady_clock::now() - std::chrono::milliseconds(SegmentationIntervalMs);
+	SegmentationIntervalMs = 2000; //cada cuanto hacer segmentación (ms)
+    LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
 
-    // crear worker y thread para segmentación (reutilizable)
+    // crear worker y thread para segmentación 
     segWorker = new SegmentationWorker();
     segThread = new QThread(this);
     segWorker->moveToThread(segThread);
     connect(segThread, &QThread::finished, segWorker, &QObject::deleteLater);
-    // cuando el worker termine, actualizar UI (queued)
-    connect(segWorker, &SegmentationWorker::finished, this, &ProyectoPSM::UpdateSegmentationUI, Qt::QueuedConnection);
+    // cuando el worker calcule el bbox normalizado, actualizar UI 
+    connect(segWorker, &SegmentationWorker::finishedBox, this, &ProyectoPSM::UpdateSegmentationBox, Qt::QueuedConnection);
+    // cuando el worker produzca un thumbnail, encolarlo al UI
+    connect(segWorker, &SegmentationWorker::finishedThumbnail, this, &ProyectoPSM::EnqueueSegThumbnail, Qt::QueuedConnection);
     // emitir trabajo al worker
     connect(this, &ProyectoPSM::requestSegmentation, segWorker, &SegmentationWorker::process, Qt::QueuedConnection);
     segThread->start();
@@ -138,7 +157,7 @@ ProyectoPSM::~ProyectoPSM()
         segThread->quit();
         segThread->wait();
         segThread = nullptr;
-        segWorker = nullptr; // será borrado por finished->deleteLater()
+        segWorker = nullptr; 
     }
     if (segTimer) {
         segTimer->stop();
@@ -160,13 +179,45 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
 	}
 }
 
+//pinta el 
 void ProyectoPSM::ShowImage()
 {
 	if (!LastImage.empty() and (ui.pbtnCapturar->isEnabled())) {
-		ui.lblImagen->setPixmap(QPixmap::fromImage(QImage(LastImage.data, LastImage.cols, LastImage.rows, LastImage.step, QImage::Format_BGR888)));
+        // construir pixmap a partir de la imagen actual
+		QImage qimg(LastImage.data, LastImage.cols, LastImage.rows, LastImage.step, QImage::Format_BGR888);
+		QPixmap pix = QPixmap::fromImage(qimg.copy());
+
+        // si hay un bbox disponible se pinta encima
+        if (!lastBoxNormalized.isNull() && lastBoxNormalized.width() > 0 && lastBoxNormalized.height() > 0) {
+            QPainter p(&pix);
+            QPen pen(Qt::green);
+            pen.setWidthF(max(1.0, pix.width() * 0.005)); // grosor proporcional
+            pen.setStyle(Qt::SolidLine);
+            p.setPen(pen);
+            p.setRenderHint(QPainter::Antialiasing, true);
+
+            // convertir coords normalizadas [0..1] a pixmap coordinates
+            int x = static_cast<int>(lastBoxNormalized.x() * pix.width());
+            int y = static_cast<int>(lastBoxNormalized.y() * pix.height());
+            int w = static_cast<int>(lastBoxNormalized.width() * pix.width());
+            int h = static_cast<int>(lastBoxNormalized.height() * pix.height());
+
+            // asegurar dentro de límites
+            x = max(0, min(x, pix.width()-1));
+            y = max(0, min(y, pix.height()-1));
+            if (w <= 0) w = 1;
+            if (h <= 0) h = 1;
+            if (x + w > pix.width()) w = pix.width() - x;
+            if (y + h > pix.height()) h = pix.height() - y;
+
+            p.drawRect(x, y, w, h);
+        }
+
+		ui.lblImagen->setPixmap(pix);
 	}
 }
 
+//muestra la imagen capturada (para la base de datos)
 void ProyectoPSM::VisualizeImage()
 {
 	ui.tabWidget->setCurrentIndex(1);
@@ -187,7 +238,7 @@ void ProyectoPSM::VisualizeImage()
 		ui.lblImagenCapturada->setPixmap(QPixmap::fromImage(QImage(CapturedImage.data, CapturedImage.cols, CapturedImage.rows, CapturedImage.step, QImage::Format_BGR888)));
 	}
 }
-
+//guarda la imagen capturada (base de datos)
 void ProyectoPSM::SaveImage()
 {
 	if (!CapturedImage.empty()) {
@@ -213,7 +264,6 @@ void ProyectoPSM::NewImage(Mat Img)
     if (Img.empty()) {
         return;
     }
-    // Actualizar sólo la imagen en pantalla (sin lanzar segmentación aquí)
     LastImage = std::move(Img);
     ShowImage();
     ++ImageIndex;
@@ -229,11 +279,19 @@ void ProyectoPSM::onSegmentationTimer()
     if (LastImage.empty())
         return;
 
-    // marcar como ocupado
+    // intentar reservar un slot in-flight
+    int prev = segInFlight.fetch_add(1, memory_order_relaxed);
+    if (prev >= maxSegInFlight) {
+        // estaba lleno: deshacer y salir
+        segInFlight.fetch_sub(1, memory_order_relaxed);
+        return;
+    }
+
+    // marcar como ocupado para evitar dobles reservas por el mismo frame
     SegProcessing = true;
 
     // crear snapshot reducido para acelerar la segmentación
-    cv::Mat proc;
+    Mat proc;
     const int srcW = LastImage.cols;
     const int srcH = LastImage.rows;
     int outW = min(SegmentationProcWidth, srcW);
@@ -242,16 +300,18 @@ void ProyectoPSM::onSegmentationTimer()
         // fallback a copia completa si algo raro
         proc = LastImage.clone();
     } else {
-        cv::resize(LastImage, proc, cv::Size(outW, outH), 0, 0, cv::INTER_LINEAR);
+        cv::resize(LastImage, proc, Size(outW, outH), 0, 0, INTER_LINEAR);
     }
 
-    // preparar target de visualización (tamaño del QLabel)
+    // preparar target de visualización (tamaño del QLabel) - no usado por worker ahora
     const int targetW = ui.lblImagSegmentada->width();
     const int targetH = ui.lblImagSegmentada->height();
 
     // empaquetar y emitir trabajo (queued connection)
-    auto snapshotPtr = std::make_shared<cv::Mat>(std::move(proc));
+    auto snapshotPtr = make_shared<Mat>(std::move(proc));
     emit requestSegmentation(snapshotPtr, targetW, targetH);
+
+    // El worker emitirá finishedBox y finishedThumbnail; EnqueueSegThumbnail liberará segInFlight.
 }
 
 // slot que activa/desactiva la segmentación en vivo
@@ -266,22 +326,44 @@ void ProyectoPSM::EnableLiveSegmentation(bool enabled)
 		ui.lblImagSegmentada->clear();
         // reset flag por seguridad
         SegProcessing = false;
+        lastBoxNormalized = QRectF();
+        segInFlight.store(0);
 	}
 }
 
-// slot llamado en hilo GUI para actualizar la imagen segmentada
-void ProyectoPSM::UpdateSegmentationUI(const QImage& segImage)
+// slot llamado por el worker con el bbox normalizado (ejecuta en GUI)
+void ProyectoPSM::UpdateSegmentationBox(const QRectF &box)
 {
-	if (segImage.isNull()) {
-		// no hay resultado de segmentación
-		ui.lblImagSegmentada->clear();
-	}
-	else {
-		QPixmap pix = QPixmap::fromImage(segImage);
-		ui.lblImagSegmentada->setPixmap(pix.scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-		ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
-	}
+    // guardar bbox para dibujar encima del frame mostrado
+    lastBoxNormalized = box;
+    // refrescar la imagen mostrada (dibujará el rectángulo en ShowImage)
+    ShowImage();
 
-    // liberar flag de procesamiento para permitir la siguiente toma
+    // liberar flag de procesamiento para permitir la siguiente toma (bbox recibida)
     SegProcessing = false;
+}
+
+// recibe miniaturas desde el worker y los muestra en dos QLabel (circular)
+void ProyectoPSM::EnqueueSegThumbnail(const QImage &thumb)
+{
+    // ejecuta en hilo GUI
+    if (thumb.isNull()) {
+        // liberar in-flight y salir
+        segInFlight.fetch_sub(1,memory_order_relaxed);
+        return;
+    }
+
+    int idx = segThumbNext % maxSegInFlight;
+    QPixmap pix = QPixmap::fromImage(thumb);
+
+    if (idx == 0) {
+        if (ui.lblSeg1) ui.lblSeg1->setPixmap(pix.scaled(ui.lblSeg1->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    } else if (idx == 1) {
+        if (ui.lblSeg2) ui.lblSeg2->setPixmap(pix.scaled(ui.lblSeg2->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+
+    segThumbNext = (segThumbNext + 1) % maxSegInFlight;
+
+    // liberar slot in-flight para permitir nuevas peticiones
+    segInFlight.fetch_sub(1, memory_order_relaxed);
 }

@@ -1,4 +1,3 @@
-#pragma once
 
 #include <vector>
 #include <string>
@@ -9,20 +8,25 @@
 #include <QtWidgets/QMainWindow>
 #include <QThread>
 #include <QTimer>
+#include <QRectF>
 
 #include "ui_ProyectoPSM.h"
 #include "VideoAcquisition.h"
 #include "NameHelper.h"
 
+//Procesa la imagen en segundo plano y calcula el bbox y thumbnail
 class SegmentationWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit SegmentationWorker(QObject *parent = nullptr) : QObject(parent) {}
+    SegmentationWorker(QObject *parent = nullptr) : QObject(parent) {}
 public slots:
-    void process(std::shared_ptr<cv::Mat> snapshot, int targetW, int targetH);
+    void process(shared_ptr<Mat> snapshot);
 signals:
-    void finished(const QImage &segImage);
+    // bounding box normalizado [0..1]
+    void finishedBox(const QRectF &box);
+    // thumbnail pequeño de la región segmentada (RGB)
+    void finishedThumbnail(const QImage &thumb);
 };
 
 class ProyectoPSM : public QMainWindow
@@ -34,7 +38,7 @@ public:
     ~ProyectoPSM();
 
 signals:
-    void requestSegmentation(std::shared_ptr<cv::Mat> snapshot, int targetW, int targetH);
+    void requestSegmentation(shared_ptr<Mat> snapshot, int targetW, int targetH);
 
 private:
     Ui::ProyectoPSMClass ui;
@@ -43,25 +47,32 @@ private:
 	Mat CapturedImage;
     int ImageIndex;
 	int SavedImageIndex;
-    std::vector<std::string> NameList;
+    vector<string> NameList;
 
     // para segmentación en vivo
     bool LiveSegmentationEnabled;
-    std::atomic<bool> SegProcessing;
+    atomic<bool> SegProcessing;
 
-    // control de frecuencia de segmentación en vivo (milisegundos)
-    std::chrono::steady_clock::time_point LastSegmentationTime;
+    chrono::steady_clock::time_point LastSegmentationTime;
     int SegmentationIntervalMs; // intervalo entre tomas (ms)
 
     // worker/thread para segmentación
     SegmentationWorker *segWorker = nullptr;
     QThread *segThread = nullptr;
 
-    // timer que pide frames periódicamente para segmentar
+	// timer para segmentar frames periodicamente
     QTimer *segTimer = nullptr;
 
     // tamaño de procesamiento (ancho máximo) para acelerar la segmentación
     int SegmentationProcWidth = 320;
+
+    // último bbox normalizado calculado por el worker
+    QRectF lastBoxNormalized;
+
+    // control de thumbnails / resultados en vuelo
+    std::atomic<int> segInFlight{0};
+    const int maxSegInFlight = 3; // tamaño del buffer
+    int segThumbNext = 0; // para saber en que label poner la miniatura
 
 private slots:
     void EnableButtons(bool StartCapture);
@@ -71,9 +82,12 @@ private slots:
 	void VisualizeImage();
 	void ReturnTab();
 
-    // live segmentation control + UI update
+	// control de segmentación en vivo
     void EnableLiveSegmentation(bool enabled);
-    void UpdateSegmentationUI(const QImage &segImage);
+    void UpdateSegmentationBox(const QRectF &box);
+
+    // slot para recibir thumbnails desde el worker y mostrar en UI
+    void EnqueueSegThumbnail(const QImage &thumb);
 
     // timer slot que pide un frame para segmentar (no bloqueante)
     void onSegmentationTimer();
