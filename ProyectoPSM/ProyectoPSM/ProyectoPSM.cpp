@@ -291,18 +291,8 @@ void ProyectoPSM::onSegmentationTimer()
     // marcar como ocupado para evitar dobles reservas por el mismo frame
     SegProcessing = true;
 
-    // crear snapshot reducido para acelerar la segmentación
-    Mat proc;
-    const int srcW = LastImage.cols;
-    const int srcH = LastImage.rows;
-    int outW = min(SegmentationProcWidth, srcW);
-    int outH = static_cast<int>((double)outW * srcH / srcW);
-    if (outW <= 0 || outH <= 0) {
-        // fallback a copia completa si algo raro
-        proc = LastImage.clone();
-    } else {
-        cv::resize(LastImage, proc, Size(outW, outH), 0, 0, INTER_LINEAR);
-    }
+	// Clonar imagen en alta resolución
+    cv::Mat proc = LastImage.clone();
 
     // preparar target de visualización (tamaño del QLabel) - no usado por worker ahora
     const int targetW = ui.lblImagSegmentada->width();
