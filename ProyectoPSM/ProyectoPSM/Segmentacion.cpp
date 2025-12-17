@@ -15,6 +15,7 @@ Segmentacion::Segmentacion(QObject* parent)
 
 Segmentacion::~Segmentacion() = default;
 
+//AHORA NO SE USA
 void Segmentacion::processImage(const cv::Mat &input)
 {
     if (input.empty()) return;
@@ -38,6 +39,7 @@ void Segmentacion::processImage(const cv::Mat &input)
     emit segmentedImage(result);
 }
 
+//Solo la máscara, para pruebas
 cv::Mat Segmentacion::createMask(const cv::Mat &gray)
 {
     cv::Mat blurred, thresh;
@@ -52,14 +54,18 @@ cv::Mat Segmentacion::createMask(const cv::Mat &gray)
     return thresh;
 }
 
-cv::Mat Segmentacion::Segment(const cv::Mat& src)
+//La segmentación como tal
+//Lo que hace: Obtiene la máscara sobre una copia reducida del frame para detectar 
+//regiones de interés. 
+// Es la función que se ejecuta en background (QThread) porque es la más costosa.
+cv::Mat Segmentacion::SegmentMask(const cv::Mat &src)
 {
     if (src.empty()) return cv::Mat();
 
     // Copia de trabajo
     cv::Mat img = src.clone();
 
-    // Convertir a HSV y normalizar canales a [0,1] como en MATLAB
+    // Convertir a HSV y normalizar canales a [0,1] 
     cv::Mat hsv;
     cv::cvtColor(img, hsv, cv::COLOR_BGR2HSV);
     std::vector<cv::Mat> ch;
@@ -78,7 +84,7 @@ cv::Mat Segmentacion::Segment(const cv::Mat& src)
         const float* p = V.ptr<float>(r);
         for (int c = 0; c < V.cols; ++c) Vvals.push_back(p[c]);
     }
-    if (Vvals.empty()) return src;
+    if (Vvals.empty()) return cv::Mat();
     std::sort(Vvals.begin(), Vvals.end());
     auto pct = [&](double p) {
         size_t idx = std::min<size_t>(Vvals.size() - 1, static_cast<size_t>(std::round(p * (Vvals.size() - 1))));
@@ -244,11 +250,22 @@ cv::Mat Segmentacion::Segment(const cv::Mat& src)
     cv::Mat mask_final_consolidated;
     cv::morphologyEx(mask_merged, mask_final_consolidated, cv::MORPH_OPEN, se_smooth);
 
-    mask_final = mask_final_consolidated;
+    // devolver máscara final (CV_8U 0/255)
+    return mask_final_consolidated;
+}
 
-    // connected components y extracción de stats
+//Segmentacion completa con bounding boxes y etiquetas
+cv::Mat Segmentacion::Segment(const cv::Mat& src)
+{
+    if (src.empty()) return cv::Mat();
+
+	// Obtener máscara de segmentación
+    cv::Mat mask = SegmentMask(src);
+    if (mask.empty()) return cv::Mat();
+
+    // connectedComponents y extracción de stats
     cv::Mat labels2;
-    int nl2 = cv::connectedComponents(mask_final, labels2, 8, CV_32S);
+    int nl2 = cv::connectedComponents(mask, labels2, 8, CV_32S);
     struct R { int label; int area; cv::Rect bbox; cv::Point2d c; double per; double circ; cv::Mat mask; };
     std::vector<R> regs;
     if (nl2 > 1) {
