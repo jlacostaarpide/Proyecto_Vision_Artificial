@@ -89,6 +89,9 @@ desktop.ini
 *.bmp
 *.tiff
 
+# Matlab
+*.asv
+
 # Ignorar cualquier carpeta que termine en "_local"
 *_local/
 
