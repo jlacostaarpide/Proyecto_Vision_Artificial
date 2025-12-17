@@ -89,6 +89,7 @@ ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
 
 	NameList = NameHelper::GenerarNombres();
 
+
 	qDebug() << "Número de nombres generados: " << static_cast<int>(NameList.size());
 	qDebug() << "Primer nombre: " << QString::fromStdString(NameList[0]);
 	qDebug() << "Segundo nombre: " << QString::fromStdString(NameList[1]);
@@ -101,7 +102,7 @@ ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
     segInFlight = 0;
     segThumbNext = 0;
 
-	SegmentationIntervalMs = 2000; //cada cuanto hacer segmentación (ms)
+	SegmentationIntervalMs = 40; //cada cuanto hacer segmentación (ms)
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
 
     // crear worker y thread para segmentación 
@@ -244,7 +245,7 @@ void ProyectoPSM::SaveImage()
 	if (!CapturedImage.empty()) {
 		//string Name = "prueba_" + to_string(SavedImageIndex);
 		string Name = NameList[SavedImageIndex-1];
-		string Path = "Database//" + Name + ".jpg";
+		string Path = "C:/Users/Lenovo/Desktop/Máster/1er Semestre/PSM/proyecto/ProyectoPSM/Database/test2//" + Name + ".jpg";
 		imwrite(Path, CapturedImage);
 		ui.txtImageName->setText(QString::fromStdString("Image saved!"));
 		SavedImageIndex++;
