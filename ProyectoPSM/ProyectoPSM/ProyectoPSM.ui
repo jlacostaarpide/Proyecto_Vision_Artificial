@@ -18,7 +18,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -43,7 +43,7 @@
        <widget class="QPushButton" name="pbtnEncender">
         <property name="geometry">
          <rect>
-          <x>700</x>
+          <x>550</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -59,7 +59,7 @@
        <widget class="QPushButton" name="pbtnCapturar">
         <property name="geometry">
          <rect>
-          <x>790</x>
+          <x>640</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -72,7 +72,7 @@
        <widget class="QSpinBox" name="boxImageNumber">
         <property name="geometry">
          <rect>
-          <x>610</x>
+          <x>460</x>
           <y>550</y>
           <width>71</width>
           <height>22</height>
@@ -85,14 +85,14 @@
        <widget class="QPushButton" name="pbtnSegmentar">
         <property name="geometry">
          <rect>
-          <x>880</x>
+          <x>730</x>
           <y>550</y>
-          <width>80</width>
+          <width>111</width>
           <height>24</height>
          </rect>
         </property>
         <property name="text">
-         <string>Segmentar</string>
+         <string>Segmentar en vivo</string>
         </property>
         <property name="checkable">
          <bool>true</bool>
@@ -124,6 +124,22 @@
          <string>imagen 2</string>
         </property>
        </widget>
+       <widget class="QPushButton" name="pbtnClasificar">
+        <property name="geometry">
+         <rect>
+          <x>850</x>
+          <y>550</y>
+          <width>111</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Clasificar en vivo</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
+        </property>
+       </widget>
       </widget>
       <widget class="QWidget" name="tab_2">
        <attribute name="title">
@@ -148,7 +164,7 @@
        <widget class="QPushButton" name="pbtnDescartar">
         <property name="geometry">
          <rect>
-          <x>790</x>
+          <x>570</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -161,7 +177,7 @@
        <widget class="QPushButton" name="pbtnGuardar">
         <property name="geometry">
          <rect>
-          <x>880</x>
+          <x>660</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -177,7 +193,7 @@
        <widget class="QLabel" name="txtImageName">
         <property name="geometry">
          <rect>
-          <x>400</x>
+          <x>300</x>
           <y>550</y>
           <width>361</width>
           <height>16</height>
@@ -185,6 +201,38 @@
         </property>
         <property name="text">
          <string>Guardar siguiente imagen como: </string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="pbtnSegmentarOffline">
+        <property name="geometry">
+         <rect>
+          <x>750</x>
+          <y>550</y>
+          <width>101</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Segmentar offline</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="pbtnClasificarOffline">
+        <property name="geometry">
+         <rect>
+          <x>860</x>
+          <y>550</y>
+          <width>101</width>
+          <height>24</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Clasificar offline</string>
+        </property>
+        <property name="checkable">
+         <bool>false</bool>
         </property>
        </widget>
       </widget>
