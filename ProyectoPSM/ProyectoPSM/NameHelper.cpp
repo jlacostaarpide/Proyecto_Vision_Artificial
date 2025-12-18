@@ -50,3 +50,4 @@ std::vector<std::string> NameHelper::GenerarNombres()
 
     return nameList;
 }
+

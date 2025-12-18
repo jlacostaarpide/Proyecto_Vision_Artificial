@@ -18,7 +18,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -96,6 +96,32 @@
         </property>
         <property name="checkable">
          <bool>true</bool>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblSeg1">
+        <property name="geometry">
+         <rect>
+          <x>1060</x>
+          <y>50</y>
+          <width>171</width>
+          <height>191</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>imagen 1</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="lblSeg2">
+        <property name="geometry">
+         <rect>
+          <x>1060</x>
+          <y>280</y>
+          <width>171</width>
+          <height>191</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>imagen 2</string>
         </property>
        </widget>
       </widget>
