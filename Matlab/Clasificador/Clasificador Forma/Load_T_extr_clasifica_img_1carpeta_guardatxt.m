@@ -1,24 +1,26 @@
 clear all;close all;clc;
-load('legoFeatures_TRAIN_todas_8carac.mat'); % T todas 
-%load('legoFeatures_TRAIN_225_8carac.mat'); % T2 225
-%load('legoFeatures_TRAIN_todas_sin225_8carac.mat'); % T3 todas - 225
+load('legoFeatures_TRAIN_shape_15carac.mat'); % F todas 
+
 
 
 
 %% Seleccionar de forma aleatoria las Train y las Test
 %load('I_random.mat');
-%I=randperm(1835);
-T_train=T(I(1:1500),:);
-T_test=T(I(1501:end),:);
+I=randperm(607);
+F_train=F(I(1:467),:);
+F_test=F(I(468:end),:);
 
-% L_train = T.Label(I(1:1500),:);
-% L_test = T.Label(I(1501:end),:);
+F_red = F(1:314,:);
+F_yellow = F(315:end,:);
+
+% L_train = F.Label(I(1:1500),:);
+% L_test = F.Label(I(1501:end),:);
 
 % Quiero entrenar ahora con las train en classLearner. SVM funciona muy bien. Hacer crossvalidation y si quiero test tb, en el menu de new session. Y luego clasificar
 % con las test con el predict.
 
 %% TEST 1 IMAGEN ALEATORIA DE T_test (Real vs Pred)
-% Requiere: T_test en workspace + trainedModel cargado + extractColorFeatures.m
+% Requiere: F_test en workspace + trainedModel cargado + extractColorFeatures.m
 
 % 1) Elegir fila aleatoria
 rng('shuffle');
@@ -34,7 +36,7 @@ trueLabel = row.Label(1);
 imgName = row.FileName{1};
 
 % 4) Ruta a la carpeta SEGMENTED
-segFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
+segFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local';
 imgPath = fullfile(segFolder, imgName);
 
 if ~isfile(imgPath)
@@ -74,8 +76,10 @@ fprintf('Clase PREDICHA : %s\n', string(predictedLabel));
 %% ================================================================
 
 % --- Ajusta rutas ---
-segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local';
 outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Ttest.txt';
+
+load("TrainedModelWith_Ttrain.mat");
 
 % --- Predictor names (las 8 primeras columnas son features) ---
 predictorNames = T_test.Properties.VariableNames(1:8);
@@ -130,9 +134,14 @@ for i = 1:N
     end
 
     % Guardar línea en TXT
+    if isCorrect
+    resultStr = 'OK';
+    else
+        resultStr = 'FAIL';
+    end
+    
     fprintf(fid, '[%4d/%4d] %s | REAL=%s | PRED=%s | %s\n', ...
-        i, N, imgName, string(trueLabel), string(predictedLabel), ...
-        ternary(isCorrect,'OK','FAIL'));
+    i, N, imgName, string(trueLabel), string(predictedLabel), resultStr);
 
     % Progreso en consola
     if mod(i,50)==0 || i==N
@@ -173,7 +182,6 @@ fprintf('\nHecho. TXT guardado en:\n%s\n', outputTxt);
 fprintf('Aciertos: %d | Fallos: %d | Missing: %d | Acc: %.2f%%\n', ...
         nOK, nFail, nMissing, acc);
 
-%% --- Función auxiliar (para usar "OK/FAIL" en una sola línea) ---
-function out = ternary(cond, a, b)
-    if cond, out = a; else, out = b; end
-end
+
+
+
