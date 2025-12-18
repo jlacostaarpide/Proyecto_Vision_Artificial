@@ -4,11 +4,11 @@ clear; close all; clc;
 
 % addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\matlab_imagen\Matlab - Imagen")
 % addpath("C:\Nextcloud\Escritorio\UPNA\Doble Master - 1º Semestre (Septiembre 2025)\Procesado de Señales Multimedia\Matlab\legocodes")
-addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G01_COD123")
-addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G02_COD456")
-addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G03_COD789")
-addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G04_COD101112")
-addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\tests")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G01_COD123")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G02_COD456")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G03_COD789")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G04_COD101112")
+addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
 
 %% 1. CARGA DE LA IMAGEN
 
@@ -79,7 +79,7 @@ end
 show_figures = [0, 0, 0, 0, 0, 1];
 
 save_images = false;
-output_folder = "C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Matlab\Segmented";
+output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\Segmented";
 
 fprintf('Procesando %d imágenes\n', length(imagenes));
 
@@ -96,8 +96,37 @@ for i = 1:length(imagenes)
     I_double = im2double(I);
     fprintf('\n--- Procesando: %s ---\n', nombre_imagen);
 
-    % 2. PRE-PROCESAMIENTO
-    I_corrected = I_double;
+    % 2. PRE-PROCESAMIENTO: Correción de fondo
+    R = I_double(:,:,1);
+    G = I_double(:,:,2);
+    B = I_double(:,:,3);
+    mean_R = mean(R(:));
+    mean_G = mean(G(:));
+    mean_B = mean(B(:));
+
+    R_bal = R * (mean_G / mean_R);
+    G_bal = G; 
+    B_bal = B * (mean_G / mean_B);
+
+    I_balanced = cat(3, R_bal, G_bal, B_bal);
+    I_balanced(I_balanced > 1) = 1;
+
+    I_hsv_temp = rgb2hsv(I_balanced);
+
+    % Multiplicar canal S por 1.55
+    S_raw = I_hsv_temp(:,:,2);
+    S_boosted = S_raw * 1.55;
+    S_boosted(S_boosted > 1) = 1;
+
+    V_raw = I_hsv_temp(:,:,3);
+    
+    V_filt = imgaussfilt(V_raw, 120);    
+    V_corrected = V_raw ./ max(V_filt(:));
+    
+    I_hsv_temp(:,:,3) = V_corrected;
+    I_hsv_temp(:,:,2) = S_boosted;
+    I_corrected = hsv2rgb(I_hsv_temp);
+    % I_corrected = I_double;
 
     % 3. TRANSFORMACIÓN A HSV
     I_hsv = rgb2hsv(I_corrected);
@@ -105,12 +134,14 @@ for i = 1:length(imagenes)
     S = I_hsv(:,:,2);
     V = I_hsv(:,:,3);
 
-    % FIGURA 1: Canales Originales
+    % FIGURA 1: Correción de fondo y canales HSV
     if show_figures(1) == 1
-        figure('Name', 'Análisis de Canales HSV', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.4]);
-        subplot(1,3,1); imshow(H); colormap(gca, 'hsv'); title('Canal H (Matiz)');
-        subplot(1,3,2); imshow(S); colormap(gca, 'jet'); title('Canal S (Saturación)');
-        subplot(1,3,3); imshow(V); colormap(gca, 'gray'); title('Canal V (Valor)');
+        figure('Name', 'Análisis de Canales HSV', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+        subplot(2,2,1); imshow(I_double); colormap(gca, 'hsv'); title('Imagen original');
+        subplot(2,2,2); imshow(I_corrected); colormap(gca, 'hsv'); title('Imagen normalizada en V');
+        subplot(2,3,4); imshow(H); colormap(gca, 'hsv'); title('Canal H (Matiz)');
+        subplot(2,3,5); imshow(S); colormap(gca, 'jet'); title('Canal S (Saturación)');
+        subplot(2,3,6); imshow(V); colormap(gca, 'gray'); title('Canal V (Valor)');
     end
 
     % 4. ANÁLISIS CANAL S (Multi-level Otsu)
@@ -137,8 +168,8 @@ for i = 1:length(imagenes)
     fprintf('  > S: Ratio Clase Media: %.2f%% \n', ratio_mid*100);
     
     % DECISIÓN POR RANGOS
-    umbral_inferior = 0.055;
-    umbral_superior = 0.17;
+    umbral_inferior = 0.065;
+    umbral_superior = 0.20;
     
     use_lower_thresh = false;
     
@@ -207,7 +238,7 @@ for i = 1:length(imagenes)
     % Rango Morado/Rosa: 0.68 a 0.88 aprox.
     % Condición de seguridad: S debe ser > 40% del umbral de Otsu calculado antes
     % para no detectar ruido gris de fondo como morado.
-    min_sat_H_purple = 0.4 * level_otsu_S;
+    min_sat_H_purple = 1 * level_otsu_S;
     min_sat_H_pink = 1 * level_otsu_S;
     mask_H_purple = (H >= 0.58) & (H <= 0.92) & (S > min_sat_H_purple);
     mask_H_pink = (H >= 0.01) & (H <= 0.065) & (S > min_sat_H_pink);
@@ -227,11 +258,17 @@ for i = 1:length(imagenes)
         % para ver dónde busca realmente el algoritmo
         H_masked = H;
         H_masked(S < min_sat_H_purple) = NaN; % Lo ponemos transparente/negro
+        imshow(H_masked); colormap(gca, 'hsv');
+        title('H (Solo zonas con Sat > min-H-purple)');
+
+        subplot(2, 2, 4);
+        H_masked = H;
         H_masked(S < min_sat_H_pink) = NaN;
         imshow(H_masked); colormap(gca, 'hsv');
-        title('H (Solo zonas con Sat > min)');
+        title('H (Solo zonas con Sat > min-H-pink)');
 
-        subplot(2, 2, [3, 4]);
+
+        subplot(2, 2, 3);
         imshowpair(mask_H_purple, mask_H_pink, 'ColorChannels', 'green-magenta');
         title('Máscara H (Morado y Rosa)');
     end
@@ -313,18 +350,38 @@ for i = 1:length(imagenes)
 
     % 9. RESULTADOS Y FILTRADO
     [L, num_inicial] = bwlabel(mask_final, 8);
-    stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Eccentricity', 'Image');
-
+    stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Image', 'PixelIdxList');
+    
     if ~isempty(stats)
         all_areas = [stats.Area];
         max_area = max(all_areas);
 
         umbral_area = 0.15 * max_area;
-        all_circ = [stats.Circularity];
-        umbral_circ = 0.2;
-
-        valid_idx = find((all_areas > umbral_area));
-        % valid_idx = find((all_areas > umbral_area) & (all_circ > umbral_circ));
+        candidates_idx = find(all_areas > umbral_area);
+        
+        % Filtro por Saturación Promedio
+        I_hsv_check = rgb2hsv(I_corrected); 
+        S_channel = I_hsv_check(:,:,2);
+        
+        umbral_saturacion = 0.25;
+        valid_idx = [];
+        
+        for k = 1:length(candidates_idx)
+            idx_obj = candidates_idx(k);
+            pixels_indices = stats(idx_obj).PixelIdxList;
+            
+            % Calculamos la saturación media de LOS PÍXELES del objeto
+            mean_sat = mean(S_channel(pixels_indices));
+            
+            % Si supera el umbral, lo guardamos como válido
+            if mean_sat > umbral_saturacion
+                valid_idx = [valid_idx; idx_obj];
+            else
+                fprintf('Descartado objeto %d por baja saturación (%.2f)\n', idx_obj, mean_sat);
+            end
+        end
+        
+        % Creamos la máscara final
         mask_filtered = ismember(L, valid_idx);
 
         stats_final = regionprops(mask_filtered, 'Area', 'Centroid', 'BoundingBox', 'Circularity', 'Image');
@@ -379,7 +436,7 @@ for i = 1:length(imagenes)
 
                 % Extraer la pieza con fondo negro
                 bb = stats_final(k).BoundingBox;
-                img_crop = imcrop(I_corrected, bb);
+                img_crop = imcrop(I_double, bb);
 
                 % Recortar la máscara correspondiente a el objeto
                 mask_local = stats_final(k).Image;
@@ -393,6 +450,7 @@ for i = 1:length(imagenes)
 
                 hsv_crop = rgb2hsv(img_crop_masked);
                 V_crop = hsv_crop(:,:,3);
+
                 p1 = prctile(V_crop(:), 1);
                 p95 = prctile(V_crop(:), 95);
                 v_eq = (V_crop - p1) / (p95 - p1);
@@ -434,4 +492,6 @@ for i = 1:length(imagenes)
         end
     end
     pause(0.5);
+    % pause;
+    % close all;
 end

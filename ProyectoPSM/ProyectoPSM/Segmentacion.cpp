@@ -1,332 +1,419 @@
-#include "segmentacion.h"
-#include <QDebug>
-#include <opencv2/imgproc.hpp>
+#include "Segmentacion.h"
 #include <vector>
 #include <algorithm>
-#include <sstream>
-#include <iomanip>
+#include <cmath>
+#include <iostream>
 
-Segmentacion::Segmentacion(QObject* parent)
-    : QObject(parent)
+using namespace cv;
+using namespace std;
+
+// --- MÉTODO PRINCIPAL ---
+vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
 {
-    // Registrar para poder usar cv::Mat en conexiones queued entre hilos
-    qRegisterMetaType<cv::Mat>("cv::Mat");
+    vector<ResultadoPieza> resultados;
+    if (inputBGR.empty()) return resultados;
+
+    // 1. PRE-PROCESAMIENTO Y CONVERSIÓN
+    // MATLAB: im2double(I) -> Rango [0, 1]
+    // OpenCV: Convertimos a CV_32F y normalizamos a [0, 1] para usar los mismos umbrales
+    Mat imgFloat;
+    inputBGR.convertTo(imgFloat, CV_32F, 1.0 / 255.0);
+
+    // MATLAB: rgb2hsv
+    // OpenCV BGR2HSV con 32F: H[0..360], S[0..1], V[0..1]
+    Mat hsv;
+    cvtColor(imgFloat, hsv, COLOR_BGR2HSV);
+
+    // Separar canales
+    vector<Mat> channels;
+    split(hsv, channels);
+    Mat H = channels[0]; // Ojo: En OpenCV float H va de 0 a 360.
+    Mat S = channels[1];
+    Mat V = channels[2];
+
+    // Normalizamos H a [0, 1] para coincidir EXACTAMENTE con el código de MATLAB
+    H = H / 360.0f;
+
+    // ---------------------------------------------------------
+    // 2. ANÁLISIS CANAL S (Multi-level Otsu)
+    // ---------------------------------------------------------
+
+    // Gamma correction: S .^ 1.4
+    Mat S_proc;
+    pow(S, 1.4, S_proc);
+
+    // Calculamos 2 umbrales (3 clases)
+    vector<float> thresh_vals = CalcularMultilevelOtsu2(S_proc);
+    float t1 = thresh_vals[0];
+    float t2 = thresh_vals[1];
+
+    // Clasificación y cálculo de ratio de clase media
+    // Clase 2 (Media) está entre t1 y t2
+    Mat mask_S_mid = (S_proc > t1) & (S_proc <= t2);
+
+    int num_pixels = S_proc.rows * S_proc.cols;
+    int count_mid = countNonZero(mask_S_mid);
+    double ratio_mid = (double)count_mid / num_pixels;
+
+    // Decisión por rangos (Lógica exacta de MATLAB)
+    double umbral_inferior = 0.055;
+    double umbral_superior = 0.17;
+    bool use_lower_thresh = false;
+
+    if (ratio_mid < umbral_inferior) {
+        use_lower_thresh = true;
+    }
+    else if (ratio_mid > umbral_superior) {
+        use_lower_thresh = false;
+    }
+    else {
+        // Zona gris: Análisis de solidez del objeto más grande en la máscara media
+        vector<vector<Point>> contours;
+        findContours(mask_S_mid, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+        if (!contours.empty()) {
+            // Buscar el contorno más grande
+            size_t max_idx = 0;
+            double max_area = 0;
+            for (size_t i = 0; i < contours.size(); i++) {
+                double a = contourArea(contours[i]);
+                if (a > max_area) {
+                    max_area = a;
+                    max_idx = i;
+                }
+            }
+
+            // Calcular solidez: Area / ConvexArea
+            vector<Point> hull;
+            convexHull(contours[max_idx], hull);
+            double hull_area = contourArea(hull);
+
+            double solidez_mid = 0.0;
+            if (hull_area > 0) solidez_mid = max_area / hull_area;
+
+            if (solidez_mid > 0.6) use_lower_thresh = true;
+            else use_lower_thresh = false;
+        }
+        else {
+            use_lower_thresh = false;
+        }
+    }
+
+    float final_thresh = use_lower_thresh ? t1 : t2;
+    Mat mask_S;
+    threshold(S_proc, mask_S, final_thresh, 1.0, THRESH_BINARY); // mask_S es float 0.0/1.0
+    mask_S.convertTo(mask_S, CV_8U, 255.0); // Convertir a 0/255
+
+    // ---------------------------------------------------------
+    // 3. ANÁLISIS CANAL H (Rescate Rosa/Morado)
+    // ---------------------------------------------------------
+    float min_sat_H_purple = 0.4f * final_thresh;
+    float min_sat_H_pink = 1.0f * final_thresh;
+
+    // Máscara Morada: H [0.58, 0.92] & S > min
+    Mat mask_H_purple;
+    inRange(H, 0.58, 0.92, mask_H_purple); // H range
+    Mat mask_sat_p;
+    threshold(S, mask_sat_p, min_sat_H_purple, 255, THRESH_BINARY);
+    mask_sat_p.convertTo(mask_sat_p, CV_8U);
+    bitwise_and(mask_H_purple, mask_sat_p, mask_H_purple);
+
+    // Máscara Rosa: H [0.01, 0.065] & S > min
+    Mat mask_H_pink;
+    inRange(H, 0.01, 0.065, mask_H_pink);
+    Mat mask_sat_pk;
+    threshold(S, mask_sat_pk, min_sat_H_pink, 255, THRESH_BINARY);
+    mask_sat_pk.convertTo(mask_sat_pk, CV_8U);
+    bitwise_and(mask_H_pink, mask_sat_pk, mask_H_pink);
+
+    Mat mask_H;
+    bitwise_or(mask_H_purple, mask_H_pink, mask_H);
+
+    // ---------------------------------------------------------
+    // 4. ANÁLISIS CANAL V (Oscuros)
+    // ---------------------------------------------------------
+    // MATLAB: mask_V_dark(:) = 0; (Desactivado explícitamente)
+    Mat mask_V_dark = Mat::zeros(mask_S.size(), CV_8U);
+
+    // ---------------------------------------------------------
+    // 5. FUSIÓN Y MORFOLOGÍA
+    // ---------------------------------------------------------
+    Mat mask_combined;
+    bitwise_or(mask_S, mask_H, mask_combined);
+    bitwise_or(mask_combined, mask_V_dark, mask_combined);
+
+    // A. SUTURA INICIAL (Cerrar grietas)
+    // se_suture = strel('disk', 3); -> OpenCV Size(7,7)
+    Mat mask_sutured;
+    Mat se_suture = getStructuringElement(MORPH_ELLIPSE, Size(7, 7));
+    morphologyEx(mask_combined, mask_sutured, MORPH_CLOSE, se_suture);
+
+    // B. RELLENO DE HUECOS
+    Mat mask_filled = ImFillHoles(mask_sutured);
+
+    // C. LIMPIEZA DE RUIDO (Apertura)
+    // se_noise = strel('disk', 3); -> OpenCV Size(7,7)
+    Mat mask_clean;
+    Mat se_noise = getStructuringElement(MORPH_ELLIPSE, Size(7, 7));
+    morphologyEx(mask_filled, mask_clean, MORPH_OPEN, se_noise);
+
+    // D. ELIMINAR BORDES
+    Mat mask_noborder = ImClearBorder(mask_clean);
+
+    // E. OPERACIÓN DE CIERRE (MERGE)
+    // radio_disco = 14; -> OpenCV Size(29, 29)
+    Mat mask_merged;
+    Mat se_merge = getStructuringElement(MORPH_ELLIPSE, Size(29, 29));
+    morphologyEx(mask_noborder, mask_merged, MORPH_CLOSE, se_merge);
+
+    // F. RELLENO FINAL
+    mask_merged = ImFillHoles(mask_merged);
+
+    // G. SUAVIZADO FINAL (Apertura)
+    // se_smooth = strel('disk', 4); -> OpenCV Size(9, 9)
+    Mat mask_final;
+    Mat se_smooth = getStructuringElement(MORPH_ELLIPSE, Size(9, 9));
+    morphologyEx(mask_merged, mask_final, MORPH_OPEN, se_smooth);
+
+    // ---------------------------------------------------------
+    // 6. EXTRACCIÓN DE RESULTADOS Y FILTRADO
+    // ---------------------------------------------------------
+    vector<vector<Point>> contoursFinal;
+    findContours(mask_final, contoursFinal, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    if (contoursFinal.empty()) return resultados;
+
+    // Calcular área máxima para el filtro relativo
+    double max_area = 0;
+    for (const auto& cnt : contoursFinal) {
+        double area = contourArea(cnt);
+        if (area > max_area) max_area = area;
+    }
+    double umbral_area_relativo = 0.15 * max_area;
+
+    int id_counter = 1;
+    for (const auto& cnt : contoursFinal) {
+        double area = contourArea(cnt);
+
+        // Filtro de área
+        if (area <= umbral_area_relativo) continue;
+
+        // Calcular métricas
+        Rect bbox = boundingRect(cnt);
+
+        // Momentos para centroide
+        Moments mu = moments(cnt);
+        Point2f mc(mu.m10 / mu.m00, mu.m01 / mu.m00);
+
+        // Circularidad
+        double perimeter = arcLength(cnt, true);
+        double circularity = 0.0;
+        if (perimeter > 0) {
+            circularity = (4 * CV_PI * area) / (perimeter * perimeter);
+        }
+
+        // --- GENERAR CROP FINAL ---
+        // 1. Recortar imagen original
+        Mat cropBGR = inputBGR(bbox).clone();
+
+        // 2. Crear máscara local para el crop (para poner fondo negro)
+        Mat maskLocal = Mat::zeros(cropBGR.size(), CV_8U);
+        vector<Point> cntShifted = cnt; // Ajustar contorno a coordenadas del crop
+        for (auto& pt : cntShifted) {
+            pt.x -= bbox.x;
+            pt.y -= bbox.y;
+        }
+        vector<vector<Point>> cntsShifted = { cntShifted };
+        drawContours(maskLocal, cntsShifted, 0, Scalar(255), FILLED);
+
+        // 3. Aplicar fondo negro
+        Mat cropMasked;
+        cropBGR.copyTo(cropMasked, maskLocal);
+
+        // 4. Mejora de contraste en V (igual que MATLAB)
+        MejorarContrasteV(cropMasked);
+
+        // Guardar resultado
+        ResultadoPieza pieza;
+        pieza.valida = true;
+        pieza.id = id_counter++;
+        pieza.boundingBox = bbox;
+        pieza.centroide = mc;
+        pieza.area = area;
+        pieza.circularidad = circularity;
+        pieza.imagenRecortada = cropMasked;
+        pieza.mascara = maskLocal; // Guardamos la máscara local por si acaso
+
+        resultados.push_back(pieza);
+    }
+
+    return resultados;
 }
 
-Segmentacion::~Segmentacion() = default;
+// --- IMPLEMENTACIONES AUXILIARES ---
 
-//AHORA NO SE USA
-void Segmentacion::processImage(const cv::Mat &input)
+vector<float> Segmentacion::CalcularMultilevelOtsu2(const Mat& src)
 {
-    if (input.empty()) return;
+    // Implementación rápida de Otsu para 2 umbrales (3 clases)
+    // src debe ser float o uchar. Asumimos float [0,1] de la entrada.
+    // Convertimos a 8-bit [0..255] para histograma rápido
+    Mat src8;
+    src.convertTo(src8, CV_8U, 255.0);
 
-    cv::Mat gray;
-    if (input.channels() == 3)
-        cv::cvtColor(input, gray, cv::COLOR_BGR2GRAY);
-    else
-        gray = input.clone();
+    int histSize = 256;
+    float range[] = { 0, 256 };
+    const float* histRange = { range };
+    Mat hist;
+    calcHist(&src8, 1, 0, Mat(), hist, 1, &histSize, &histRange, true, false);
 
-    cv::Mat mask = createMask(gray);
+    // Normalizar histograma
+    vector<double> p(256);
+    double total_pixels = src8.total();
+    for (int i = 0; i < 256; i++) p[i] = hist.at<float>(i) / total_pixels;
 
-    cv::Mat result;
-    if (input.channels() == 3) {
-        // copiar color original donde la máscara sea no cero
-        input.copyTo(result, mask);
-    } else {
-        result = mask;
+    // Tablas precalculadas (Probabilidad acumulada y Media acumulada)
+    vector<double> omega(256, 0.0);
+    vector<double> mu(256, 0.0);
+
+    omega[0] = p[0];
+    mu[0] = 0.0;
+    for (int i = 1; i < 256; i++) {
+        omega[i] = omega[i - 1] + p[i];
+        mu[i] = mu[i - 1] + i * p[i];
     }
+    double mu_t = mu[255]; // Media total
 
-    emit segmentedImage(result);
-}
+    double max_sigma_b = -1.0;
+    int t1_opt = 0;
+    int t2_opt = 0;
 
-//Solo la máscara, para pruebas
-cv::Mat Segmentacion::createMask(const cv::Mat &gray)
-{
-    cv::Mat blurred, thresh;
-    cv::GaussianBlur(gray, blurred, cv::Size(5,5), 0);
-    cv::adaptiveThreshold(blurred, thresh, 255,
-                          cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 11, 2);
+    // Búsqueda exhaustiva optimizada
+    // t1 desde 0 hasta 253, t2 desde t1+1 hasta 254
+    for (int t1 = 0; t1 < 254; t1++) {
+        double w0 = omega[t1];
+        double m0 = mu[t1] / w0; // Media clase 0
 
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
-    cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
-    cv::morphologyEx(thresh, thresh, cv::MORPH_CLOSE, kernel);
+        for (int t2 = t1 + 1; t2 < 255; t2++) {
+            double w1 = omega[t2] - omega[t1];
+            double w2 = 1.0 - omega[t2];
 
-    return thresh;
-}
+            if (w1 <= 0 || w2 <= 0) continue; // Evitar división por cero
 
-//La segmentación como tal
-//Lo que hace: Obtiene la máscara sobre una copia reducida del frame para detectar 
-//regiones de interés. 
-// Es la función que se ejecuta en background (QThread) porque es la más costosa.
-cv::Mat Segmentacion::SegmentMask(const cv::Mat &src)
-{
-    if (src.empty()) return cv::Mat();
+            double m1 = (mu[t2] - mu[t1]) / w1;
+            double m2 = (mu_t - mu[t2]) / w2;
 
-    // Copia de trabajo
-    cv::Mat img = src.clone();
+            // Varianza entre clases
+            double sigma_b = w0 * (m0 - mu_t) * (m0 - mu_t) +
+                w1 * (m1 - mu_t) * (m1 - mu_t) +
+                w2 * (m2 - mu_t) * (m2 - mu_t);
 
-    // Convertir a HSV y normalizar canales a [0,1] 
-    cv::Mat hsv;
-    cv::cvtColor(img, hsv, cv::COLOR_BGR2HSV);
-    std::vector<cv::Mat> ch;
-    cv::split(hsv, ch);
-    cv::Mat H_u8 = ch[0], S_u8 = ch[1], V_u8 = ch[2];
-
-    cv::Mat H, S, V;
-    H_u8.convertTo(H, CV_32F, 1.0f / 179.0f);
-    S_u8.convertTo(S, CV_32F, 1.0f / 255.0f);
-    V_u8.convertTo(V, CV_32F, 1.0f / 255.0f);
-
-    // Stretchlim equivalente: percentiles 1% y 95% sobre V
-    std::vector<float> Vvals;
-    Vvals.reserve(V.total());
-    for (int r = 0; r < V.rows; ++r) {
-        const float* p = V.ptr<float>(r);
-        for (int c = 0; c < V.cols; ++c) Vvals.push_back(p[c]);
-    }
-    if (Vvals.empty()) return cv::Mat();
-    std::sort(Vvals.begin(), Vvals.end());
-    auto pct = [&](double p) {
-        size_t idx = std::min<size_t>(Vvals.size() - 1, static_cast<size_t>(std::round(p * (Vvals.size() - 1))));
-        return Vvals[idx];
-    };
-    float low = pct(0.01), high = pct(0.95);
-    if (high - low < 1e-6f) high = low + 1e-6f;
-    cv::Mat V_eq = (V - low) / (high - low);
-    cv::threshold(V_eq, V_eq, 0.0, 0.0, cv::THRESH_TOZERO);
-    cv::threshold(V_eq, V_eq, 1.0, 1.0, cv::THRESH_TRUNC);
-    V = V_eq;
-
-    // Multi-level Otsu sobre S (implementación aproximada por histogram + búsqueda)
-    cv::Mat S_proc;
-    cv::pow(S, 1.0, S_proc);
-
-    const int NBINS = 256;
-    int histSize = NBINS;
-    float rangeA[] = { 0.0f, 1.0f };
-    const float* ranges[] = { rangeA };
-    cv::Mat hist;
-    cv::calcHist(&S_proc, 1, std::vector<int>{0}.data(), cv::Mat(), hist, 1, &histSize, ranges, true, false);
-    hist /= (float)S_proc.total();
-
-    std::vector<float> P(NBINS), Pcum(NBINS), meanCum(NBINS);
-    for (int i = 0; i < NBINS; ++i) P[i] = hist.at<float>(i);
-    Pcum[0] = P[0];
-    meanCum[0] = P[0] * 0.0f;
-    for (int i = 1; i < NBINS; ++i) {
-        Pcum[i] = Pcum[i - 1] + P[i];
-        meanCum[i] = meanCum[i - 1] + P[i] * (i / float(NBINS - 1));
-    }
-
-    double bestScore = -1.0;
-    int best_t1 = 0, best_t2 = NBINS - 1;
-    for (int t1 = 0; t1 < NBINS - 1; ++t1) {
-        for (int t2 = t1 + 1; t2 < NBINS; ++t2) {
-            float w0 = Pcum[t1];
-            float w1 = Pcum[t2] - Pcum[t1];
-            float w2 = 1.0f - Pcum[t2];
-            if (w0 <= 1e-6 || w1 <= 1e-6 || w2 <= 1e-6) continue;
-            float m0 = meanCum[t1] / w0;
-            float m1 = (meanCum[t2] - meanCum[t1]) / w1;
-            float m2 = (meanCum[NBINS - 1] - meanCum[t2]) / w2;
-            double score = w0 * (m0 - meanCum[NBINS - 1]) * (m0 - meanCum[NBINS - 1])
-                + w1 * (m1 - meanCum[NBINS - 1]) * (m1 - meanCum[NBINS - 1])
-                + w2 * (m2 - meanCum[NBINS - 1]) * (m2 - meanCum[NBINS - 1]);
-            if (score > bestScore) { bestScore = score; best_t1 = t1; best_t2 = t2; }
-        }
-    }
-
-    float th1 = best_t1 / float(NBINS - 1);
-    float th2 = best_t2 / float(NBINS - 1);
-
-    // Clasificar en 3 clases y calcular ratio de clase 2
-    cv::Mat L_quant = cv::Mat::zeros(S_proc.size(), CV_8U);
-    for (int r = 0; r < S_proc.rows; ++r) {
-        const float* pS = S_proc.ptr<float>(r);
-        uint8_t* pL = L_quant.ptr<uint8_t>(r);
-        for (int c = 0; c < S_proc.cols; ++c) {
-            float v = pS[c];
-            if (v <= th1) pL[c] = 1;
-            else if (v <= th2) pL[c] = 2;
-            else pL[c] = 3;
-        }
-    }
-    int count_mid = cv::countNonZero(L_quant == 2);
-    double ratio_mid = double(count_mid) / double(S_proc.total());
-    double umbral_area_max_mid = 0.15;
-    float level_otsu_S = (ratio_mid > umbral_area_max_mid) ? th2 : th1;
-
-    cv::Mat mask_S;
-    cv::threshold(S_proc, mask_S, level_otsu_S, 1.0, cv::THRESH_BINARY);
-    mask_S.convertTo(mask_S, CV_8U, 255.0);
-
-    // H purple rescue: rango [0.68,0.88] y S > 0.4*level_otsu_S
-    float min_sat_H = 0.4f * level_otsu_S;
-    cv::Mat mask_H = cv::Mat::zeros(H.size(), CV_8U);
-    for (int r = 0; r < H.rows; ++r) {
-        const float* pH = H.ptr<float>(r);
-        const float* pS = S.ptr<float>(r);
-        uint8_t* pm = mask_H.ptr<uint8_t>(r);
-        for (int c = 0; c < H.cols; ++c) {
-            float hv = pH[c], sv = pS[c];
-            if (hv >= 0.68f && hv <= 0.88f && sv > min_sat_H) pm[c] = 255;
-        }
-    }
-
-    // mask V dark: el .m la desactiva -> mantenemos cero
-    cv::Mat mask_V = cv::Mat::zeros(V.size(), CV_8U);
-
-    // Unión y limpieza
-    cv::Mat mask_comb;
-    cv::bitwise_or(mask_S, mask_H, mask_comb);
-    cv::bitwise_or(mask_comb, mask_V, mask_comb);
-
-    // imfill (relleno de huecos) usando floodFill sobre el inverso
-    cv::Mat mask_filled;
-    {
-        cv::Mat inv;
-        cv::bitwise_not(mask_comb, inv);
-        cv::Mat ff = inv.clone();
-        cv::floodFill(ff, cv::Point(0, 0), cv::Scalar(255));
-        cv::bitwise_not(ff, ff);
-        mask_filled = mask_comb | ff;
-    }
-
-    // apertura con disco r=3
-    int r_noise = 3;
-    cv::Mat se_noise = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * r_noise + 1, 2 * r_noise + 1));
-    cv::Mat mask_clean;
-    cv::morphologyEx(mask_filled, mask_clean, cv::MORPH_OPEN, se_noise);
-
-    // imclearborder: eliminar componentes que tocan borde
-    cv::Mat labels;
-    cv::Mat mask_noborder = mask_clean.clone();
-    int nlabels = cv::connectedComponents(mask_noborder, labels, 8, CV_32S);
-    if (nlabels > 1) {
-        std::vector<char> remove(nlabels, 0);
-        // top/bottom
-        for (int c = 0; c < labels.cols; ++c) {
-            int t = labels.at<int>(0, c);
-            int b = labels.at<int>(labels.rows - 1, c);
-            if (t > 0) remove[t] = 1;
-            if (b > 0) remove[b] = 1;
-        }
-        // left/right
-        for (int r = 0; r < labels.rows; ++r) {
-            int l = labels.at<int>(r, 0);
-            int rr = labels.at<int>(r, labels.cols - 1);
-            if (l > 0) remove[l] = 1;
-            if (rr > 0) remove[rr] = 1;
-        }
-        cv::Mat tmp = cv::Mat::zeros(labels.size(), CV_8U);
-        for (int y = 0; y < labels.rows; ++y) {
-            for (int x = 0; x < labels.cols; ++x) {
-                int L = labels.at<int>(y, x);
-                if (L > 0 && !remove[L]) tmp.at<uint8_t>(y, x) = 255;
+            if (sigma_b > max_sigma_b) {
+                max_sigma_b = sigma_b;
+                t1_opt = t1;
+                t2_opt = t2;
             }
         }
-        mask_noborder = tmp;
     }
 
-    cv::Mat mask_final = mask_noborder.clone();
-
-    // cierre con radio 12 y nuevo relleno, luego apertura r=5
-    int radio_pegamento = 12;
-    cv::Mat se_merge = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * radio_pegamento + 1, 2 * radio_pegamento + 1));
-    cv::Mat mask_merged;
-    cv::morphologyEx(mask_final, mask_merged, cv::MORPH_CLOSE, se_merge);
-
-    {
-        cv::Mat inv;
-        cv::bitwise_not(mask_merged, inv);
-        cv::Mat ff = inv.clone();
-        cv::floodFill(ff, cv::Point(0, 0), cv::Scalar(255));
-        cv::bitwise_not(ff, ff);
-        mask_merged = mask_merged | ff;
-    }
-
-    int r_smooth = 5;
-    cv::Mat se_smooth = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * r_smooth + 1, 2 * r_smooth + 1));
-    cv::Mat mask_final_consolidated;
-    cv::morphologyEx(mask_merged, mask_final_consolidated, cv::MORPH_OPEN, se_smooth);
-
-    // devolver máscara final (CV_8U 0/255)
-    return mask_final_consolidated;
+    // Convertir de vuelta a rango float [0, 1]
+    return { t1_opt / 255.0f, t2_opt / 255.0f };
 }
 
-//Segmentacion completa con bounding boxes y etiquetas
-cv::Mat Segmentacion::Segment(const cv::Mat& src)
+Mat Segmentacion::ImFillHoles(const Mat& mask)
 {
-    if (src.empty()) return cv::Mat();
+    // Rellenar huecos: Floodfill desde el fondo (0,0) sobre imagen invertida
+    Mat flood = mask.clone();
+    floodFill(flood, Point(0, 0), Scalar(255));
 
-	// Obtener máscara de segmentación
-    cv::Mat mask = SegmentMask(src);
-    if (mask.empty()) return cv::Mat();
+    Mat invertido;
+    bitwise_not(flood, invertido);
 
-    // connectedComponents y extracción de stats
-    cv::Mat labels2;
-    int nl2 = cv::connectedComponents(mask, labels2, 8, CV_32S);
-    struct R { int label; int area; cv::Rect bbox; cv::Point2d c; double per; double circ; cv::Mat mask; };
-    std::vector<R> regs;
-    if (nl2 > 1) {
-        std::vector<int> areas(nl2, 0);
-        std::vector<cv::Rect> bbs(nl2);
-        std::vector<cv::Point2d> cents(nl2, cv::Point2d(0, 0));
-        for (int y = 0; y < labels2.rows; ++y) {
-            for (int x = 0; x < labels2.cols; ++x) {
-                int L = labels2.at<int>(y, x);
-                if (L <= 0) continue;
-                areas[L]++;
-                cents[L].x += x; cents[L].y += y;
-                if (areas[L] == 1) bbs[L] = cv::Rect(x, y, 1, 1);
-                else bbs[L] |= cv::Rect(x, y, 1, 1);
+    Mat filled;
+    bitwise_or(mask, invertido, filled);
+    return filled;
+}
+
+Mat Segmentacion::ImClearBorder(const Mat& mask)
+{
+    // Eliminar componentes que tocan el borde
+    Mat cleaned = mask.clone();
+    vector<vector<Point>> contours;
+    findContours(cleaned, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+
+    int h = mask.rows;
+    int w = mask.cols;
+
+    for (const auto& cnt : contours) {
+        bool touches = false;
+        for (const auto& pt : cnt) {
+            if (pt.x <= 1 || pt.x >= w - 2 || pt.y <= 1 || pt.y >= h - 2) {
+                touches = true;
+                break;
             }
         }
-        for (int L = 1; L < nl2; ++L) {
-            if (areas[L] == 0) continue;
-            cents[L].x /= areas[L]; cents[L].y /= areas[L];
-            R r; r.label = L; r.area = areas[L]; r.bbox = bbs[L]; r.c = cents[L];
-            cv::Mat local = (labels2 == L);
-            local.convertTo(local, CV_8U, 255);
-            r.mask = local;
-            std::vector<std::vector<cv::Point>> conts;
-            cv::findContours(local, conts, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-            double per = 0;
-            for (auto &ct : conts) per += cv::arcLength(ct, true);
-            r.per = per;
-            r.circ = (per > 1e-6) ? (4.0 * CV_PI * r.area / (per * per)) : 0.0;
-            regs.push_back(r);
+        if (touches) {
+            drawContours(cleaned, vector<vector<Point>>{cnt}, 0, Scalar(0), FILLED);
+        }
+    }
+    return cleaned;
+}
+
+void Segmentacion::MejorarContrasteV(Mat& imgBGR)
+{
+    // Estirar el histograma del canal V (Percentiles 1% y 95%)
+    // Solo en la zona que no es fondo negro
+    if (imgBGR.empty()) return;
+
+    Mat hsv;
+    cvtColor(imgBGR, hsv, COLOR_BGR2HSV);
+    vector<Mat> chans;
+    split(hsv, chans);
+    Mat V = chans[2]; // Rango 0..255
+
+    // Recoger píxeles válidos (V > 0)
+    vector<uchar> values;
+    values.reserve(V.total());
+    for (int i = 0; i < V.rows; ++i) {
+        uchar* p = V.ptr<uchar>(i);
+        for (int j = 0; j < V.cols; ++j) {
+            if (p[j] > 0) values.push_back(p[j]);
         }
     }
 
-    // filtrar por area relativa 5% del max
-    std::vector<R> regs_final;
-    if (!regs.empty()) {
-        int max_area = 0;
-        for (auto &rg : regs) if (rg.area > max_area) max_area = rg.area;
-        int umbral_area = static_cast<int>(0.05 * std::max(1, max_area));
-        for (auto &rg : regs) if (rg.area > umbral_area) regs_final.push_back(rg);
+    if (values.empty()) return;
+
+    // Calcular percentiles
+    size_t n = values.size();
+    size_t idx1 = (size_t)(0.01 * n);
+    size_t idx95 = (size_t)(0.95 * n);
+
+    // Quickselect (nth_element) es más rápido que sort total
+    std::nth_element(values.begin(), values.begin() + idx1, values.end());
+    uchar p1 = values[idx1];
+
+    std::nth_element(values.begin(), values.begin() + idx95, values.end());
+    uchar p95 = values[idx95];
+
+    // Estirar contraste (Normalize min-max)
+    // V_eq = (V - p1) * (255 / (p95 - p1))
+    // Usamos normalize de OpenCV con máscara
+    Mat maskValid = (V > 0);
+    // Para simplificar y robustez manual:
+    float scale = (p95 > p1) ? 255.0f / (p95 - p1) : 1.0f;
+
+    for (int i = 0; i < V.rows; ++i) {
+        uchar* p = V.ptr<uchar>(i);
+        for (int j = 0; j < V.cols; ++j) {
+            if (p[j] > 0) {
+                float val = (float)p[j];
+                val = (val - p1) * scale;
+                if (val < 0) val = 0;
+                if (val > 255) val = 255;
+                p[j] = (uchar)val;
+            }
+        }
     }
 
-    // Dibujar sobre copia de original
-    cv::Mat out = src.clone();
-    int idx = 1;
-    for (auto &rg : regs_final) {
-        cv::rectangle(out, rg.bbox, cv::Scalar(0, 255, 0), 2);
-        cv::circle(out, rg.c, 3, cv::Scalar(0, 0, 255), -1);
-
-        std::ostringstream ss;
-        ss << "#" << idx << " C:" << std::fixed << std::setprecision(2) << rg.circ << " A:" << rg.area;
-        std::string label = ss.str();
-
-        int baseLine = 0;
-        cv::Size tsize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.45, 1, &baseLine);
-        cv::Point torig(std::max(0, rg.bbox.x), std::max(0, rg.bbox.y - 6));
-        cv::rectangle(out, torig + cv::Point(0, baseLine), torig + cv::Point(tsize.width, -tsize.height), cv::Scalar(0, 0, 0), cv::FILLED);
-        cv::putText(out, label, torig, cv::FONT_HERSHEY_SIMPLEX, 0.45, cv::Scalar(255, 255, 0), 1);
-
-        ++idx;
-    }
-
-    return out;
+    merge(chans, hsv);
+    cvtColor(hsv, imgBGR, COLOR_HSV2BGR);
 }
