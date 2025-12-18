@@ -4,6 +4,11 @@ Tareas pendientes:
 - Ajustar máscara de rosa (Nivel de S + rango de H). Idea: Multithresh en canal H. Cuantos niveles?
 
 
+Notas sobre correción de frontend: 
+
+- A veces el umbral S del H MORADO nos estropea la imagen. 0
+- A veces, multithresh no selecciona bien el canal y un solo threshold iria mejor. 2
+
 
 
 
