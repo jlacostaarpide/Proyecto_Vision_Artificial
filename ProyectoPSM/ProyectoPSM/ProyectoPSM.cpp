@@ -9,7 +9,7 @@
 
 Q_DECLARE_METATYPE(shared_ptr<Mat>)
 
-//Recibe la imagen reducida y calcula el bounding box normalizado y el thumbnail segmentado
+//Recibe la imagen y obtiene el bounding box y el thumbnail segmentado
 void SegmentationWorker::process(shared_ptr<Mat> snapshotPtr )
 {
 	// resultados por defecto
@@ -23,49 +23,54 @@ void SegmentationWorker::process(shared_ptr<Mat> snapshotPtr )
             emit finishedThumbnail(qthumb);
             return;
         }
+        vector<ResultadoPieza> resultados = Segmentacion::Segmentar(*snapshotPtr);
 
-        // Obtiene máscara binaria en tamaño reducido (worker thread)
-        Mat mask = Segmentacion::SegmentMask(*snapshotPtr);
-        if (!mask.empty()) {
-            // encontrar contornos y bbox del mayor contorno
-            vector<vector<Point>> contours;
-            findContours(mask, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            if (!contours.empty()) {
-                size_t best = 0;
-                double bestArea = 0;
-                for (size_t i = 0; i < contours.size(); ++i) {
-                    double a = contourArea(contours[i]);
-                    if (a > bestArea) { bestArea = a; best = i; }
-                }
-                Rect r = boundingRect(contours[best]);
-                double iw = static_cast<double>(snapshotPtr->cols);
-                double ih = static_cast<double>(snapshotPtr->rows);
-                if (iw > 0 && ih > 0) {
-                    normalizedBox = QRectF(r.x / iw, r.y / ih, r.width / iw, r.height / ih);
-                }
+        if (!resultados.empty()) {
+            // Nos quedamos con la mejor
+            const ResultadoPieza& pieza = resultados[0];
 
-                // construir thumbnail pequeño: aplicar máscara sobre snapshot reducido
-                Mat masked;
-                snapshotPtr->copyTo(masked, mask); // masked contiene sólo la parte segmentada
+            // Calcular Bounding Box
+            double iw = static_cast<double>(snapshotPtr->cols);
+            double ih = static_cast<double>(snapshotPtr->rows);
 
-                const int thumbW = 160; // ancho de thumbnail
-                int srcW = masked.cols;
-                int srcH = masked.rows;
+            if (iw > 0 && ih > 0) {
+                normalizedBox = QRectF(
+                    static_cast<double>(pieza.boundingBox.x) / iw,
+                    static_cast<double>(pieza.boundingBox.y) / ih,
+                    static_cast<double>(pieza.boundingBox.width) / iw,
+                    static_cast<double>(pieza.boundingBox.height) / ih
+                );
+            }
+
+            // Construir thumbnail pequeño a partir del CROP limpio
+            Mat crop = pieza.imagenRecortada;
+
+            if (!crop.empty()) {
+                const int thumbW = 160; // Ancho fijo para la miniatura
+                int srcW = crop.cols;
+                int srcH = crop.rows;
+
+                // Calcular altura proporcional
                 int thumbH = max(1, (int)((double)thumbW * srcH / max(1, srcW)));
-                Mat thumb;
-                resize(masked, thumb, cv::Size(thumbW, thumbH), 0, 0, INTER_LINEAR);
 
-                // convertir a QImage RGB
+                Mat thumb;
+                resize(crop, thumb, cv::Size(thumbW, thumbH), 0, 0, INTER_LINEAR);
+
+                // Convertir a QImage RGB
                 Mat thumb_rgb;
-                if (thumb.channels() == 3) cvtColor(thumb, thumb_rgb, COLOR_BGR2RGB);
-                else cvtColor(thumb, thumb_rgb, COLOR_GRAY2RGB);
+                if (thumb.channels() == 3)
+                    cvtColor(thumb, thumb_rgb, COLOR_BGR2RGB);
+                else
+                    cvtColor(thumb, thumb_rgb, COLOR_GRAY2RGB);
+
                 qthumb = QImage(reinterpret_cast<const uchar*>(thumb_rgb.data),
-                                thumb_rgb.cols, thumb_rgb.rows,
-                                static_cast<int>(thumb_rgb.step), QImage::Format_RGB888).copy();
+                    thumb_rgb.cols, thumb_rgb.rows,
+                    static_cast<int>(thumb_rgb.step),
+                    QImage::Format_RGB888).copy();
             }
         }
     }
-    catch (const exception &e) {
+    catch (const exception& e) {
         qDebug() << "SegmentationWorker exception:" << e.what();
     }
     catch (...) {
