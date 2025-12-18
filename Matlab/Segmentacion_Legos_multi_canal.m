@@ -350,18 +350,38 @@ for i = 1:length(imagenes)
 
     % 9. RESULTADOS Y FILTRADO
     [L, num_inicial] = bwlabel(mask_final, 8);
-    stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Eccentricity', 'Image');
-
+    stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Image', 'PixelIdxList');
+    
     if ~isempty(stats)
         all_areas = [stats.Area];
         max_area = max(all_areas);
 
         umbral_area = 0.15 * max_area;
-        all_circ = [stats.Circularity];
-        umbral_circ = 0.2;
-
-        valid_idx = find((all_areas > umbral_area));
-        % valid_idx = find((all_areas > umbral_area) & (all_circ > umbral_circ));
+        candidates_idx = find(all_areas > umbral_area);
+        
+        % Filtro por Saturación Promedio
+        I_hsv_check = rgb2hsv(I_corrected); 
+        S_channel = I_hsv_check(:,:,2);
+        
+        umbral_saturacion = 0.25;
+        valid_idx = [];
+        
+        for k = 1:length(candidates_idx)
+            idx_obj = candidates_idx(k);
+            pixels_indices = stats(idx_obj).PixelIdxList;
+            
+            % Calculamos la saturación media de LOS PÍXELES del objeto
+            mean_sat = mean(S_channel(pixels_indices));
+            
+            % Si supera el umbral, lo guardamos como válido
+            if mean_sat > umbral_saturacion
+                valid_idx = [valid_idx; idx_obj];
+            else
+                fprintf('Descartado objeto %d por baja saturación (%.2f)\n', idx_obj, mean_sat);
+            end
+        end
+        
+        % Creamos la máscara final
         mask_filtered = ismember(L, valid_idx);
 
         stats_final = regionprops(mask_filtered, 'Area', 'Centroid', 'BoundingBox', 'Circularity', 'Image');
