@@ -1,184 +1,179 @@
 clear all;close all;clc;
-load('legoFeatures_TRAIN_8carac.mat'); % T todas 
-load('legoFeatures_TRAIN_225_8carac.mat'); % T2 225
-load('legoFeatures_TRAIN_todas_sin225_8carac.mat'); % T3 todas - 225
+load('legoFeatures_TRAIN_todas_8carac.mat'); % T todas 
+%load('legoFeatures_TRAIN_225_8carac.mat'); % T2 225
+%load('legoFeatures_TRAIN_todas_sin225_8carac.mat'); % T3 todas - 225
 
-%%
 
-figure; gplotmatrix(table2array(T(:,1:end-3)),[],T.Label); % como le hemos metido 3 columnas nuevas que no queremos ver, hacemos desde columna 1 hasta end-3.
-figure; gplotmatrix(table2array(T2(:,1:end-3)),[],T2.Label);
-figure; gplotmatrix(table2array(T3(:,1:end-3)),[],T3.Label);
-
-%%
-figure; gplotmatrix(table2array(T(:,1:4)),[],T.Label,[],'*'); % como le hemos metido 3 columnas nuevas que no queremos ver, hacemos desde columna 1 hasta end-3.
-figure; gplotmatrix(table2array(T2(:,1:4)),[],T2.Label,[],'*');
-figure; gplotmatrix(table2array(T3(:,1:4)),[],T3.Label,[],'*');
 
 %% Seleccionar de forma aleatoria las Train y las Test
+%load('I_random.mat');
+%I=randperm(1835);
+T_train=T(I(1:1500),:);
+T_test=T(I(1501:end),:);
 
-I=randperm(1642);
-T_train=T(I(1:1200),:);
-T_test=T(I(1201:end),:);
-
-L_train = T.Label(I(1:1200),:);
-L_test = T.Label(I(1201:end),:);
+% L_train = T.Label(I(1:1500),:);
+% L_test = T.Label(I(1501:end),:);
 
 % Quiero entrenar ahora con las train en classLearner. SVM funciona muy bien. Hacer crossvalidation y si quiero test tb, en el menu de new session. Y luego clasificar
 % con las test con el predict.
 
-%% 2) RUTA DE LA IMAGEN A CLASIFICAR
-% imgPath = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\Clasificador\02_270_10_003.jpg';
-% 
-% 
-% fprintf('\n--- Clasificando imagen: %s ---\n', imgPath);
-% 
-% % 3) SEGMENTAR LA IMAGEN
-% [pieces_test, stats_test, num_test, Icorr] = segmentarPiezas2(imgPath);
-% 
-% if num_test == 0
-%     error('No se detectaron piezas en la imagen de test');
-% end
-% 
-% % 4) CLASIFICAR CADA PIEZA
-% for k = 1:num_test
-%     
-%     Ipiece = pieces_test{k};
-% 
-%     % 1) Extraer características (1 x D)
-%     feat = extractColorFeatures(Ipiece);   % p.ej. 1x8 double
-% 
-%     % 2) Convertir a tabla con los mismos nombres que en el entrenamiento
-%     featTable = array2table(feat, ...
-%         'VariableNames', trainedModel.RequiredVariables);
-% 
-%     % 3) Predecir usando el modelo exportado
-%     predictedLabel = trainedModel.predictFcn(featTable);
-% 
-%     fprintf('Pieza %d -> Predicción: %s\n', k, string(predictedLabel));
-% 
-%     % (Opcional) Mostrar la pieza con el label
-%     figure;
-%     imshow(Ipiece);
-%     title(sprintf('Pieza %d - Pred: %s', k, string(predictedLabel)), 'FontSize', 14);
-% end
+%% TEST 1 IMAGEN ALEATORIA DE T_test (Real vs Pred)
+% Requiere: T_test en workspace + trainedModel cargado + extractColorFeatures.m
 
-%% CLASIFICAR PIEZAS (UNA POR IMAGEN) Y GUARDAR RESULTADOS EN .TXT
-clear; clc;
+% 1) Elegir fila aleatoria
+rng('shuffle');
+idx = randi(height(T_test));
+row = T_test(idx,:);
 
-% 1) CARGAR MODELO EXPORTADO DESDE CLASSIFICATION LEARNER
-%load('trainedModel_todas_aleatorias.mat');   % contiene la struct trainedModel
-load('trainedModel_Ttrain.mat');   % contiene la struct trainedModel_Ttrain
+fprintf('Fila seleccionada: %d de %d\n', idx, height(T_test));
 
-% 2) CARPETA CON LAS PIEZAS SEGMENTADAS (UNA POR IMAGEN)
-segFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_Una_Pieza';
+% 2) Label real (de T_test)
+trueLabel = row.Label(1);
 
-outputTxt = fullfile("C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador", ...
-                     'resultados_clasificacion_segmentadas.txt');
+% 3) Nombre de fichero (de T_test)
+imgName = row.FileName{1};
 
-% 3) LISTAR PIEZAS
-filesPNG = dir(fullfile(segFolder, '*.png'));
-filesJPG = dir(fullfile(segFolder, '*.jpg'));
-files    = [filesPNG; filesJPG];
+% 4) Ruta a la carpeta SEGMENTED
+segFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
+imgPath = fullfile(segFolder, imgName);
 
-fprintf('Se han encontrado %d piezas en %s\n', numel(files), segFolder);
-
-if isempty(files)
-    error('No hay piezas en la carpeta especificada.');
+if ~isfile(imgPath)
+    error('No se encuentra la imagen: %s', imgPath);
 end
 
-% 4) OBTENER CÓDIGO (01..09) DE CADA PIEZA Y ELEGIR HASTA 50 POR CÓDIGO
+% 5) Leer imagen
+Ipiece = imread(imgPath);
 
-Nall   = numel(files);
-codes  = cell(Nall,1);  % código de cada pieza (primer bloque)
+% 6) Extraer features desde la imagen
+feat = extractColorFeatures(Ipiece);   % 1x8 double
 
-for i = 1:Nall
-    fname = files(i).name;
-    [~, baseName, ~] = fileparts(fname);        % ej: '07_225_40_003_piece01'
-    partes = split(baseName, '_');              % {'07','225','40','003','piece01'}
-    if ~isempty(partes)
-        codes{i} = char(partes(1));             % '07'
-    else
-        codes{i} = 'UNKNOWN';
-    end
+% 7) Crear tabla de predictores con los MISMOS nombres y orden que T_test(:,1:8)
+predictorNames = T_test.Properties.VariableNames(1:8);
+featTable = array2table(feat, 'VariableNames', predictorNames);
+
+% (Opcional) Reordenar a lo que espera el modelo, si lo necesitas:
+% featTable = featTable(:, trainedModel.RequiredVariables);
+
+% 8) Predicción
+predictedLabel = trainedModel.predictFcn(featTable);
+
+% 9) Mostrar resultado por consola
+fprintf('\nImagen: %s\n', imgName);
+fprintf('Clase REAL     : %s\n', string(trueLabel));
+fprintf('Clase PREDICHA : %s\n', string(predictedLabel));
+
+% % 10) Mostrar imagen
+% figure('Name','Test sobre T_test','NumberTitle','off');
+% imshow(Ipiece);
+% title(sprintf('Real: %s | Pred: %s', string(trueLabel), string(predictedLabel)), 'FontSize', 14);
+
+
+%% ================================================================
+%% EVALUAR TODO T_test: predecir, guardar a TXT y contar aciertos
+%% Requiere: T_test en workspace + trainedModel cargado
+%% ================================================================
+
+% --- Ajusta rutas ---
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
+outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Ttest.txt';
+
+% --- Predictor names (las 8 primeras columnas son features) ---
+predictorNames = T_test.Properties.VariableNames(1:8);
+
+% --- Abrir TXT ---
+fid = fopen(outputTxt,'w');
+if fid==-1
+    error('No se pudo crear el archivo: %s', outputTxt);
 end
 
-uniqueCodes   = unique(codes);
-selectedFiles = [];
+fprintf(fid, 'EVALUACIÓN COMPLETA SOBRE T_test\n');
+fprintf(fid, '================================\n\n');
+fprintf(fid, 'Carpeta imágenes: %s\n\n', segFolder);
 
-for i = 1:numel(uniqueCodes)
-    code = uniqueCodes{i};
+N = height(T_test);
+nOK = 0;
+nFail = 0;
+nMissing = 0;
 
-    % Índices de las piezas que tienen este código
-    idx = find(strcmp(codes, code));
+% (Opcional) almacenar fallos para resumen
+failList = strings(0,1);
 
-    nAvailable = numel(idx);
-    if nAvailable == 0
+for i = 1:N
+    imgName   = T_test.FileName{i};
+    trueLabel = T_test.Label(i);
+
+    imgPath = fullfile(segFolder, imgName);
+
+    if ~isfile(imgPath)
+        fprintf(fid, '[%4d/%4d] %s | REAL=%s | PRED=--- | ERROR: NO FILE\n', ...
+            i, N, imgName, string(trueLabel));
+        nMissing = nMissing + 1;
         continue;
     end
 
-    nSelect = min(50, nAvailable);          % máximo 50 por código
-    idxSel  = idx(randperm(nAvailable, nSelect));
+    % Leer imagen y recalcular features (pipeline real)
+    Ipiece = imread(imgPath);
+    feat   = extractColorFeatures(Ipiece);             % 1x8
+    featTable = array2table(feat, 'VariableNames', predictorNames);
 
-    selectedFiles = [selectedFiles; files(idxSel)]; %#ok<AGROW>
-
-    fprintf('Código %s -> %d disponibles, seleccionadas %d\n', ...
-            code, nAvailable, nSelect);
-end
-
-files = selectedFiles;
-N     = numel(files);
-
-fprintf('\nTotal de piezas seleccionadas para clasificar: %d\n\n', N);
-
-if N == 0
-    error('No se ha seleccionado ninguna pieza (revisa nombres/códigos).');
-end
-
-% 5) ABRIR ARCHIVO .TXT PARA GUARDAR RESULTADOS
-fid = fopen(outputTxt, 'w');
-if fid == -1
-    error('No se pudo crear el archivo de salida: %s', outputTxt);
-end
-
-fprintf(fid, 'Resultados de clasificación de piezas segmentadas (una por imagen)\n');
-fprintf(fid, '=================================================================\n\n');
-
-% 6) CLASIFICAR CADA PIEZA SELECCIONADA
-for n = 1:N
-    pieceName = files(n).name;
-    piecePath = fullfile(files(n).folder, pieceName);
-
-    % Leer imagen (pieza)
-    Ipiece = imread(piecePath);
-
-    % Extraer características
-    feat = extractColorFeatures(Ipiece);   % 1 x D
-
-    % Convertir a tabla con los nombres que espera el modelo
-    featTable = array2table(feat, ...
-        'VariableNames', trainedModel.RequiredVariables);
-
-    % Clasificación
     predictedLabel = trainedModel.predictFcn(featTable);
 
-    % Nombre base de la imagen original (sin _piece)
-    [~, baseName, ~] = fileparts(pieceName);   % p.ej. '07_225_40_003_piece01'
-    partes = split(baseName, '_piece');
-    if numel(partes) >= 2
-        imgBaseName = partes{1};               % '07_225_40_003'
+    % Comparar
+    isCorrect = (predictedLabel == trueLabel);
+
+    if isCorrect
+        nOK = nOK + 1;
     else
-        imgBaseName = baseName;
+        nFail = nFail + 1;
+        failList(end+1,1) = sprintf('%s | REAL=%s | PRED=%s', ...
+                                    imgName, string(trueLabel), string(predictedLabel));
     end
 
-    % Escribir resultado en el txt
-    fprintf(fid, 'Imagen %s -> clase predicha %s\n', ...
-            imgBaseName, string(predictedLabel));
+    % Guardar línea en TXT
+    fprintf(fid, '[%4d/%4d] %s | REAL=%s | PRED=%s | %s\n', ...
+        i, N, imgName, string(trueLabel), string(predictedLabel), ...
+        ternary(isCorrect,'OK','FAIL'));
 
-    % Progreso
-    fprintf('Procesada pieza %d/%d\n', n, N);
+    % Progreso en consola
+    if mod(i,50)==0 || i==N
+        fprintf('Procesadas %d/%d\n', i, N);
+    end
 end
 
-% 7) CERRAR ARCHIVO
+% --- Resumen ---
+totalEvaluated = nOK + nFail; % excluye missing
+acc = 0;
+if totalEvaluated > 0
+    acc = 100 * (nOK / totalEvaluated);
+end
+
+fprintf(fid, '\n\nRESUMEN\n');
+fprintf(fid, '------\n');
+fprintf(fid, 'Total filas T_test        : %d\n', N);
+fprintf(fid, 'Imágenes no encontradas   : %d\n', nMissing);
+fprintf(fid, 'Evaluadas (con archivo)   : %d\n', totalEvaluated);
+fprintf(fid, 'Aciertos                 : %d\n', nOK);
+fprintf(fid, 'Fallos                   : %d\n', nFail);
+fprintf(fid, 'Accuracy (sin missing)    : %.2f %%\n', acc);
+
+% (Opcional) listar fallos al final
+fprintf(fid, '\n\nLISTA DE FALLOS (si los hay)\n');
+fprintf(fid, '----------------------------\n');
+if nFail == 0
+    fprintf(fid, 'Ninguno.\n');
+else
+    for k = 1:numel(failList)
+        fprintf(fid, '%s\n', failList(k));
+    end
+end
+
 fclose(fid);
 
-fprintf('\nClasificación finalizada.\nResultados guardados en:\n%s\n', outputTxt);
+fprintf('\nHecho. TXT guardado en:\n%s\n', outputTxt);
+fprintf('Aciertos: %d | Fallos: %d | Missing: %d | Acc: %.2f%%\n', ...
+        nOK, nFail, nMissing, acc);
+
+%% --- Función auxiliar (para usar "OK/FAIL" en una sola línea) ---
+function out = ternary(cond, a, b)
+    if cond, out = a; else, out = b; end
+end

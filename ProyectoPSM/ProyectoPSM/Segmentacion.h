@@ -1,28 +1,39 @@
 #pragma once
 
-#include <QObject>
 #include <opencv2/opencv.hpp>
+#include <vector>
 
-class Segmentacion : public QObject
+// Estructura que contiene toda la información de un LEGO detectado
+struct ResultadoPieza {
+    bool valida;             // True si es un objeto válido
+    int id;                 // Identificador (1, 2...)
+    cv::Rect boundingBox;    // Caja delimitadora en la imagen original
+    cv::Point2f centroide;   // Centroide (x, y)
+    double area;             // Área en píxeles
+    double circularidad;     // Métrica de circularidad (0..1)
+
+    cv::Mat imagenRecortada; // El crop de la pieza (fondo negro, alta calidad)
+    cv::Mat mascara;         // La máscara binaria local de la pieza
+};
+
+class Segmentacion
 {
-    Q_OBJECT
 public:
-    explicit Segmentacion(QObject* parent = nullptr);
-    ~Segmentacion();
-    // Recibe imagen BGR y devuelve imagen BGR con bounding boxes y etiquetas dibujadas
-    static cv::Mat Segment(const cv::Mat& src);
-
-    // Devuelve una máscara binaria (CV_8U, 0/255) para la imagen de entrada (BGR).
-    // Hace pipeline de segmentación y devuelve la máscara,
-    // sin dibujar anotaciones ni calcular bounding boxes.
-    static cv::Mat SegmentMask(const cv::Mat &src);
-
-public slots:
-    void processImage(const cv::Mat &input);
-
-signals:
-    void segmentedImage(const cv::Mat &result);
+    // Método principal: Recibe la imagen BGR (High Res) y devuelve lista de piezas
+    static std::vector<ResultadoPieza> Segmentar(const cv::Mat& inputBGR);
 
 private:
-    cv::Mat createMask(const cv::Mat &gray);
+    // --- MÉTODOS AUXILIARES INTERNOS (Traducción de MATLAB) ---
+
+    // Calcula 2 umbrales óptimos para dividir el histograma en 3 clases (Otsu Multinivel)
+    static std::vector<float> CalcularMultilevelOtsu2(const cv::Mat& src);
+
+    // Implementación de imclearborder (elimina objetos que tocan el borde)
+    static cv::Mat ImClearBorder(const cv::Mat& mask);
+
+    // Implementación de imfill('holes')
+    static cv::Mat ImFillHoles(const cv::Mat& mask);
+
+    // Mejora de contraste del canal V para el crop final (Percentiles 1% - 95%)
+    static void MejorarContrasteV(cv::Mat& imgBGR);
 };
