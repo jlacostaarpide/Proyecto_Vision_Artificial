@@ -55,7 +55,7 @@ imagenes = {
 sweep_codes   = [1,2,3,4,5,6,7,8,9,10,11,12];      % Ej: [8] o [8, 9] (Código de pieza)
 sweep_orient  = [0, 45, 90, 135, 180, 225, 270, 315];  % Ej: [0, 45, 90, 135...] (Orientación)
 sweep_zenith  = [10, 40, 70, 90];        % Ej: [10, 40, 70, 90] (Ángulo Cenital)
-sweep_seq     = [2, 4];         % Ej: 1:5 o [1, 3, 5] (Número de secuencia)
+sweep_seq     = [1,2,3,4,5];         % Ej: 1:5 o [1, 3, 5] (Número de secuencia)
 
 for c = sweep_codes
     for o = sweep_orient
@@ -71,15 +71,13 @@ end
 % SELECTOR DE FIGURAS (6 VENTANAS)
 % 1: Canales HSV
 % 2: Análisis S (Otsu + Histograma original)
-% 3: Análisis H (Detección de Morado)
-% 4: Análisis V: Eliminado
-% 5: Limpieza Morfológica
-% 6: Resultado Final
-% show_figures = [1, 1, 1, 0, 1, 1];
-show_figures = [0, 0, 0, 0, 0, 1];
+% 3: Limpieza Morfológica
+% 4: Resultado Final
+show_figures = [1, 1, 1, 1];
+% show_figures = [0, 0, 0, 1];
 
 save_images = false;
-output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\Segmented";
+output_folder = "C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Matlab\temp_Segmented";
 
 fprintf('Procesando %d imágenes\n', length(imagenes));
 
@@ -144,165 +142,38 @@ for i = 1:length(imagenes)
         subplot(2,3,6); imshow(V); colormap(gca, 'gray'); title('Canal V (Valor)');
     end
 
-    % 3. ANÁLISIS CANAL S (Multi-level Otsu)
-    gamma_val = 1.4;
+    % 3. ANÁLISIS CANAL S (Otsu)
+    gamma_val = 1;
     S_proc = S .^ gamma_val;
     
     % Calculamos 2 umbrales
-    thresh_vals = multithresh(S_proc, 2);
+    thresh_vals = multithresh(S_proc, 1);
 
-    % Máscaras base
-    mask_S_high = S_proc > thresh_vals(2);
-    mask_S_mid  = (S_proc > thresh_vals(1)) & (S_proc <= thresh_vals(2));
-    
-    % Máscara de la Clase Media
-    L_quantized = imquantize(S_proc, thresh_vals);
-    mask_mid_temp = (L_quantized == 2);
-    
-    % Ratio de área
-    num_pixels = numel(S_proc);
-    count_mid = sum(mask_mid_temp(:));
-    ratio_mid = count_mid / num_pixels;
-        
-    fprintf('  > S: Umbrales Otsu detectados: [%.4f, %.4f]\n', thresh_vals(1), thresh_vals(2))
-    fprintf('  > S: Ratio Clase Media: %.2f%% \n', ratio_mid*100);
-    
-    % DECISIÓN POR RANGOS
-    umbral_inferior = 0.065;
-    umbral_superior = 0.20;
-    
-    use_lower_thresh = false;
-    
-    if ratio_mid < umbral_inferior
-        % Poco área -> Es un LEGO
-        use_lower_thresh = true;
-    elseif ratio_mid > umbral_superior
-        % Mucha área -> Es Fondo/Ruido
-        use_lower_thresh = false;
-    else
-        % Análisis de solidez
-        stats = regionprops(mask_mid_temp, 'Area', 'Solidity');
-        if ~isempty(stats)
-            [~, idx] = max([stats.Area]); % Miramos solo el objeto más grande
-            solidez_mid = stats(idx).Solidity;
-            
-            % Si es sólido (>0.6), es un LEGO. Si no, es ruido.
-            if solidez_mid > 0.6
-                use_lower_thresh = true;
-            else
-                use_lower_thresh = false;
-            end
-        else
-            use_lower_thresh = false;
-        end
-    end
-    
-    % Asignación final del umbral
-    if use_lower_thresh
-        level_otsu_S = thresh_vals(1);
-    else
-        level_otsu_S = thresh_vals(2);
-    end
-    
-    mask_S = imbinarize(S_proc, level_otsu_S);
+    mask_S = S_proc > thresh_vals(1);
 
+    
     if show_figures(2) == 1
-        figure('Name', 'Canal S - MultiOtsu', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
+        figure('Name', 'Canal S - Otsu', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
         subplot(2, 2, 1);
         imshow(S_proc); colormap(gca, 'jet'); colorbar;
         title('Canal Saturación (Entrada)');
 
         subplot(2, 2, 2);
         imhist(S_proc); hold on;
-        % Dibujamos los dos candidatos en azul suave
-        xline(thresh_vals(1), '--b', 'LineWidth', 1);
-        xline(thresh_vals(2), '--b', 'LineWidth', 1);
-        % Dibujamos el elegido en rojo fuerte
-        xline(level_otsu_S, 'r', 'LineWidth', 2);
+        xline(thresh_vals(1), 'r', 'LineWidth', 2);
 
-        text(level_otsu_S, max(ylim)*0.8, sprintf(' Th: %.3f', level_otsu_S), 'Color', 'r', 'FontWeight', 'bold');
-        title({'Histograma', sprintf('Clase Media: %.1f%%.', ratio_mid*100)});
+        text(thresh_vals(1), max(ylim)*0.8, sprintf(' Th: %.3f', thresh_vals(1)), 'Color', 'r', 'FontWeight', 'bold');
+        title({'Histograma'});
         xlabel('Intensidad S'); ylabel('Píxeles');
 
-        subplot(2, 2, 3);
-        imshowpair(mask_S_high, mask_S_mid);
-        title('Máscaras Binarias S');
-        
-        subplot(2, 2, 4);
+        subplot(2, 2, [3 4]);
         imshow(mask_S);
-        title(['Máscara Binaria Final S (Umbral Otsu: ' num2str(level_otsu_S) ')']);
+        title(['Máscara Binaria Final S (Umbral Otsu: ' num2str(thresh_vals(1)) ')']);
     end
 
-    % 4. ANÁLISIS CANAL H (Rosa y Morado)
-    % Rango Morado/Rosa: 0.68 a 0.88 aprox.
-    % Condición de seguridad: S debe ser > 40% del umbral de Otsu calculado antes
-    % para no detectar ruido gris de fondo como morado.
-    min_sat_H_purple = 1 * level_otsu_S;
-    min_sat_H_pink = 1 * level_otsu_S;
-    mask_H_purple = (H >= 0.58) & (H <= 0.92) & (S > min_sat_H_purple);
-    mask_H_pink = (H >= 0.01) & (H <= 0.065) & (S > min_sat_H_pink);
-
-    mask_H = mask_H_purple | mask_H_pink;
-
-    % FIGURA 3: Lógica H
-    if show_figures(3) == 1
-        figure('Name', 'Canal H', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
-
-        subplot(2, 2, 1);
-        imshow(H); colormap(gca, 'hsv'); colorbar;
-        title('Canal H Completo (Mucho ruido)');
-
-        subplot(2, 2, 2);
-        % Visualización: Mostramos solo los píxeles con saturación suficiente
-        % para ver dónde busca realmente el algoritmo
-        H_masked = H;
-        H_masked(S < min_sat_H_purple) = NaN; % Lo ponemos transparente/negro
-        imshow(H_masked); colormap(gca, 'hsv');
-        title('H (Solo zonas con Sat > min-H-purple)');
-
-        subplot(2, 2, 4);
-        H_masked = H;
-        H_masked(S < min_sat_H_pink) = NaN;
-        imshow(H_masked); colormap(gca, 'hsv');
-        title('H (Solo zonas con Sat > min-H-pink)');
-
-
-        subplot(2, 2, 3);
-        imshowpair(mask_H_purple, mask_H_pink, 'ColorChannels', 'green-magenta');
-        title('Máscara H (Morado y Rosa)');
-    end
-
-    % 5. ANÁLISIS CANAL V (Colores Oscuros)
-    % Invertimos V para usar Otsu (Lo oscuro se vuelve pico blanco en histograma)
-    V_inv = imcomplement(V);
-    level_otsu_V = graythresh(V_inv);
-
-    % Forzamos detección solo si hay contraste fuerte
-    mask_V_dark = imbinarize(V_inv, level_otsu_V);
-
-    % DESACTIVAR MASCARA EN CANAL V
-    mask_V_dark(:) = 0;
-
-    % fprintf('  > V: Umbral Otsu (Invertido) = %.4f\n', level_otsu_V);
-
-    % FIGURA 4: Lógica V
-    if show_figures(4) == 1
-        figure('Name', 'Canal V', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);        
-        subplot(1, 3, 1);
-        imshow(V_inv); title('V Invertido (Negro=Blanco)');
-
-        subplot(1, 3, 2);
-        imhist(V_inv); hold on;
-        line([level_otsu_V, level_otsu_V], ylim, 'Color', 'r', 'LineWidth', 2);
-        title('Hist V_inv + Otsu');
-
-        subplot(1, 3, 3);
-        imshow(mask_V_dark); title('Máscara V (Oscuros)');
-    end
-
-    % 6. FUSIÓN Y MORFOLOGÍA
+    % 4. FUSIÓN Y MORFOLOGÍA
     % UNIÓN LÓGICA (OR)
-    mask_combined = mask_S | mask_H | mask_V_dark;
+    mask_combined = mask_S;
 
     % PERÍMETRO Y LIMPIEZA
     se_suture = strel('disk', 3); 
@@ -325,7 +196,7 @@ for i = 1:length(imagenes)
     mask_final_consolidated = imopen(mask_merged, se_smooth);
 
     % FIGURA 5: Morfología
-    if show_figures(5) == 1
+    if show_figures(3) == 1
         figure('Name', 'Limpieza Morfológica', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
         subplot(2, 3, 1);
         imshow(mask_combined);
@@ -347,7 +218,7 @@ for i = 1:length(imagenes)
 
     mask_final = mask_final_consolidated;
 
-    % 7. RESULTADOS Y FILTRADO
+    % 5. RESULTADOS Y FILTRADO
     [L, num_inicial] = bwlabel(mask_final, 8);
     stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Image', 'PixelIdxList');
     
@@ -392,9 +263,9 @@ for i = 1:length(imagenes)
     end
     fprintf('  > Objetos Detectados: %d\n', num_final);
 
-    % 8. VISUALIZACIÓN DE RESULTADOS
-    if (show_figures(6) == 1 || save_images)
-        if show_figures(6) == 1
+    % 6. VISUALIZACIÓN DE RESULTADOS
+    if (show_figures(4) == 1 || save_images)
+        if show_figures(4) == 1
             figure('Name', 'Resultados Finales de Segmentación', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
 
             % Imagen Original
@@ -415,7 +286,7 @@ for i = 1:length(imagenes)
             circ = stats_final(k).Circularity;
             area = stats_final(k).Area;
 
-            if show_figures(6) == 1
+            if show_figures(4) == 1
                 % Dibujar Bounding Box
                 rectangle('Position', bb, 'EdgeColor', 'g', 'LineWidth', 2);
 
@@ -458,7 +329,7 @@ for i = 1:length(imagenes)
 
                 img_crop_enhanced = hsv2rgb(hsv_crop);
 
-                if show_figures(6) == 1
+                if show_figures(4) == 1
                     subplot(2, 4, 4+k);
 
                     imshow(img_crop_enhanced);

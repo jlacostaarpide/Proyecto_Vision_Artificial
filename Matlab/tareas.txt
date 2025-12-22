@@ -5,9 +5,15 @@ Tareas pendientes:
 
 
 Notas sobre correción de frontend: 
-
-- A veces el umbral S del H MORADO nos estropea la imagen. 0
+- IMPORTANTE: Filtrar mejor los objetos que no son legos (por ejemplo, elementos muy estrechos y largos, o elementos con poca saturación promedio)
 - A veces, multithresh no selecciona bien el canal y un solo threshold iria mejor. 2
+
+
+Tareas para C: 
+- Segmentación: Mostrar mas de una imagen segmentada
+- Segmentación: Nueva tab con plots como en matlab
+- Segmentación: Barras de ajuste de parámetros
+
 
 
 
