@@ -10,7 +10,7 @@ addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G03_C
 addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\DB_G04_COD101112")
 addpath("C:\Users\Iñaki Janices\Documentos\Github\ProyectoPSM\Database\tests")
 
-%% 1. CARGA DE LA IMAGEN
+%% Procesamiento por lotes
 
 imagenes = {
     'IMG_7647.jpg';
@@ -72,7 +72,7 @@ end
 % 1: Canales HSV
 % 2: Análisis S (Otsu + Histograma original)
 % 3: Análisis H (Detección de Morado)
-% 4: Análisis V: Eliminado por ahora
+% 4: Análisis V: Eliminado
 % 5: Limpieza Morfológica
 % 6: Resultado Final
 % show_figures = [1, 1, 1, 0, 1, 1];
@@ -96,7 +96,7 @@ for i = 1:length(imagenes)
     I_double = im2double(I);
     fprintf('\n--- Procesando: %s ---\n', nombre_imagen);
 
-    % 2. PRE-PROCESAMIENTO: Correción de fondo
+    % 1. PRE-PROCESAMIENTO: Correción de fondo
     R = I_double(:,:,1);
     G = I_double(:,:,2);
     B = I_double(:,:,3);
@@ -128,7 +128,7 @@ for i = 1:length(imagenes)
     I_corrected = hsv2rgb(I_hsv_temp);
     % I_corrected = I_double;
 
-    % 3. TRANSFORMACIÓN A HSV
+    % 2. TRANSFORMACIÓN A HSV
     I_hsv = rgb2hsv(I_corrected);
     H = I_hsv(:,:,1);
     S = I_hsv(:,:,2);
@@ -144,7 +144,7 @@ for i = 1:length(imagenes)
         subplot(2,3,6); imshow(V); colormap(gca, 'gray'); title('Canal V (Valor)');
     end
 
-    % 4. ANÁLISIS CANAL S (Multi-level Otsu)
+    % 3. ANÁLISIS CANAL S (Multi-level Otsu)
     gamma_val = 1.4;
     S_proc = S .^ gamma_val;
     
@@ -233,8 +233,7 @@ for i = 1:length(imagenes)
         title(['Máscara Binaria Final S (Umbral Otsu: ' num2str(level_otsu_S) ')']);
     end
 
-
-    % 5. ANÁLISIS CANAL H (Rosa y Morado)
+    % 4. ANÁLISIS CANAL H (Rosa y Morado)
     % Rango Morado/Rosa: 0.68 a 0.88 aprox.
     % Condición de seguridad: S debe ser > 40% del umbral de Otsu calculado antes
     % para no detectar ruido gris de fondo como morado.
@@ -273,7 +272,7 @@ for i = 1:length(imagenes)
         title('Máscara H (Morado y Rosa)');
     end
 
-    % 6. ANÁLISIS CANAL V (Colores Oscuros)
+    % 5. ANÁLISIS CANAL V (Colores Oscuros)
     % Invertimos V para usar Otsu (Lo oscuro se vuelve pico blanco en histograma)
     V_inv = imcomplement(V);
     level_otsu_V = graythresh(V_inv);
@@ -301,7 +300,7 @@ for i = 1:length(imagenes)
         imshow(mask_V_dark); title('Máscara V (Oscuros)');
     end
 
-    % 7. FUSIÓN Y MORFOLOGÍA
+    % 6. FUSIÓN Y MORFOLOGÍA
     % UNIÓN LÓGICA (OR)
     mask_combined = mask_S | mask_H | mask_V_dark;
 
@@ -348,7 +347,7 @@ for i = 1:length(imagenes)
 
     mask_final = mask_final_consolidated;
 
-    % 9. RESULTADOS Y FILTRADO
+    % 7. RESULTADOS Y FILTRADO
     [L, num_inicial] = bwlabel(mask_final, 8);
     stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', 'Circularity', 'Image', 'PixelIdxList');
     
@@ -393,7 +392,7 @@ for i = 1:length(imagenes)
     end
     fprintf('  > Objetos Detectados: %d\n', num_final);
 
-    % 10. VISUALIZACIÓN DE RESULTADOS
+    % 8. VISUALIZACIÓN DE RESULTADOS
     if (show_figures(6) == 1 || save_images)
         if show_figures(6) == 1
             figure('Name', 'Resultados Finales de Segmentación', 'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.8]);
