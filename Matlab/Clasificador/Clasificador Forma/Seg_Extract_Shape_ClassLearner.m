@@ -95,16 +95,16 @@ featNames = { ...
  'SkelLenNorm','SkelEndpoints','SkelBranchpoints', ...
  'FD2','FD3','FD4','FD5'};
 
-F = array2table(Xtest, 'VariableNames', featNames);
-F.Label     = Label;
-F.FileName  = names_cell(:);
-F.PieceIdx  = piece_idx(:);
+F_a = array2table(Xtest, 'VariableNames', featNames);
+F_a.Label     = Label;
+F_a.FileName  = names_cell(:);
+F_a.PieceIdx  = piece_idx(:);
 
 disp('Ejemplo de primeras filas de F:');
 disp(F(1:min(5,height(F)), :));
 
 %% 4) GUARDAR A .MAT PARA USAR EN CLASSIFICATION LEARNER
-save('legoFeatures_TRAIN_shape_15carac.mat', 'F');
+save('legoFeatures_TRAIN_shape_15carac_F_amarillas.mat', 'F_a');
 disp('✔ Archivo guardado: legoFeatures_TRAIN_shape_15carac.mat');
 
 
