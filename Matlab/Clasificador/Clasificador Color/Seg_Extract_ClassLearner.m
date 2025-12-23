@@ -4,7 +4,7 @@ clear; clc;
 numcarac = 8;  % mismo nº de características que en extractColorFeatures
 
 % Carpeta donde tienes las IMÁGENES YA SEGMENTADAS (una pieza por archivo)
-testFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
+testFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local';
 
 % Listar imágenes (ajusta extensiones si hace falta)
 filesJPG = dir(fullfile(testFolder, '*.jpg'));

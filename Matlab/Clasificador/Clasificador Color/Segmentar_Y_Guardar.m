@@ -11,7 +11,7 @@ folders = { ...
 
 % --- Carpeta destino ---
 basePath   = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database";
-saveFolder = fullfile(basePath, "SEGMENTED");
+saveFolder = fullfile(basePath, "SEGMENTED_local");
 
 if ~exist(saveFolder, 'dir')
     mkdir(saveFolder);
