@@ -49,7 +49,7 @@ idxSort = [idxNum(ord); find(~isNum)]; % primero numéricas ordenadas, luego el 
 files = files(idxSort);
 Nall  = numel(files);
 
-%% 5) NOMBRES DE FEATURES (15) -> deben coincidir con extractShapeFeatures y el modelo
+%% 5) NOMBRES DE FEATURES (14) -> deben coincidir con extractShapeFeatures y el modelo
 % featNames = {'Area','Perimeter','Circularity','Eccentricity','Solidity','Extent', ...
 %              'AspectRatio','BBoxRatio', ...
 %              'Hu1','Hu2','Hu3','Hu4','Hu5','Hu6','Hu7'};

@@ -1,0 +1,78 @@
+EVALUACIÓN SOBRE CARPETA (modelo M + cascada 9-12)
+==================================================
+
+Carpeta imágenes: C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test2_local
+
+[   1/  41] 02_000_10_001.jpg | REAL=02 | PRED_BASE=02 | PRED_FINAL=02 | REF=none | OK
+[   2/  41] 02_000_10_002.jpg | REAL=02 | PRED_BASE=02 | PRED_FINAL=02 | REF=none | OK
+[   3/  41] 02_000_10_003.jpg | REAL=02 | PRED_BASE=02 | PRED_FINAL=02 | REF=none | OK
+[   4/  41] 02_000_10_004.jpg | REAL=02 | PRED_BASE=02 | PRED_FINAL=02 | REF=none | OK
+[   5/  41] 03_000_10_001.jpg | REAL=03 | PRED_BASE=03 | PRED_FINAL=03 | REF=none | OK
+[   6/  41] 03_000_10_002.jpg | REAL=03 | PRED_BASE=03 | PRED_FINAL=03 | REF=none | OK
+[   7/  41] 03_000_10_003.jpg | REAL=03 | PRED_BASE=03 | PRED_FINAL=03 | REF=none | OK
+[   8/  41] 03_000_10_004.jpg | REAL=03 | PRED_BASE=03 | PRED_FINAL=03 | REF=none | OK
+[   9/  41] 03_000_10_005.jpg | REAL=03 | PRED_BASE=03 | PRED_FINAL=03 | REF=none | OK
+[  10/  41] 03_000_10_006.jpg | REAL=03 | PRED_BASE=03 | PRED_FINAL=03 | REF=none | OK
+[  11/  41] 03_000_10_007.jpg | REAL=03 | PRED_BASE=03 | PRED_FINAL=03 | REF=none | OK
+[  12/  41] 04_000_10_001.jpg | REAL=04 | PRED_BASE=04 | PRED_FINAL=04 | REF=none | OK
+[  13/  41] 04_000_10_002.jpg | REAL=04 | PRED_BASE=04 | PRED_FINAL=04 | REF=none | OK
+[  14/  41] 04_000_10_003.jpg | REAL=04 | PRED_BASE=04 | PRED_FINAL=04 | REF=none | OK
+[  15/  41] 05_000_10_001.jpg | REAL=05 | PRED_BASE=05 | PRED_FINAL=05 | REF=none | OK
+[  16/  41] 05_000_10_002.jpg | REAL=05 | PRED_BASE=05 | PRED_FINAL=05 | REF=none | OK
+[  17/  41] 05_000_10_003.jpg | REAL=05 | PRED_BASE=05 | PRED_FINAL=05 | REF=none | OK
+[  18/  41] 06_000_10_001.jpg | REAL=06 | PRED_BASE=06 | PRED_FINAL=06 | REF=none | OK
+[  19/  41] 06_000_10_002.jpg | REAL=06 | PRED_BASE=06 | PRED_FINAL=06 | REF=none | OK
+[  20/  41] 06_000_10_003.jpg | REAL=06 | PRED_BASE=06 | PRED_FINAL=06 | REF=none | OK
+[  21/  41] 06_000_10_004.jpg | REAL=06 | PRED_BASE=06 | PRED_FINAL=06 | REF=none | OK
+[  22/  41] 06_000_10_005.jpg | REAL=06 | PRED_BASE=06 | PRED_FINAL=06 | REF=none | OK
+[  23/  41] 06_000_10_006.jpg | REAL=06 | PRED_BASE=06 | PRED_FINAL=06 | REF=none | OK
+[  24/  41] 06_000_10_007.jpg | REAL=06 | PRED_BASE=06 | PRED_FINAL=06 | REF=none | OK
+[  25/  41] 09_000_10_001.jpg | REAL=09 | PRED_BASE=05 | PRED_FINAL=05 | REF=none | FAIL
+[  26/  41] 09_000_10_002.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | OK
+[  27/  41] 09_000_10_003.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | OK
+[  28/  41] 09_000_10_004.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | OK
+[  29/  41] 09_000_10_005.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | OK
+[  30/  41] 09_000_10_006.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | OK
+[  31/  41] 09_000_10_007.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | OK
+[  32/  41] 09_000_10_008.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | OK
+[  33/  41] 12_000_10_001.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | OK
+[  34/  41] 12_000_10_002.jpg | REAL=12 | PRED_BASE=11 | PRED_FINAL=11 | REF=none | FAIL
+[  35/  41] 12_000_10_003.jpg | REAL=12 | PRED_BASE=12 | PRED_FINAL=12 | REF=none | OK
+[  36/  41] 12_000_10_004.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | OK
+[  37/  41] 12_000_10_005.jpg | REAL=12 | PRED_BASE=05 | PRED_FINAL=05 | REF=none | FAIL
+[  38/  41] 12_000_10_006.jpg | REAL=12 | PRED_BASE=12 | PRED_FINAL=12 | REF=none | OK
+[  39/  41] 12_000_10_007.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | OK
+[  40/  41] 12_000_10_008.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | OK
+[  41/  41] 12_000_10_009.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | OK
+
+
+RESUMEN
+------
+Total imágenes carpeta     : 41
+Imágenes no encontradas    : 0
+Imágenes sin GT en nombre  : 0
+Evaluadas (con GT)         : 41
+Aciertos                   : 38
+Fallos                     : 3
+Accuracy (solo con GT)     : 92.68 %
+
+USO REFINADOR 9-12
+-----------------
+Ref 9-12 usado            : 12
+Cambios BASE->FINAL (flip): 5
+
+
+LISTA DE FALLOS (si los hay)
+----------------------------
+09_000_10_001.jpg | REAL=09 | BASE=05 | FINAL=05 | REF=none
+12_000_10_002.jpg | REAL=12 | BASE=11 | FINAL=11 | REF=none
+12_000_10_005.jpg | REAL=12 | BASE=05 | FINAL=05 | REF=none
+
+
+LISTA DE CAMBIOS (BASE -> FINAL)
+--------------------------------
+12_000_10_001.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_004.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_007.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_008.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_009.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
