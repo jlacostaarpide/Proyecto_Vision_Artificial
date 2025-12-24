@@ -13,43 +13,43 @@ addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\tests")
 %% Procesamiento por lotes
 
 imagenes = {
-    % 'IMG_7647.jpg';
-    % 'IMG_7643.jpg';
-    % '4_legos.jpg';
-    % '07_270_70_003.jpg';
-    % '07_315_10_005.jpg';
-    % '09_270_70_001.jpg';
-    % '09_270_70_003.jpg';
-    % 
-    % '08_270_40_003.jpg';
-    % 
-    % '01_270_70_003.jpg';
-    % '04_270_10_003.jpg';
-    % '04_045_10_003.jpg';
-    % '04_270_40_003.jpg';
-    % '04_045_40_003.jpg';
-    % '04_270_70_003.jpg';
-    % '04_045_70_003.jpg';
-    % '04_270_90_003.jpg';
-    % '10_270_70_003.jpg';
-    % '11_270_70_003.jpg';
-    % '11_135_70_003.jpg';
-    % '11_45_90_002.jpg';
-    % '12_270_70_003.jpg';
-    % 
-    % '01_000_40_001.jpg';
-    % '02_090_40_001.jpg';
-    % '03_270_10_001.jpg';
-    % '05_315_10_001.jpg';
-    % '06_000_70_005.jpg';
-    % '06_135_90_001.jpg';
-    % '07_000_10_004.jpg';
-    % '08_000_40_001.jpg';
-    % '08_045_40_001.jpg';
-    % '08_180_40_004.jpg';
-    % '09_000_70_004.jpg';
-    % '10_135_10_001.jpg';
-    % '11_135_10_001.jpg';
+    'IMG_7647.jpg';
+    'IMG_7643.jpg';
+    '4_legos.jpg';
+    '07_270_70_003.jpg';
+    '07_315_10_005.jpg';
+    '09_270_70_001.jpg';
+    '09_270_70_003.jpg';
+
+    '08_270_40_003.jpg';
+
+    '01_270_70_003.jpg';
+    '04_270_10_003.jpg';
+    '04_045_10_003.jpg';
+    '04_270_40_003.jpg';
+    '04_045_40_003.jpg';
+    '04_270_70_003.jpg';
+    '04_045_70_003.jpg';
+    '04_270_90_003.jpg';
+    '10_270_70_003.jpg';
+    '11_270_70_003.jpg';
+    '11_135_70_003.jpg';
+    '11_45_90_002.jpg';
+    '12_270_70_003.jpg';
+
+    '01_000_40_001.jpg';
+    '02_090_40_001.jpg';
+    '03_270_10_001.jpg';
+    '05_315_10_001.jpg';
+    '06_000_70_005.jpg';
+    '06_135_90_001.jpg';
+    '07_000_10_004.jpg';
+    '08_000_40_001.jpg';
+    '08_045_40_001.jpg';
+    '08_180_40_004.jpg';
+    '09_000_70_004.jpg';
+    '10_135_10_001.jpg';
+    '11_135_10_001.jpg';
 
     '06_000_70_001.jpg';
     '10_000_40_002.jpg';
@@ -90,7 +90,7 @@ end
 show_figures = [0, 0, 0, 1];
 
 save_images = false;
-output_folder = "C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Matlab\temp_Segmented";
+output_folder = "C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Matlab\temp_Segmented_final";
 
 fprintf('Procesando %d imágenes\n', length(imagenes));
 
@@ -239,35 +239,54 @@ for i = 1:length(imagenes)
         all_areas = [stats.Area];
         max_area = max(all_areas);
 
-        umbral_area = 0.15 * max_area;
-        candidates_idx = find(all_areas > umbral_area);
+        umbral_area_rel = 0.15 * max_area;
+        umbral_area_abs = 1000;      % Mínimo 1000 píxeles
+        umbral_ratio_max = 4.0;      % El lado largo no puede ser más de 5 veces el corto
+        umbral_saturacion = 0.30;    % Mínima saturación de color
         
-        % Filtro por Saturación Promedio
+        % Comprobación de area
+        candidates_idx = find((all_areas > umbral_area_rel) & (all_areas > umbral_area_abs));
+
         I_hsv_check = rgb2hsv(I_corrected); 
         S_channel = I_hsv_check(:,:,2);
         
-        umbral_saturacion = 0.25;
         valid_idx = [];
         
         for k = 1:length(candidates_idx)
             idx_obj = candidates_idx(k);
-            pixels_indices = stats(idx_obj).PixelIdxList;
+
+            % Comprobación de Aspect Ratio
+            bb = stats(idx_obj).BoundingBox; % [x, y, w, h]
+            width = bb(3);
+            height = bb(4);
+            ratio = max(width, height) / min(width, height);
             
-            % Calculamos la saturación media de LOS PÍXELES del objeto
+            if ratio > umbral_ratio_max
+                fprintf('  - Descartado obj #%d por forma alargada (Ratio: %.1f)\n', idx_obj, ratio);
+                continue; % Salta al siguiente ciclo sin mirar color
+            end
+
+            % Comprobación de Saturación Promedio
+            pixels_indices = stats(idx_obj).PixelIdxList;
             mean_sat = mean(S_channel(pixels_indices));
             
-            % Si supera el umbral, lo guardamos como válido
             if mean_sat > umbral_saturacion
                 valid_idx = [valid_idx; idx_obj];
             else
-                fprintf('Descartado objeto %d por baja saturación (%.2f)\n', idx_obj, mean_sat);
+                fprintf('  - Descartado obj #%d por baja saturación (%.2f)\n', idx_obj, mean_sat);
             end
         end
         
-        % Creamos la máscara final
         mask_filtered = ismember(L, valid_idx);
-
         stats_final = regionprops(mask_filtered, 'Area', 'Centroid', 'BoundingBox', 'Circularity', 'Image');
+
+        % Ordenar por Area
+        if ~isempty(stats_final)
+            areas_finales = [stats_final.Area];
+            [~, sort_idx] = sort(areas_finales, 'descend'); % 'descend' = de grande a pequeño
+            stats_final = stats_final(sort_idx);
+        end
+
         num_final = length(stats_final);
     else
         mask_filtered = mask_final;
