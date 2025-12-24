@@ -1,0 +1,69 @@
+EVALUACIÓN SOBRE CARPETA (modelo M)
+==================================
+
+Carpeta imágenes: C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test2_local
+
+[   1/  41] 02_000_10_001.jpg | REAL=02 | PRED=02 | OK
+[   2/  41] 02_000_10_002.jpg | REAL=02 | PRED=02 | OK
+[   3/  41] 02_000_10_003.jpg | REAL=02 | PRED=02 | OK
+[   4/  41] 02_000_10_004.jpg | REAL=02 | PRED=02 | OK
+[   5/  41] 03_000_10_001.jpg | REAL=03 | PRED=03 | OK
+[   6/  41] 03_000_10_002.jpg | REAL=03 | PRED=03 | OK
+[   7/  41] 03_000_10_003.jpg | REAL=03 | PRED=03 | OK
+[   8/  41] 03_000_10_004.jpg | REAL=03 | PRED=03 | OK
+[   9/  41] 03_000_10_005.jpg | REAL=03 | PRED=03 | OK
+[  10/  41] 03_000_10_006.jpg | REAL=03 | PRED=03 | OK
+[  11/  41] 03_000_10_007.jpg | REAL=03 | PRED=03 | OK
+[  12/  41] 04_000_10_001.jpg | REAL=04 | PRED=04 | OK
+[  13/  41] 04_000_10_002.jpg | REAL=04 | PRED=04 | OK
+[  14/  41] 04_000_10_003.jpg | REAL=04 | PRED=04 | OK
+[  15/  41] 05_000_10_001.jpg | REAL=05 | PRED=05 | OK
+[  16/  41] 05_000_10_002.jpg | REAL=05 | PRED=05 | OK
+[  17/  41] 05_000_10_003.jpg | REAL=05 | PRED=05 | OK
+[  18/  41] 06_000_10_001.jpg | REAL=06 | PRED=06 | OK
+[  19/  41] 06_000_10_002.jpg | REAL=06 | PRED=06 | OK
+[  20/  41] 06_000_10_003.jpg | REAL=06 | PRED=06 | OK
+[  21/  41] 06_000_10_004.jpg | REAL=06 | PRED=06 | OK
+[  22/  41] 06_000_10_005.jpg | REAL=06 | PRED=06 | OK
+[  23/  41] 06_000_10_006.jpg | REAL=06 | PRED=06 | OK
+[  24/  41] 06_000_10_007.jpg | REAL=06 | PRED=06 | OK
+[  25/  41] 09_000_10_001.jpg | REAL=09 | PRED=05 | FAIL
+[  26/  41] 09_000_10_002.jpg | REAL=09 | PRED=09 | OK
+[  27/  41] 09_000_10_003.jpg | REAL=09 | PRED=09 | OK
+[  28/  41] 09_000_10_004.jpg | REAL=09 | PRED=09 | OK
+[  29/  41] 09_000_10_005.jpg | REAL=09 | PRED=09 | OK
+[  30/  41] 09_000_10_006.jpg | REAL=09 | PRED=09 | OK
+[  31/  41] 09_000_10_007.jpg | REAL=09 | PRED=09 | OK
+[  32/  41] 09_000_10_008.jpg | REAL=09 | PRED=09 | OK
+[  33/  41] 12_000_10_001.jpg | REAL=12 | PRED=09 | FAIL
+[  34/  41] 12_000_10_002.jpg | REAL=12 | PRED=11 | FAIL
+[  35/  41] 12_000_10_003.jpg | REAL=12 | PRED=12 | OK
+[  36/  41] 12_000_10_004.jpg | REAL=12 | PRED=09 | FAIL
+[  37/  41] 12_000_10_005.jpg | REAL=12 | PRED=05 | FAIL
+[  38/  41] 12_000_10_006.jpg | REAL=12 | PRED=12 | OK
+[  39/  41] 12_000_10_007.jpg | REAL=12 | PRED=09 | FAIL
+[  40/  41] 12_000_10_008.jpg | REAL=12 | PRED=09 | FAIL
+[  41/  41] 12_000_10_009.jpg | REAL=12 | PRED=09 | FAIL
+
+
+RESUMEN
+------
+Total imágenes carpeta     : 41
+Imágenes no encontradas    : 0
+Imágenes sin GT en nombre  : 0
+Evaluadas (con GT)         : 41
+Aciertos                   : 33
+Fallos                     : 8
+Accuracy (solo con GT)     : 80.49 %
+
+
+LISTA DE FALLOS (si los hay)
+----------------------------
+09_000_10_001.jpg | REAL=09 | PRED=05
+12_000_10_001.jpg | REAL=12 | PRED=09
+12_000_10_002.jpg | REAL=12 | PRED=11
+12_000_10_004.jpg | REAL=12 | PRED=09
+12_000_10_005.jpg | REAL=12 | PRED=05
+12_000_10_007.jpg | REAL=12 | PRED=09
+12_000_10_008.jpg | REAL=12 | PRED=09
+12_000_10_009.jpg | REAL=12 | PRED=09
