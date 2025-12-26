@@ -1,38 +1,16 @@
 function [feat, featNames] = extractColorShapeFeatures(I)
-% EXTRACTCOLORSHAPEFEATURES  Features combinadas (color + forma) para LEGO segmentado.
+% EXTRACTCOLORSHAPEFEATURES  Features reducidas (color + forma) para LEGO segmentado.
+%
+% Basado en tu ranking combinado, nos quedamos con las que más aportan:
+%   Extent, Solidity, V_mean, Eccentricity, SkelLenNorm, Circularity,
+%   H_mean_circ, S_mean, V_IQR, S_median, FD5, EulerNumber
 %
 % Entrada:
 %   I : imagen RGB (o gray) de la pieza segmentada con fondo negro.
 %
 % Salida:
-%   feat      : 1x22 double  (8 color + 14 shape)
-%   featNames : 1x22 cellstr (nombres en el mismo orden)
-%
-% Orden:
-%   Color (8):
-%     1 H_mean_circ
-%     2 H_var_circ
-%     3 S_median
-%     4 S_IQR
-%     5 V_median
-%     6 V_IQR
-%     7 S_mean
-%     8 V_mean
-%   Shape (14):
-%     9  Circularity
-%     10 AspectRatio
-%     11 Extent
-%     12 Solidity
-%     13 Convexity
-%     14 Eccentricity
-%     15 EulerNumber
-%     16 SkelLenNorm
-%     17 SkelEndpoints
-%     18 SkelBranchpoints
-%     19 FD2
-%     20 FD3
-%     21 FD4
-%     22 FD5
+%   feat      : 1x12 double
+%   featNames : 1x12 cellstr (nombres en el mismo orden)
 
     % =======================
     % 0) Asegurar formato
@@ -43,24 +21,40 @@ function [feat, featNames] = extractColorShapeFeatures(I)
     end
 
     % =======================
-    % 1) FEATURES DE COLOR (8)
+    % 1) Features completas (como antes)
     % =======================
-    featColor = local_extractColorFeatures(I);
+    featColorFull = local_extractColorFeatures(I);  % 1x8
+    featShapeFull = local_extractShapeFeatures(I);  % 1x14
+
+    % Color full (5):
+    % [H_mean_circ, H_var_circ, S_median, S_IQR, V_median, V_IQR, S_mean, V_mean]
+    H_mean_circ = featColorFull(1);
+    S_median    = featColorFull(3);
+    V_IQR       = featColorFull(6);
+    S_mean      = featColorFull(7);
+    V_mean      = featColorFull(8);
+
+    % Shape full (7) en el ORDEN de tu función actual:
+    % [circ, aspect, ext, sol, conv, ecc, euler, skelLenNorm, nEnd, nBranch, FD2, FD3, FD4, FD5]
+    Circularity   = featShapeFull(1);
+    Extent        = featShapeFull(3);
+    Solidity      = featShapeFull(4);
+    Eccentricity  = featShapeFull(6);
+    EulerNumber   = featShapeFull(7);
+    SkelLenNorm   = featShapeFull(8);
+    FD5           = featShapeFull(14);
 
     % =======================
-    % 2) FEATURES DE FORMA (14)
+    % 2) Selección final (1x12) en un orden coherente
     % =======================
-    featShape = local_extractShapeFeatures(I);
-
-    % =======================
-    % 3) CONCATENAR
-    % =======================
-    feat = [featColor, featShape];
+    feat = double([ ...
+        Extent, Solidity, V_mean, Eccentricity, SkelLenNorm, Circularity, ...
+        H_mean_circ, S_mean, V_IQR, S_median, FD5, EulerNumber ...
+    ]);
 
     featNames = { ...
-        'H_mean_circ','H_var_circ','S_median','S_IQR','V_median','V_IQR','S_mean','V_mean', ...
-        'Circularity','AspectRatio','Extent','Solidity','Convexity','Eccentricity','EulerNumber', ...
-        'SkelLenNorm','SkelEndpoints','SkelBranchpoints','FD2','FD3','FD4','FD5' ...
+        'Extent','Solidity','V_mean','Eccentricity','SkelLenNorm','Circularity', ...
+        'H_mean_circ','S_mean','V_IQR','S_median','FD5','EulerNumber' ...
     };
 end
 
@@ -68,9 +62,8 @@ end
 % =========================  COLOR (8)  ================================
 % ======================================================================
 function feat = local_extractColorFeatures(I)
-% Versión basada en tu extractColorFeatures, tal cual la lógica.
+% Igual que tu lógica (8 features)
 
-    % 1) Corrección suave de iluminación en Lab
     Ilab = rgb2lab(I);
     L = Ilab(:,:,1);
     A = Ilab(:,:,2);
@@ -83,13 +76,11 @@ function feat = local_extractColorFeatures(I)
     I_corr = lab2rgb(Ilab2);
     I_corr = min(max(I_corr,0),1);
 
-    % 2) HSV + máscara de pieza
     hsvI = rgb2hsv(I_corr);
     H = hsvI(:,:,1);
     S = hsvI(:,:,2);
     V = hsvI(:,:,3);
 
-    % máscara: no negro + algo de valor (usando original para fondo)
     mask = any(I > 0, 3) & (V > 0.05);
 
     H = H(mask);
@@ -101,7 +92,6 @@ function feat = local_extractColorFeatures(I)
         return;
     end
 
-    % 3) Estadísticos robustos
     ang = 2*pi*H;
     z = exp(1j * ang);
     R = mean(z);
@@ -124,9 +114,8 @@ end
 % =========================  SHAPE (14)  ===============================
 % ======================================================================
 function feat = local_extractShapeFeatures(I)
-% Versión robusta de forma (la de 14 features que estabas usando)
+% Igual que tu lógica (14 features)
 
-    % Parámetros
     tBlackMin        = 0.03;
     minObjArea       = 300;
     holeSmallMaxArea = 200;
@@ -135,25 +124,19 @@ function feat = local_extractShapeFeatures(I)
     Nboundary        = 128;
     Kfourier         = 5;
 
-    % 1) Grayscale
     Ig = rgb2gray(I);
-
-    % 2) Máscara "no negro"
     mask = Ig > tBlackMin;
 
-    % 3) Limpieza
     mask = bwareaopen(mask, minObjArea);
     mask = imclose(mask, strel('disk', closeRadius));
     mask = imopen(mask,  strel('disk', openRadius));
 
-    % 4) Rellenar solo agujeros pequeños (conservar grandes)
     maskFilled = imfill(mask, 'holes');
     holes = maskFilled & ~mask;
-    holesSmall = bwareaopen(holes, holeSmallMaxArea); % se quedan grandes
-    holesToFill = holes & ~holesSmall;                % los pequeños
+    holesSmall = bwareaopen(holes, holeSmallMaxArea);
+    holesToFill = holes & ~holesSmall;
     mask = mask | holesToFill;
 
-    % 5) Componente más grande
     CC = bwconncomp(mask, 8);
     if CC.NumObjects == 0
         feat = zeros(1,14);
@@ -167,7 +150,6 @@ function feat = local_extractShapeFeatures(I)
         mask = mask2;
     end
 
-    % 6) Normalizar orientación
     S0 = regionprops(mask, 'Orientation', 'BoundingBox');
     ang = -S0.Orientation;
     maskR = imrotate(mask, ang, 'nearest', 'loose');
@@ -176,7 +158,6 @@ function feat = local_extractShapeFeatures(I)
     bb = S1.BoundingBox;
     maskR = imcrop(maskR, bb);
 
-    % 7) props
     S = regionprops(maskR, 'Area','Perimeter','Eccentricity','Solidity','Extent', ...
                           'MajorAxisLength','MinorAxisLength','ConvexArea','EulerNumber');
 
@@ -195,7 +176,6 @@ function feat = local_extractShapeFeatures(I)
     conv = A / max(S.ConvexArea, 1e-9);
     euler = S.EulerNumber;
 
-    % 8) Skeleton
     skel = bwmorph(maskR, 'skel', Inf);
     skelLen = sum(skel(:));
     skelLenNorm = skelLen / max(sqrt(A), 1e-9);
@@ -205,7 +185,6 @@ function feat = local_extractShapeFeatures(I)
     nEnd = sum(endpoints(:));
     nBranch = sum(branchpoints(:));
 
-    % 9) Fourier descriptors del contorno
     B = bwboundaries(maskR);
     if isempty(B)
         fd = zeros(1,4);
@@ -220,9 +199,9 @@ function feat = local_extractShapeFeatures(I)
         den = max(abs(Z(2)), 1e-12);
         mag = abs(Z) / den;
 
-        idx = 3:(2+Kfourier);     % 3..7 (si Kfourier=5)
+        idx = 3:(2+Kfourier);
         magSel = mag(idx);
-        fd = magSel(1:4).';       % FD2..FD5
+        fd = magSel(1:4).';   % FD2..FD5
     end
 
     feat = double([ ...

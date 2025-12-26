@@ -1,9 +1,9 @@
 %% EXTRACCIÓN DE CARACTERÍSTICAS DE FORMA DE PIEZAS YA SEGMENTADAS (PARA CLASSIFICATION LEARNER)
 clear; clc;
 
-numcarac = 14;  % nº de características que devuelve extractShapeFeatures
+numcarac = 24;  % nº de características que devuelve extractShapeFeatures (NUEVA versión sin FD)
 % Códigos de clase válidos
-validCodes = {'03','06','09','12'};
+validCodes = {'09','12'};
 
 % Carpeta donde tienes las IMÁGENES YA SEGMENTADAS (una pieza por archivo)
 testFolder = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local';
@@ -15,7 +15,7 @@ files    = [filesJPG; filesPNG];
 
 fprintf('Se han encontrado %d archivos de imagen en %s\n', numel(files), testFolder);
 
-% Filtrar solo archivos cuyo nombre empiece por 03, 06, 09 o 12
+% Filtrar solo archivos cuyo nombre empiece por 09 o 12
 isValid = false(numel(files),1);
 
 for i = 1:numel(files)
@@ -28,7 +28,7 @@ end
 
 files = files(isValid);
 
-fprintf('Tras filtrar por código (03,06,09,12): %d imágenes válidas\n', numel(files));
+fprintf('Tras filtrar por código (09,12): %d imágenes válidas\n', numel(files));
 
 % Inicializamos contenedores
 Xtest      = zeros(0, numcarac);   % prealocado "vacío" con numcarac columnas
@@ -53,7 +53,7 @@ for n = 1:numel(files)
         continue;
     end
 
-    % Extraer características de forma (1 x 15)
+    % Extraer características de forma (1 x 9)  <-- usa TU extractShapeFeatures actualizado
     feat = extractShapeFeatures(Ipiece);
 
     % Acumular
@@ -65,7 +65,7 @@ end
 fprintf('\nTotal de piezas analizadas: %d\n', size(Xtest,1));
 
 %% 2) CREAR LABEL A PARTIR DEL NOMBRE DE FICHERO
-% Suponiendo nombres tipo: 07_225_40_003.png -> clase = '07'
+% Suponiendo nombres tipo: 12_225_40_003.png -> clase = '12'
 
 numSamples = numel(names_cell);
 labels_str = cell(numSamples,1);
@@ -86,26 +86,27 @@ Label = categorical(labels_str);
 
 %% 3) MONTAR TABLA PARA CLASSIFICATION LEARNER
 
-% featNames = {'Area','Perimeter','Circularity','Eccentricity','Solidity','Extent', ...
-%              'AspectRatio','BBoxRatio', ...
-%              'Hu1','Hu2','Hu3','Hu4','Hu5','Hu6','Hu7'};
+% --- ANTES (10 feats) ---
+% featNames = { ...
+%  'Circularity','AspectRatio','Extent','Solidity','Convexity','Eccentricity','EulerNumber', ...
+%  'SkelLenNorm','SkelEndpoints','SkelBranchpoints'};
 
 featNames = { ...
- 'Circularity','AspectRatio','Extent','Solidity','Convexity','Eccentricity','EulerNumber', ...
- 'SkelLenNorm','SkelEndpoints','SkelBranchpoints', ...
- 'FD2','FD3','FD4','FD5'};
+ 'AreaNorm','PerimNorm','Circularity','Extent','Solidity','Eccentricity','AspectRatio','EulerNumber', ...
+ 'HolesCount','HolesAreaFrac','SkelLenNorm','SkelEndpoints','SkelBranchpoints', ...
+ 'ProjV_peaks','ProjH_peaks','ProjV_entropy','ProjH_entropy', ...
+ 'GridOccFrac_3x3','GridOccGini_3x3','GridOccDiagDiff_3x3', ...
+ 'StudsCount','StudsCountNormArea','StudsMeanRadius','StudsRadiusStd' ...
+};
 
-F = array2table(Xtest, 'VariableNames', featNames);
-F.Label     = Label;
-F.FileName  = names_cell(:);
-F.PieceIdx  = piece_idx(:);
+F_a = array2table(Xtest, 'VariableNames', featNames);
+F_a.Label     = Label;
+F_a.FileName  = names_cell(:);
+F_a.PieceIdx  = piece_idx(:);
 
-disp('Ejemplo de primeras filas de F:');
-disp(F(1:min(5,height(F)), :));
+disp('Ejemplo de primeras filas de F_a:');
+disp(F_a(1:min(5,height(F_a)), :));
 
 %% 4) GUARDAR A .MAT PARA USAR EN CLASSIFICATION LEARNER
-save('legoFeatures_TRAIN_shape_15carac.mat', 'F');
-disp('✔ Archivo guardado: legoFeatures_TRAIN_shape_15carac.mat');
-
-
-
+save('legoFeatures_TRAIN_shape_24carac_F_amarillas.mat', 'F_a');
+disp('✔ Archivo guardado: legoFeatures_TRAIN_shape_9carac_F_amarillas.mat');

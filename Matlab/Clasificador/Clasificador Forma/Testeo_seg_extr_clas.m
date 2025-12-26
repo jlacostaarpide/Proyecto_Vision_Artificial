@@ -6,20 +6,20 @@
 % - Clasifica con trainedModel (Classification Learner)
 % - Guarda resultados en tabla F_run (una fila por imagen válida)
 %% ================================================================
-clear; clc;
+%clear; clc;
 
 %% 1) CARGAR MODELO (descomenta el que uses)
 % load("TrainedModelWith_Ftrain.mat");
 % load("TrainedModelWith_Ftrain_3_6_9_12.mat");
-load("TrainedModelWith_Ftrain_3_6_red.mat");
+%load("TrainedModelWith_Ftrain_3_6_red.mat");
 % load("TrainedModelWith_Ftrain_9_12_yellow.mat");
 
 % Si tu .mat no deja una variable llamada trainedModel, adapta aquí:
 % trainedModel = trainedModel_Ttrain;  % ejemplo
 
 %% 2) CARPETA ORIGEN (IMÁGENES SIN SEGMENTAR)
-%folderPath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\test_amarillas";
-folderPath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\test_rojas";
+folderPath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\test_amarillas";
+%folderPath = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\test_rojas";
 
 %% 3) OPCIONES
 showFigure = false;
@@ -49,7 +49,7 @@ idxSort = [idxNum(ord); find(~isNum)]; % primero numéricas ordenadas, luego el 
 files = files(idxSort);
 Nall  = numel(files);
 
-%% 5) NOMBRES DE FEATURES (15) -> deben coincidir con extractShapeFeatures y el modelo
+%% 5) NOMBRES DE FEATURES (14) -> deben coincidir con extractShapeFeatures y el modelo
 % featNames = {'Area','Perimeter','Circularity','Eccentricity','Solidity','Extent', ...
 %              'AspectRatio','BBoxRatio', ...
 %              'Hu1','Hu2','Hu3','Hu4','Hu5','Hu6','Hu7'};

@@ -1,7 +1,25 @@
-%% EXTRACCIÓN DE CARACTERÍSTICAS DE FORMA DE PIEZAS YA SEGMENTADAS (PARA CLASSIFICATION LEARNER)
+%% EXTRACCIÓN DE CARACTERÍSTICAS DE PIEZAS YA SEGMENTADAS (PARA CLASSIFICATION LEARNER)
 clear; clc;
 
-numcarac = 22;  % nº de características que devuelve extractShapeFeatures
+%% =========================
+%% (COMENTADO) ANTES: 22
+%% =========================
+% numcarac = 22;  % nº de características que devuelve extractColorShapeFeatures (ANTES)
+% featNames = { ...
+%  'H_mean_circ','H_var_circ','S_median','S_IQR','V_median','V_IQR','S_mean','V_mean', ...
+%  'Circularity','AspectRatio','Extent','Solidity','Convexity','Eccentricity','EulerNumber', ...
+%  'SkelLenNorm','SkelEndpoints','SkelBranchpoints','FD2','FD3','FD4','FD5' };
+
+%% =========================
+%% AHORA: 12 (TU FUNCIÓN ACTUAL)
+%% =========================
+numcarac = 12;  % nº de características que devuelve TU extractColorShapeFeatures (ACTUAL)
+
+featNames = { ...
+    'Extent','Solidity','V_mean','Eccentricity','SkelLenNorm','Circularity', ...
+    'H_mean_circ','S_mean','V_IQR','S_median','FD5','EulerNumber' ...
+};
+
 % Códigos de clase válidos
 validCodes = {'01','02','03','04','05','06','07','08','09','10','11','12'};
 
@@ -15,9 +33,8 @@ files    = [filesJPG; filesPNG];
 
 fprintf('Se han encontrado %d archivos de imagen en %s\n', numel(files), testFolder);
 
-% Filtrar solo archivos cuyo nombre empiece por 03, 06, 09 o 12
+% Filtrar solo archivos cuyo nombre empiece por un código válido (01..12)
 isValid = false(numel(files),1);
-
 for i = 1:numel(files)
     [~, baseName, ~] = fileparts(files(i).name);
     partes = split(baseName, '_');
@@ -25,10 +42,9 @@ for i = 1:numel(files)
         isValid(i) = true;
     end
 end
-
 files = files(isValid);
 
-fprintf('Tras filtrar por código (03,06,09,12): %d imágenes válidas\n', numel(files));
+fprintf('Tras filtrar por código (01..12): %d imágenes válidas\n', numel(files));
 
 % Inicializamos contenedores
 Xtest      = zeros(0, numcarac);   % prealocado "vacío" con numcarac columnas
@@ -53,13 +69,23 @@ for n = 1:numel(files)
         continue;
     end
 
-    % Extraer características de forma (1 x 15)
+    % Extraer características con TU función (devuelve 1x12)
     feat = extractColorShapeFeatures(Ipiece);
 
+    % Seguridad: asegurar fila 1x12
+    feat = feat(:).';
+
+    % Comprobar tamaño
+    if numel(feat) ~= numcarac
+        warning('  >> Tamaño de feat (%d) distinto de numcarac (%d) en %s. Saltando.', ...
+            numel(feat), numcarac, files(n).name);
+        continue;
+    end
+
     % Acumular
-    Xtest(end+1, :) = feat;                 %#ok<AGROW>
-    names_cell{end+1} = files(n).name;      %#ok<AGROW>
-    piece_idx(end+1)   = 1;                 %#ok<AGROW>
+    Xtest(end+1, :)    = feat;            %#ok<AGROW>
+    names_cell{end+1}  = files(n).name;   %#ok<AGROW>
+    piece_idx(end+1)   = 1;               %#ok<AGROW>
 end
 
 fprintf('\nTotal de piezas analizadas: %d\n', size(Xtest,1));
@@ -84,25 +110,15 @@ end
 
 Label = categorical(labels_str);
 
-%% 3) MONTAR TABLA PARA CLASSIFICATION LEARNER
-
-featNames = { ...
- 'H_mean_circ','H_var_circ','S_median','S_IQR','V_median','V_IQR','S_mean','V_mean', ...
- 'Circularity','AspectRatio','Extent','Solidity','Convexity','Eccentricity','EulerNumber', ...
- 'SkelLenNorm','SkelEndpoints','SkelBranchpoints','FD2','FD3','FD4','FD5' };
-
-
+%% 3) MONTAR TABLA PARA CLASSIFICATION LEARNER (12)
 M = array2table(Xtest, 'VariableNames', featNames);
 M.Label     = Label;
 M.FileName  = names_cell(:);
 M.PieceIdx  = piece_idx(:);
 
-disp('Ejemplo de primeras filas de M:');
+disp('Ejemplo de primeras filas de M (12 carac):');
 disp(M(1:min(5,height(M)), :));
 
-%% 4) GUARDAR A .MAT PARA USAR EN CLASSIFICATION LEARNER
-save('legoFeatures_TRAIN_color_shape_22carac.mat', 'M');
-disp('✔ Archivo guardado: legoFeatures_TRAIN__color_shape_22carac.mat');
-
-
-
+%% 4) GUARDAR A .MAT PARA USAR EN CLASSIFICATION LEARNER (12)
+save('legoFeatures_TRAIN_color_shape_12carac.mat', 'M');
+disp('✔ Archivo guardado: legoFeatures_TRAIN_color_shape_12carac.mat');
