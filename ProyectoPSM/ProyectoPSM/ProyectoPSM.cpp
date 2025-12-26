@@ -11,57 +11,69 @@
 #include <QApplication>
 
 Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
+Q_DECLARE_METATYPE(std::vector<QRectF>)
+Q_DECLARE_METATYPE(std::vector<QImage>)
 
 // Recibe la imagen y obtiene el bounding box y el thumbnail segmentado
 void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
 {
-    QRectF normalizedBox(0,0,0,0);
-    QImage qthumb;
+    std::vector<QRectF> outBoxes;
+    std::vector<QImage> outThumbs;
 
     try {
         if (!snapshotPtr || snapshotPtr->empty()) {
-            emit finishedBox(normalizedBox);
-            emit finishedThumbnail(qthumb);
+            emit finishedResult(outBoxes, outThumbs);
             return;
         }
 
+        // 1. Ejecutar Segmentación (Ya devuelve ordenado por área)
         std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(*snapshotPtr);
 
-        if (!resultados.empty()) {
-            const ResultadoPieza& pieza = resultados[0];
+        double iw = static_cast<double>(snapshotPtr->cols);
+        double ih = static_cast<double>(snapshotPtr->rows);
 
-            double iw = static_cast<double>(snapshotPtr->cols);
-            double ih = static_cast<double>(snapshotPtr->rows);
+        // 2. Procesar las N mejores piezas (Mínimo las 2 primeras para la UI)
+        //    Guardamos TODAS las cajas, pero solo 2 thumbnails para las etiquetas.
+        int max_thumbs = 2;
 
+        for (size_t i = 0; i < resultados.size(); i++) {
+            const ResultadoPieza& pieza = resultados[i];
+
+            // A. Guardar Caja Normalizada
             if (iw > 0 && ih > 0) {
-                normalizedBox = QRectF(
+                outBoxes.push_back(QRectF(
                     static_cast<double>(pieza.boundingBox.x) / iw,
                     static_cast<double>(pieza.boundingBox.y) / ih,
                     static_cast<double>(pieza.boundingBox.width) / iw,
                     static_cast<double>(pieza.boundingBox.height) / ih
-                );
+                ));
             }
 
-            cv::Mat crop = pieza.imagenRecortada;
-            if (!crop.empty()) {
-                const int thumbW = 160;
-                int srcW = crop.cols;
-                int srcH = crop.rows;
-                int thumbH = max(1, static_cast<int>((double)thumbW * srcH / max(1, srcW)));
+            // B. Generar Thumbnail (Solo para las primeras 'max_thumbs')
+            if (outThumbs.size() < max_thumbs) {
+                cv::Mat crop = pieza.imagenRecortada;
+                if (!crop.empty()) {
+                    const int thumbW = 160; // Ancho fijo para la UI
+                    int srcW = crop.cols;
+                    int srcH = crop.rows;
+                    int thumbH = max(1, static_cast<int>((double)thumbW * srcH / max(1, srcW)));
 
-                cv::Mat thumb;
-                cv::resize(crop, thumb, cv::Size(thumbW, thumbH), 0, 0, cv::INTER_LINEAR);
+                    cv::Mat thumb;
+                    cv::resize(crop, thumb, cv::Size(thumbW, thumbH), 0, 0, cv::INTER_LINEAR);
 
-                cv::Mat thumb_rgb;
-                if (thumb.channels() == 3)
-                    cv::cvtColor(thumb, thumb_rgb, cv::COLOR_BGR2RGB);
-                else
-                    cv::cvtColor(thumb, thumb_rgb, cv::COLOR_GRAY2RGB);
+                    cv::Mat thumb_rgb;
+                    if (thumb.channels() == 3)
+                        cv::cvtColor(thumb, thumb_rgb, cv::COLOR_BGR2RGB);
+                    else
+                        cv::cvtColor(thumb, thumb_rgb, cv::COLOR_GRAY2RGB);
 
-                qthumb = QImage(reinterpret_cast<const uchar*>(thumb_rgb.data),
-                                thumb_rgb.cols, thumb_rgb.rows,
-                                static_cast<int>(thumb_rgb.step),
-                                QImage::Format_RGB888).copy();
+                    QImage qthumb(reinterpret_cast<const uchar*>(thumb_rgb.data),
+                        thumb_rgb.cols, thumb_rgb.rows,
+                        static_cast<int>(thumb_rgb.step),
+                        QImage::Format_RGB888);
+
+                    outThumbs.push_back(qthumb.copy()); // .copy() es vital para detachar memoria
+                }
             }
         }
     }
@@ -72,47 +84,44 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
         qDebug() << "SegmentationWorker unknown exception";
     }
 
-    emit finishedBox(normalizedBox);
-    emit finishedThumbnail(qthumb);
+    emit finishedResult(outBoxes, outThumbs);
 }
 
-ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
+ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
-    // registrar tipo para queued connections
+    // Registros necesarios para pasar datos entre hilos
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
+    qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
+    qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
 
-	if (!filesystem::exists("Database")) {
-		filesystem::create_directory("Database");
-	}
+    if (!filesystem::exists("Database")) {
+        filesystem::create_directory("Database");
+    }
 
-	NameList = NameHelper::GenerarNombres();
+    NameList = NameHelper::GenerarNombres();
 
-
-	qDebug() << "Número de nombres generados: " << static_cast<int>(NameList.size());
-	qDebug() << "Primer nombre: " << QString::fromStdString(NameList[0]);
-	qDebug() << "Segundo nombre: " << QString::fromStdString(NameList[1]);
-	qDebug() << "Último nombre: " << QString::fromStdString(NameList.back());
-
-    Camera = new CVideoAcquisition();
-	// inicializar flags de segmentación
-	LiveSegmentationEnabled = false;
-	SegProcessing = false;
+    // Inicialización
+    LiveSegmentationEnabled = false;
+    SegProcessing = false;
     segInFlight = 0;
-    segThumbNext = 0;
 
-	SegmentationIntervalMs = 40; //cada cuanto hacer segmentación (ms)
+    SegmentationIntervalMs = 40;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
 
-    // crear worker y thread para segmentación 
+    Camera = new CVideoAcquisition();
+
+    // Configurar Worker
     segWorker = new SegmentationWorker();
     segThread = new QThread(this);
     segWorker->moveToThread(segThread);
     connect(segThread, &QThread::finished, segWorker, &QObject::deleteLater);
-    connect(segWorker, &SegmentationWorker::finishedBox, this, &ProyectoPSM::UpdateSegmentationBox, Qt::QueuedConnection);
-    connect(segWorker, &SegmentationWorker::finishedThumbnail, this, &ProyectoPSM::EnqueueSegThumbnail, Qt::QueuedConnection);
+
+    // CONEXIÓN UNIFICADA:
+    connect(segWorker, &SegmentationWorker::finishedResult, this, &ProyectoPSM::UpdateSegmentationResults, Qt::QueuedConnection);
     connect(this, &ProyectoPSM::requestSegmentation, segWorker, &SegmentationWorker::process, Qt::QueuedConnection);
+
     segThread->start();
 
     segTimer = new QTimer(this);
@@ -120,18 +129,21 @@ ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
     connect(segTimer, &QTimer::timeout, this, &ProyectoPSM::onSegmentationTimer);
     segTimer->start();
 
-    ui.pbtnGuardar->setEnabled(true);
-    ui.pbtnDescartar->setEnabled(true);
-    ui.pbtnSegmentar->setEnabled(true);
-    ui.pbtnClasificar->setEnabled(true);
-    connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
-    connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
+    // --- Gestion de archivos ---
+    ui.pbtnGuardar->setEnabled(false);
+    ui.pbtnDescartar->setEnabled(false);
+
     connect(ui.pbtnAbrirImag, SIGNAL(clicked()), this, SLOT(SegmentarImagDisco()));
     connect(ui.comboSegMode, SIGNAL(activated(int)), this, SLOT(SegmentationMode(int)));
+    connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
+    connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
 
+    // --- CÁMARA ---
     if (Camera->CameraOK) {
         ui.pbtnEncender->setEnabled(true);
         ui.pbtnCapturar->setEnabled(false);
+        ui.pbtnSegmentar->setEnabled(true);
+        if(ui.pbtnClasificar) ui.pbtnClasificar->setEnabled(true);
 
         ImageIndex = 0;
         SavedImageIndex = 1;
@@ -145,10 +157,11 @@ ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
         connect(ui.pbtnSegmentar, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
     }
     else {
-        ui.lblImagen->setText("ERROR: No se ha podido establecer comunicación con la cámara.");
+        ui.lblImagen->setText("AVISO: Cámara no detectada.");
+        ui.lblImagen->setAlignment(Qt::AlignCenter);
+        ui.pbtnEncender->setEnabled(false);
         ui.pbtnCapturar->setEnabled(false);
         ui.pbtnSegmentar->setEnabled(false);
-        ui.pbtnClasificar->setEnabled(false);
     }
 }
 
@@ -157,12 +170,6 @@ ProyectoPSM::~ProyectoPSM()
     if (segThread) {
         segThread->quit();
         segThread->wait();
-        segThread = nullptr;
-        segWorker = nullptr;
-    }
-    if (segTimer) {
-        segTimer->stop();
-        segTimer = nullptr;
     }
 }
 
@@ -178,28 +185,22 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
     }
 }
 
-// Pinta la imagen actual escalada al tamaño del label y dibuja bbox normalizado
 void ProyectoPSM::ShowImage()
 {
-    if (LastImage.empty() || !ui.pbtnCapturar->isEnabled()) return;
+    if (LastImage.empty()) return;
 
-    // Crear QImage desde BGR (usamos BGR -> RGB para QImage)
     cv::Mat rgb;
-    if (LastImage.channels() == 3) {
-        cv::cvtColor(LastImage, rgb, cv::COLOR_BGR2RGB);
-    } else {
-        cv::cvtColor(LastImage, rgb, cv::COLOR_GRAY2RGB);
-    }
+    if (LastImage.channels() == 3) cv::cvtColor(LastImage, rgb, cv::COLOR_BGR2RGB);
+    else cv::cvtColor(LastImage, rgb, cv::COLOR_GRAY2RGB);
 
     QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
     QPixmap pix = QPixmap::fromImage(qimg.copy());
 
-    // Escalar el pixmap al tamaño del label manteniendo la proporción
     QSize labelSize = ui.lblImagen->size();
     QPixmap scaled = pix.scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-    // Dibujar bbox en coordenadas del pixmap escalado si existe
-    if (!lastBoxNormalized.isNull() && lastBoxNormalized.width() > 0 && lastBoxNormalized.height() > 0) {
+    // --- DIBUJAR TODAS LAS CAJAS DETECTADAS ---
+    if (!lastBoxesNormalized.empty()) {
         QPainter p(&scaled);
         QPen pen(Qt::green);
         pen.setWidthF(max(1.0, scaled.width() * 0.005));
@@ -207,19 +208,20 @@ void ProyectoPSM::ShowImage()
         p.setPen(pen);
         p.setRenderHint(QPainter::Antialiasing, true);
 
-        int x = static_cast<int>(lastBoxNormalized.x() * scaled.width());
-        int y = static_cast<int>(lastBoxNormalized.y() * scaled.height());
-        int w = static_cast<int>(lastBoxNormalized.width() * scaled.width());
-        int h = static_cast<int>(lastBoxNormalized.height() * scaled.height());
+        for (const auto& box : lastBoxesNormalized) {
+            int x = static_cast<int>(box.x() * scaled.width());
+            int y = static_cast<int>(box.y() * scaled.height());
+            int w = static_cast<int>(box.width() * scaled.width());
+            int h = static_cast<int>(box.height() * scaled.height());
 
-        x = max(0, min(x, scaled.width()-1));
-        y = max(0, min(y, scaled.height()-1));
-        if (w <= 0) w = 1;
-        if (h <= 0) h = 1;
-        if (x + w > scaled.width()) w = scaled.width() - x;
-        if (y + h > scaled.height()) h = scaled.height() - y;
+            // Limites seguros
+            x = max(0, min(x, scaled.width() - 1));
+            y = max(0, min(y, scaled.height() - 1));
+            if (x + w > scaled.width()) w = scaled.width() - x;
+            if (y + h > scaled.height()) h = scaled.height() - y;
 
-        p.drawRect(x, y, w, h);
+            if (w > 0 && h > 0) p.drawRect(x, y, w, h);
+        }
     }
 
     ui.lblImagen->setPixmap(scaled);
@@ -286,22 +288,18 @@ void ProyectoPSM::NewImage(cv::Mat Img)
     ++ImageIndex;
 }
 
-// timer slot: tomar un frame cada intervalo y enviarlo al worker si está libre
 void ProyectoPSM::onSegmentationTimer()
 {
-    if (!LiveSegmentationEnabled) return;
-    if (SegProcessing.load()) return;
-    if (LastImage.empty()) return;
+    if (!LiveSegmentationEnabled || SegProcessing.load() || LastImage.empty()) return;
 
-    int prev = segInFlight.fetch_add(1, std::memory_order_relaxed);
-    if (prev >= maxSegInFlight) {
-        segInFlight.fetch_sub(1, std::memory_order_relaxed);
+    // Evitar saturación (max 1 frame en vuelo)
+    int prev = segInFlight.fetch_add(1);
+    if (prev >= 1) {
+        segInFlight.fetch_sub(1);
         return;
     }
 
     SegProcessing = true;
-
-    // Enviamos la imagen completa (puedes cambiar a resize si quieres reducir trabajo)
     auto snapshotPtr = std::make_shared<cv::Mat>(LastImage.clone());
     emit requestSegmentation(snapshotPtr);
 }
@@ -310,178 +308,135 @@ void ProyectoPSM::onSegmentationTimer()
 void ProyectoPSM::EnableLiveSegmentation(bool enabled)
 {
     LiveSegmentationEnabled = enabled;
-    if (enabled) {
-        ui.lblImagNoSegmentada->setText(QString::fromStdString("Segmentacion en vivo ACTIVADA"));
-    } else {
-        ui.lblImagSegmentada->clear();
+    if (!enabled) {
         SegProcessing = false;
-        lastBoxNormalized = QRectF();
+        lastBoxesNormalized.clear();
         segInFlight.store(0);
+        // Limpiar labels
+        if (ui.lblSeg1) ui.lblSeg1->clear();
+        if (ui.lblSeg2) ui.lblSeg2->clear();
     }
 }
 
-// slot llamado por el worker con el bbox normalizado (ejecuta en GUI)
-void ProyectoPSM::UpdateSegmentationBox(const QRectF &box)
+void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails)
 {
-    lastBoxNormalized = box;
-    ShowImage();
+    lastBoxesNormalized = boxes;
+    ShowImage(); // Redibuja con las cajas verdes
+
+    // Actualizar Thumbnails (Imagen 1 y Imagen 2)
+    if (thumbnails.size() > 0 && ui.lblSeg1) {
+        ui.lblSeg1->setPixmap(QPixmap::fromImage(thumbnails[0]).scaled(ui.lblSeg1->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+    else if (ui.lblSeg1) {
+        ui.lblSeg1->clear();
+    }
+
+    if (thumbnails.size() > 1 && ui.lblSeg2) {
+        ui.lblSeg2->setPixmap(QPixmap::fromImage(thumbnails[1]).scaled(ui.lblSeg2->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+    else if (ui.lblSeg2) {
+        ui.lblSeg2->clear();
+    }
+
     SegProcessing = false;
-}
-
-// recibe miniaturas desde el worker y los muestra en dos QLabel (circular)
-void ProyectoPSM::EnqueueSegThumbnail(const QImage &thumb)
-{
-    if (thumb.isNull()) {
-        segInFlight.fetch_sub(1, std::memory_order_relaxed);
-        return;
-    }
-
-    int idx = segThumbNext % maxSegInFlight;
-    QPixmap pix = QPixmap::fromImage(thumb);
-
-    if (idx == 0) {
-        if (ui.lblSeg1) ui.lblSeg1->setPixmap(pix.scaled(ui.lblSeg1->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    } else if (idx == 1) {
-        if (ui.lblSeg2) ui.lblSeg2->setPixmap(pix.scaled(ui.lblSeg2->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    }
-
-    segThumbNext = (segThumbNext + 1) % maxSegInFlight;
-    segInFlight.fetch_sub(1, std::memory_order_relaxed);
+    segInFlight.fetch_sub(1);
 }
 
 //Slot para modo de segmentación offline
 void ProyectoPSM::SegmentationMode(int index)
 {
-    if (index == 0) {
-        // reseteo al índice 0 para permitir volver a seleccionar
-        SegmentarImagCapturada();
-        if (ui.comboSegMode) ui.comboSegMode->setCurrentIndex(0);
-
-    }
-    else if (index == 1) {
-        SegmentarImagDisco();
-        if (ui.comboSegMode) ui.comboSegMode->setCurrentIndex(0);
-    }
+    if (index == 0) SegmentarImagCapturada();
+    else if (index == 1) SegmentarImagDisco();
+    ui.comboSegMode->setCurrentIndex(0);
 }
+
 //Segmentación de la imagen capturada
 void ProyectoPSM::SegmentarImagCapturada()
 {
+    // 1. Preparamos el entorno
     ui.tabWidget->setCurrentIndex(2);
 
-    // Preferir la imagen capturada; si no existe, usar el último frame recibido
-    cv::Mat img;
+    // 2. Decidimos qué imagen usar (Capturada o Último Frame)
     if (!CapturedImage.empty()) {
-        img = CapturedImage.clone();
+        LastImage = CapturedImage.clone();
     }
     else if (!LastImage.empty()) {
-        img = LastImage.clone();
+        // Ya tenemos LastImage lista, no hacemos nada
     }
     else {
-        ui.lblImagNoSegmentada->setText(QString::fromStdString("No hay imagen capturada."));
+        ui.lblImagNoSegmentada->setText("No hay imagen capturada para segmentar.");
         ui.lblImagSegmentada->clear();
         return;
     }
 
-    // Mostrar la imagen original escalada en el label
-    cv::Mat rgb;
-    if (img.channels() == 3) cv::cvtColor(img, rgb, cv::COLOR_BGR2RGB);
-    else cv::cvtColor(img, rgb, cv::COLOR_GRAY2RGB);
-
-    QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
-    QPixmap pix = QPixmap::fromImage(qimg.copy());
-    ui.lblImagNoSegmentada->setPixmap(pix.scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
-   
-
-    // Ejecutar segmentación (sin hilo, como en disco)
-    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
-    if (resultados.empty()) {
-        ui.lblImagSegmentada->setText(QString::fromStdString("No se pudo segmentar la imagen."));
-        return;
-    }
-
-    cv::Mat segmented = resultados[0].imagenRecortada;
-    if (segmented.empty()) {
-        ui.lblImagSegmentada->setText(QString::fromStdString("No se pudo generar la región segmentada."));
-        return;
-    }
-
-    // Mostrar la región segmentada escalada al label
-    cv::Mat rgbSeg;
-    if (segmented.channels() == 3) cv::cvtColor(segmented, rgbSeg, cv::COLOR_BGR2RGB);
-    else cv::cvtColor(segmented, rgbSeg, cv::COLOR_GRAY2RGB);
-
-    QImage qimgSeg(reinterpret_cast<const uchar*>(rgbSeg.data), rgbSeg.cols, rgbSeg.rows, static_cast<int>(rgbSeg.step), QImage::Format_RGB888);
-    QPixmap pixSeg = QPixmap::fromImage(qimgSeg.copy());
-    ui.lblImagSegmentada->setPixmap(pixSeg.scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
+    // 3. ¡Truco! Llamamos a la función de disco
+    // Como ya hemos puesto la imagen en 'LastImage', la función de disco
+    // la procesará y creará el COLLAGE con todas las piezas automáticamente.
+    SegmentarImagDisco();
 }
-
 
 // Segmentacion de una imagen desde disco
 void ProyectoPSM::SegmentarImagDisco() {
     ui.tabWidget->setCurrentIndex(2);
 
-    OpenPicture();
-    if (fileName.isEmpty()) return;
-    if (LastImage.empty()) {
-        ui.lblImagNoSegmentada->setText("Error al cargar la imagen.");
-        return;
-    }
+    // Si no venimos de capturar (modo 0), abrir dialogo
+    if (sender() == ui.pbtnAbrirImag) OpenPicture();
 
-    cv::Mat img = LastImage.clone();
+    if (LastImage.empty()) return;
 
-    // Mostrar original escalada
-    {
-        cv::Mat rgb;
-        if (img.channels() == 3) cv::cvtColor(img, rgb, cv::COLOR_BGR2RGB);
-        else cv::cvtColor(img, rgb, cv::COLOR_GRAY2RGB);
+    // Mostrar original
+    cv::Mat rgb;
+    cv::cvtColor(LastImage, rgb, cv::COLOR_BGR2RGB);
+    ui.lblImagNoSegmentada->setPixmap(QPixmap::fromImage(QImage(rgb.data, rgb.cols, rgb.rows, rgb.step, QImage::Format_RGB888)).scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio));
 
-        QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
-        QPixmap pix = QPixmap::fromImage(qimg.copy());
-        ui.lblImagNoSegmentada->setPixmap(pix.scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
-    }
+    ui.lblImagSegmentada->setText("Procesando...");
+    QApplication::processEvents();
 
-    // limpiar posible resultado anterior y mostrar indicador
-    ui.lblImagSegmentada->clear();
-    ui.lblImagSegmentada->setText(tr("Procesando..."));
-    QApplication::processEvents(); // permite mostrar el texto antes de la operación costosa
+    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(LastImage);
 
-    // realizar siempre la segmentación para la imagen abierta desde disco
-    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
     if (resultados.empty()) {
-        ui.lblImagSegmentada->setText(tr("No se pudo segmentar la imagen."));
+        ui.lblImagSegmentada->setText("No se encontraron piezas.");
     }
     else {
-        cv::Mat segmented = resultados[0].imagenRecortada;
-        if (segmented.empty()) {
-            ui.lblImagSegmentada->setText(tr("No se pudo generar la región segmentada."));
-        }
-        else {
-            cv::Mat rgbSeg;
-            if (segmented.channels() == 3) cv::cvtColor(segmented, rgbSeg, cv::COLOR_BGR2RGB);
-            else cv::cvtColor(segmented, rgbSeg, cv::COLOR_GRAY2RGB);
+        // CREAR COLLAGE: Unimos las imágenes horizontalmente (max 3)
+        cv::Mat collage = resultados[0].imagenRecortada;
 
-            QImage qimgSeg(reinterpret_cast<const uchar*>(rgbSeg.data), rgbSeg.cols, rgbSeg.rows, static_cast<int>(rgbSeg.step), QImage::Format_RGB888);
-            QPixmap pixSeg = QPixmap::fromImage(qimgSeg.copy());
-            ui.lblImagSegmentada->setPixmap(pixSeg.scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
+        // Intentar unir hasta 2 piezas más
+        for (size_t i = 1; i < resultados.size() && i < 3; i++) {
+            cv::Mat nextPiece = resultados[i].imagenRecortada;
+
+            // Redimensionar nextPiece para que tenga la misma altura que el collage
+            if (nextPiece.rows != collage.rows) {
+                double scale = (double)collage.rows / nextPiece.rows;
+                cv::resize(nextPiece, nextPiece, cv::Size(), scale, scale);
+            }
+
+            // Unir
+            cv::hconcat(collage, nextPiece, collage);
         }
+
+        // Mostrar collage
+        cv::Mat rgbSeg;
+        cv::cvtColor(collage, rgbSeg, cv::COLOR_BGR2RGB);
+        QImage qimgSeg(rgbSeg.data, rgbSeg.cols, rgbSeg.rows, rgbSeg.step, QImage::Format_RGB888);
+        ui.lblImagSegmentada->setPixmap(QPixmap::fromImage(qimgSeg).scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
     }
 }
 
 void ProyectoPSM::OpenPicture()
 {
+    // 1. Abrir diálogo
     fileName = QFileDialog::getOpenFileName(this, tr("Open Image"), "", tr("Image Files (*.png *.jpg *.bmp);;All Files (*)"));
     if (fileName.isEmpty()) return;
 
+    // 2. Comprobaciones de seguridad
     if (!QFile::exists(fileName)) {
         qDebug() << "SelectImage: fichero no existe segun QFile()";
         fileName.clear();
         return;
     }
 
+    // 3. Lectura robusta (bytes crudos)
     QFile f(fileName);
     if (!f.open(QIODevice::ReadOnly)) {
         qDebug() << "SelectImage: no se puede abrir el fichero con QFile()";
@@ -491,27 +446,14 @@ void ProyectoPSM::OpenPicture()
     QByteArray fileData = f.readAll();
     f.close();
 
+    // 4. Decodificar a Mat de OpenCV
     std::vector<uchar> vec(fileData.begin(), fileData.end());
     cv::Mat image = cv::imdecode(vec, cv::IMREAD_COLOR);
+
     if (image.empty()) {
         qDebug() << "SelectImage: imdecode falló.";
         fileName.clear();
         return;
     }
-
-    cv::Mat rgb;
-    cv::cvtColor(image, rgb, cv::COLOR_BGR2RGB);
-
-    QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
-    QPixmap pix = QPixmap::fromImage(qimg.copy());
-    if (pix.isNull()) {
-        qDebug() << "SelectImage: QPixmap nulo tras la conversion.";
-        fileName.clear();
-        return;
-    }
-
-    ui.lblImagNoSegmentada->setPixmap(pix.scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
-
     LastImage = image.clone();
 }
