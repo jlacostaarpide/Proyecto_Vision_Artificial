@@ -54,7 +54,7 @@ private:
     std::atomic<bool> SegProcessing{false};
 
     std::chrono::steady_clock::time_point LastSegmentationTime;
-    int SegmentationIntervalMs = 2000; // intervalo entre tomas (ms)
+    int SegmentationIntervalMs = 40; // intervalo entre tomas (ms)
 
     // worker/thread para segmentación
     SegmentationWorker *segWorker = nullptr;
