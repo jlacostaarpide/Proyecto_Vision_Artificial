@@ -8,6 +8,7 @@
 #include <QMetaType>
 #include <QDebug>
 #include <QPainter>
+#include <QApplication>
 
 Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
 
@@ -137,8 +138,8 @@ ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
         connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
         connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
         connect(ui.pbtnSegmentar, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
-        connect(ui.pbtnSegmentarOffline, SIGNAL(clicked()), this, SLOT(pbtnSegmentarImagDisco()));
-        connect(ui.pbtnAbrirImag, SIGNAL(clicked()), this, SLOT(pbtnSegmentarImagDisco()));
+        connect(ui.pbtnAbrirImag, SIGNAL(clicked()), this, SLOT(SegmentarImagDisco()));
+        connect(ui.comboSegMode, SIGNAL(activated(int)), this, SLOT(SegmentationMode(int)));
     }
     else {
         ui.lblImagen->setText("ERROR: No se ha podido establecer comunicación con la cámara.");
@@ -257,7 +258,8 @@ void ProyectoPSM::SaveImage()
 {
     if (!CapturedImage.empty()) {
         string Name = NameList[SavedImageIndex-1];
-        string Path = "C:/Users/Lenovo/Desktop/Máster/1er Semestre/PSM/proyecto/ProyectoPSM/Database/test2//" + Name + ".jpg";
+        string Path = "C:/Users/Lenovo/Desktop/imagenes/" + Name + ".jpg";
+        qDebug("LLEGAAAAAAAAAAAAAAAA");
         cv::imwrite(Path, CapturedImage);
         ui.txtImageName->setText(QString::fromStdString("Image saved!"));
         SavedImageIndex++;
@@ -306,7 +308,6 @@ void ProyectoPSM::EnableLiveSegmentation(bool enabled)
     if (enabled) {
         ui.lblImagNoSegmentada->setText(QString::fromStdString("Segmentacion en vivo ACTIVADA"));
     } else {
-        ui.lblImagNoSegmentada->setText(QString::fromStdString("Segmentacion en vivo DESACTIVADA"));
         ui.lblImagSegmentada->clear();
         SegProcessing = false;
         lastBoxNormalized = QRectF();
@@ -343,8 +344,77 @@ void ProyectoPSM::EnqueueSegThumbnail(const QImage &thumb)
     segInFlight.fetch_sub(1, std::memory_order_relaxed);
 }
 
-// SEGMENTACIÓN DE UNA IMAGEN SELECCIONADA DESDE PC
-void ProyectoPSM::pbtnSegmentarImagDisco() {
+//Slot para modo de segmentación offline
+void ProyectoPSM::SegmentationMode(int index)
+{
+    if (index == 0) {
+        // reseteo al índice 0 para permitir volver a seleccionar
+        SegmentarImagCapturada();
+        if (ui.comboSegMode) ui.comboSegMode->setCurrentIndex(0);
+
+    }
+    else if (index == 1) {
+        SegmentarImagDisco();
+        if (ui.comboSegMode) ui.comboSegMode->setCurrentIndex(0);
+    }
+}
+//Segmentación de la imagen capturada
+void ProyectoPSM::SegmentarImagCapturada()
+{
+    ui.tabWidget->setCurrentIndex(2);
+
+    // Preferir la imagen capturada; si no existe, usar el último frame recibido
+    cv::Mat img;
+    if (!CapturedImage.empty()) {
+        img = CapturedImage.clone();
+    }
+    else if (!LastImage.empty()) {
+        img = LastImage.clone();
+    }
+    else {
+        ui.lblImagNoSegmentada->setText(QString::fromStdString("No hay imagen capturada."));
+        ui.lblImagSegmentada->clear();
+        return;
+    }
+
+    // Mostrar la imagen original escalada en el label
+    cv::Mat rgb;
+    if (img.channels() == 3) cv::cvtColor(img, rgb, cv::COLOR_BGR2RGB);
+    else cv::cvtColor(img, rgb, cv::COLOR_GRAY2RGB);
+
+    QImage qimg(reinterpret_cast<const uchar*>(rgb.data), rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888);
+    QPixmap pix = QPixmap::fromImage(qimg.copy());
+    ui.lblImagNoSegmentada->setPixmap(pix.scaled(ui.lblImagNoSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
+   
+
+    // Ejecutar segmentación (sin hilo, como en disco)
+    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
+    if (resultados.empty()) {
+        ui.lblImagSegmentada->setText(QString::fromStdString("No se pudo segmentar la imagen."));
+        return;
+    }
+
+    cv::Mat segmented = resultados[0].imagenRecortada;
+    if (segmented.empty()) {
+        ui.lblImagSegmentada->setText(QString::fromStdString("No se pudo generar la región segmentada."));
+        return;
+    }
+
+    // Mostrar la región segmentada escalada al label
+    cv::Mat rgbSeg;
+    if (segmented.channels() == 3) cv::cvtColor(segmented, rgbSeg, cv::COLOR_BGR2RGB);
+    else cv::cvtColor(segmented, rgbSeg, cv::COLOR_GRAY2RGB);
+
+    QImage qimgSeg(reinterpret_cast<const uchar*>(rgbSeg.data), rgbSeg.cols, rgbSeg.rows, static_cast<int>(rgbSeg.step), QImage::Format_RGB888);
+    QPixmap pixSeg = QPixmap::fromImage(qimgSeg.copy());
+    ui.lblImagSegmentada->setPixmap(pixSeg.scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
+}
+
+
+// Segmentacion de una imagen desde disco
+void ProyectoPSM::SegmentarImagDisco() {
     ui.tabWidget->setCurrentIndex(2);
 
     OpenPicture();
@@ -368,27 +438,31 @@ void ProyectoPSM::pbtnSegmentarImagDisco() {
         ui.lblImagNoSegmentada->setAlignment(Qt::AlignCenter);
     }
 
-    if (!LiveSegmentationEnabled) {
-        std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
-        if (resultados.empty()) {
-            ui.lblImagSegmentada->setText("No se pudo segmentar la imagen.");
-            return;
-        }
+    // limpiar posible resultado anterior y mostrar indicador
+    ui.lblImagSegmentada->clear();
+    ui.lblImagSegmentada->setText(tr("Procesando..."));
+    QApplication::processEvents(); // permite mostrar el texto antes de la operación costosa
 
+    // realizar siempre la segmentación para la imagen abierta desde disco
+    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
+    if (resultados.empty()) {
+        ui.lblImagSegmentada->setText(tr("No se pudo segmentar la imagen."));
+    }
+    else {
         cv::Mat segmented = resultados[0].imagenRecortada;
         if (segmented.empty()) {
-            ui.lblImagSegmentada->setText("No se pudo generar la región segmentada.");
-            return;
+            ui.lblImagSegmentada->setText(tr("No se pudo generar la región segmentada."));
         }
+        else {
+            cv::Mat rgbSeg;
+            if (segmented.channels() == 3) cv::cvtColor(segmented, rgbSeg, cv::COLOR_BGR2RGB);
+            else cv::cvtColor(segmented, rgbSeg, cv::COLOR_GRAY2RGB);
 
-        cv::Mat rgbSeg;
-        if (segmented.channels() == 3) cv::cvtColor(segmented, rgbSeg, cv::COLOR_BGR2RGB);
-        else cv::cvtColor(segmented, rgbSeg, cv::COLOR_GRAY2RGB);
-
-        QImage qimgSeg(reinterpret_cast<const uchar*>(rgbSeg.data), rgbSeg.cols, rgbSeg.rows, static_cast<int>(rgbSeg.step), QImage::Format_RGB888);
-        QPixmap pixSeg = QPixmap::fromImage(qimgSeg.copy());
-        ui.lblImagSegmentada->setPixmap(pixSeg.scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
+            QImage qimgSeg(reinterpret_cast<const uchar*>(rgbSeg.data), rgbSeg.cols, rgbSeg.rows, static_cast<int>(rgbSeg.step), QImage::Format_RGB888);
+            QPixmap pixSeg = QPixmap::fromImage(qimgSeg.copy());
+            ui.lblImagSegmentada->setPixmap(pixSeg.scaled(ui.lblImagSegmentada->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            ui.lblImagSegmentada->setAlignment(Qt::AlignCenter);
+        }
     }
 }
 

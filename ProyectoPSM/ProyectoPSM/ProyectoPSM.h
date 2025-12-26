@@ -96,7 +96,8 @@ private slots:
     void onSegmentationTimer();
 
     // selección/procesado de imagen desde fichero (offline)
-    void pbtnSegmentarImagDisco();
+    void SegmentarImagDisco();
+	void SegmentarImagCapturada();
     void OpenPicture();
 	void SegmentationMode(int index);
 };
