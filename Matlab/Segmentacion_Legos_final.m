@@ -9,6 +9,7 @@ addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G02_CO
 addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G03_COD789")
 addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G04_COD101112")
 addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\tests")
+addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database")
 
 %% Procesamiento por lotes
 
@@ -63,6 +64,77 @@ imagenes = {
     '11_045_10_002.jpg';
     '11_180_40_003.jpg';
     '12_045_40_002.jpg';
+
+    % --- Serie 02 ---
+    'test2/02_000_10_001.jpg';
+    'test2/02_000_10_002.jpg';
+    'test2/02_000_10_003.jpg';
+    'test2/02_000_10_004.jpg';
+
+    % --- Serie 03 ---
+    'test2/03_000_10_001.jpg';
+    'test2/03_000_10_002.jpg';
+    'test2/03_000_10_003.jpg';
+    'test2/03_000_10_004.jpg';
+    'test2/03_000_10_005.jpg';
+    'test2/03_000_10_006.jpg';
+    'test2/03_000_10_007.jpg';
+
+    % --- Serie 04 ---
+    'test2/04_000_10_001.jpg';
+    'test2/04_000_10_002.jpg';
+    'test2/04_000_10_003.jpg';
+
+    % --- Serie 05 ---
+    'test2/05_000_10_001.jpg';
+    'test2/05_000_10_002.jpg';
+    'test2/05_000_10_003.jpg';
+
+    % --- Serie 06 ---
+    'test2/06_000_10_001.jpg';
+    'test2/06_000_10_002.jpg';
+    'test2/06_000_10_003.jpg';
+    'test2/06_000_10_004.jpg';
+    'test2/06_000_10_005.jpg';
+    'test2/06_000_10_006.jpg';
+    'test2/06_000_10_007.jpg';
+
+    % --- Serie 09 ---
+    'test2/09_000_10_001.jpg';
+    'test2/09_000_10_002.jpg';
+    'test2/09_000_10_003.jpg';
+    'test2/09_000_10_004.jpg';
+    'test2/09_000_10_005.jpg';
+    'test2/09_000_10_006.jpg';
+    'test2/09_000_10_007.jpg';
+    'test2/09_000_10_008.jpg';
+
+    % --- Serie 12 ---
+    'test2/12_000_10_001.jpg';
+    'test2/12_000_10_002.jpg';
+    'test2/12_000_10_003.jpg';
+    'test2/12_000_10_004.jpg';
+    'test2/12_000_10_005.jpg';
+    'test2/12_000_10_006.jpg';
+    'test2/12_000_10_007.jpg';
+    'test2/12_000_10_008.jpg';
+    'test2/12_000_10_009.jpg';
+
+    'test2/42.jpg';
+    'test2/43.jpg';
+    'test2/44.jpg';
+    'test2/45.jpg';
+    'test2/46.jpg';
+    'test2/47.jpg';
+    'test2/48.jpg';
+    'test2/49.jpg';
+    'test2/50.jpg';
+    'test2/51.jpg';
+    'test2/52.jpg';
+    'test2/53.jpg';
+    'test2/54.jpg';
+    'test2/55.jpg';
+    'test2/56.jpg'
 };
 
 sweep_codes   = [1,2,3,4,5,6,7,8,9,10,11,12];      % Ej: [8] o [8, 9] (Código de pieza)
