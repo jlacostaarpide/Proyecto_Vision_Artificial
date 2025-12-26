@@ -18,7 +18,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -164,7 +164,7 @@
        <widget class="QPushButton" name="pbtnDescartar">
         <property name="geometry">
          <rect>
-          <x>540</x>
+          <x>520</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -177,7 +177,7 @@
        <widget class="QPushButton" name="pbtnGuardar">
         <property name="geometry">
          <rect>
-          <x>630</x>
+          <x>610</x>
           <y>550</y>
           <width>80</width>
           <height>24</height>
@@ -203,22 +203,6 @@
          <string>Guardar siguiente imagen como: </string>
         </property>
        </widget>
-       <widget class="QPushButton" name="pbtnSegmentarOffline">
-        <property name="geometry">
-         <rect>
-          <x>720</x>
-          <y>550</y>
-          <width>131</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Segmentar imagen local</string>
-        </property>
-        <property name="checkable">
-         <bool>false</bool>
-        </property>
-       </widget>
        <widget class="QPushButton" name="pbtnClasificarOffline">
         <property name="geometry">
          <rect>
@@ -235,14 +219,17 @@
          <bool>false</bool>
         </property>
        </widget>
-       <widget class="QComboBox" name="comboBox">
+       <widget class="QComboBox" name="comboSegMode">
         <property name="geometry">
          <rect>
-          <x>690</x>
-          <y>490</y>
+          <x>700</x>
+          <y>550</y>
           <width>151</width>
           <height>24</height>
          </rect>
+        </property>
+        <property name="editable">
+         <bool>false</bool>
         </property>
         <item>
          <property name="text">
@@ -258,7 +245,7 @@
       </widget>
       <widget class="QWidget" name="tab_3">
        <attribute name="title">
-        <string>Página</string>
+        <string>Segmentacion</string>
        </attribute>
        <widget class="QPushButton" name="pbtnAbrirImag">
         <property name="geometry">
