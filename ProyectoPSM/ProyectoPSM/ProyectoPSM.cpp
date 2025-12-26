@@ -120,11 +120,18 @@ ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
     connect(segTimer, &QTimer::timeout, this, &ProyectoPSM::onSegmentationTimer);
     segTimer->start();
 
+    ui.pbtnGuardar->setEnabled(true);
+    ui.pbtnDescartar->setEnabled(true);
+    ui.pbtnSegmentar->setEnabled(true);
+    ui.pbtnClasificar->setEnabled(true);
+    connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
+    connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
+    connect(ui.pbtnAbrirImag, SIGNAL(clicked()), this, SLOT(SegmentarImagDisco()));
+    connect(ui.comboSegMode, SIGNAL(activated(int)), this, SLOT(SegmentationMode(int)));
+
     if (Camera->CameraOK) {
         ui.pbtnEncender->setEnabled(true);
         ui.pbtnCapturar->setEnabled(false);
-        ui.pbtnGuardar->setEnabled(true);
-        ui.pbtnDescartar->setEnabled(true);
 
         ImageIndex = 0;
         SavedImageIndex = 1;
@@ -135,15 +142,13 @@ ProyectoPSM::ProyectoPSM(QWidget *parent): QMainWindow(parent)
         connect(ui.pbtnEncender, SIGNAL(toggled(bool)), Camera, SLOT(StartStopCapture(bool)));
         connect(Camera, SIGNAL(NewImageSignal(Mat)), this, SLOT(NewImage(Mat)));
         connect(ui.pbtnCapturar, SIGNAL(clicked()), this, SLOT(VisualizeImage()));
-        connect(ui.pbtnDescartar, SIGNAL(clicked()), this, SLOT(ReturnTab()));
-        connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
         connect(ui.pbtnSegmentar, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
-        connect(ui.pbtnAbrirImag, SIGNAL(clicked()), this, SLOT(SegmentarImagDisco()));
-        connect(ui.comboSegMode, SIGNAL(activated(int)), this, SLOT(SegmentationMode(int)));
     }
     else {
         ui.lblImagen->setText("ERROR: No se ha podido establecer comunicación con la cámara.");
         ui.pbtnCapturar->setEnabled(false);
+        ui.pbtnSegmentar->setEnabled(false);
+        ui.pbtnClasificar->setEnabled(false);
     }
 }
 
