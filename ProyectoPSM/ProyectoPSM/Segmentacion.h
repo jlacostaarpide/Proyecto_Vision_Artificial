@@ -25,9 +25,6 @@ public:
 private:
     // --- MÉTODOS AUXILIARES INTERNOS (Traducción de MATLAB) ---
 
-    // Calcula 2 umbrales óptimos para dividir el histograma en 3 clases (Otsu Multinivel)
-    static std::vector<float> CalcularMultilevelOtsu2(const cv::Mat& src);
-
     // Implementación de imclearborder (elimina objetos que tocan el borde)
     static cv::Mat ImClearBorder(const cv::Mat& mask);
 

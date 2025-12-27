@@ -23,10 +23,7 @@ public:
 public slots:
     void process(std::shared_ptr<cv::Mat> snapshot);
 signals:
-    // bounding box normalizado [0..1]
-    void finishedBox(const QRectF &box);
-    // thumbnail pequeño de la región segmentada (RGB)
-    void finishedThumbnail(const QImage &thumb);
+    void finishedResult(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails);
 };
 
 class ProyectoPSM : public QMainWindow
@@ -42,39 +39,29 @@ signals:
 
 private:
     Ui::ProyectoPSMClass ui;
-	CVideoAcquisition* Camera = nullptr;
+    CVideoAcquisition* Camera = nullptr;
     Mat LastImage;
-	Mat CapturedImage;
+    Mat CapturedImage;
     int ImageIndex = 0;
-	int SavedImageIndex = 1;
+    int SavedImageIndex = 1;
     std::vector<std::string> NameList;
 
-    // para segmentación en vivo
+    // Variables de control
     bool LiveSegmentationEnabled = false;
-    std::atomic<bool> SegProcessing{false};
+    std::atomic<bool> SegProcessing{ false };
+    std::atomic<int> segInFlight{ 0 }; // Control de saturación
 
+    QTimer* segTimer = nullptr;
+    int SegmentationIntervalMs = 40;
     std::chrono::steady_clock::time_point LastSegmentationTime;
-    int SegmentationIntervalMs = 2000; // intervalo entre tomas (ms)
 
-    // worker/thread para segmentación
-    SegmentationWorker *segWorker = nullptr;
-    QThread *segThread = nullptr;
+    // Worker threads
+    SegmentationWorker* segWorker = nullptr;
+    QThread* segThread = nullptr;
 
-	// timer para segmentar frames periodicamente
-    QTimer *segTimer = nullptr;
+    // AHORA guardamos una LISTA de cajas para dibujar
+    std::vector<QRectF> lastBoxesNormalized;
 
-    // tamaño de procesamiento (ancho máximo) para acelerar la segmentación
-    int SegmentationProcWidth = 320;
-
-    // último bbox normalizado calculado por el worker
-    QRectF lastBoxNormalized;
-
-    // control de thumbnails / resultados en vuelo
-    std::atomic<int> segInFlight{0};
-    const int maxSegInFlight = 3; // tamaño del buffer
-    int segThumbNext = 0; // para saber en que label poner la miniatura
-
-    // ruta del archivo para segmentación offline
     QString fileName;
 
 private slots:
@@ -85,12 +72,9 @@ private slots:
 	void VisualizeImage();
 	void ReturnTab();
 
-	// control de segmentación en vivo
+	// control de segmentación
     void EnableLiveSegmentation(bool enabled);
-    void UpdateSegmentationBox(const QRectF &box);
-
-    // slot para recibir thumbnails desde el worker y mostrar en UI
-    void EnqueueSegThumbnail(const QImage &thumb);
+    void UpdateSegmentationResults(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails);
 
     // timer slot que pide un frame para segmentar (no bloqueante)
     void onSegmentationTimer();
