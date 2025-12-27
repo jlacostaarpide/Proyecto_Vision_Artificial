@@ -1,133 +1,299 @@
-function [piece, stats_final, num_final, I_corrected, mask_final] = segmentarPiezas2(nombre_imagen)
-% SEGMENTARPIEZAS2  Segmenta UNA imagen y devuelve SOLO si hay 1 pieza.
-%   [piece, stats_final, num_final, I_corrected, mask_final] = segmentarPiezas2(nombre_imagen)
+function [pieces, stats_final, num_final, I_corrected, mask_filtered] = segmentarPiezas2(nombre_imagen, opts)
+% SEGMENTARPIEZAS_SCRIPTG01
+% Función equivalente al script largo "SEGMENTACIÓN DE PIEZAS LEGO"
+% - MISMO pipeline: WB por medias RGB -> HSV -> S*1.55 -> V_corrected (Gauss sigma 120 / max global)
+% - Otsu (multithresh) sobre S -> morfología (close/fill/open/clearborder/close/fill/open)
+% - Filtrado por área relativa+absoluta, ratio, saturación media
+% - Orden por área descendente
+% - Recorte de cada pieza con fondo negro + realce V por percentiles (p1 y p95)
 %
-%   - piece      : imagen RGB (double) de la pieza recortada, fondo negro ([])
-%                  si se descarta.
-%   - stats_final: regionprops del/los objetos tras filtrado
-%   - num_final  : nº de piezas detectadas tras filtrado (0 si se descarta)
-%   - I_corrected: imagen corregida (double)
-%   - mask_final : máscara final binaria (útil para depurar)
+% Entradas:
+%   nombre_imagen : ruta o nombre del archivo
+%   opts          : struct opcional para override de parámetros
+%
+% Salidas:
+%   pieces       : cell array {num_final x 1}, cada celda es RGB double [0..1] recortada con fondo negro y realce V
+%   stats_final  : regionprops de piezas válidas (ordenadas por área desc)
+%   num_final    : número de piezas válidas detectadas
+%   I_corrected  : imagen corregida (RGB double)
+%   mask_filtered: máscara final con piezas válidas (logical)
 
-    %% 1) CARGA
-    I = imread(nombre_imagen);
-    I_corrected = im2double(I);
+    if nargin < 2, opts = struct(); end
 
-    %% 2) HSV
-    I_hsv = rgb2hsv(I_corrected);
-    H = I_hsv(:,:,1);
-    S = I_hsv(:,:,2);
-    V = I_hsv(:,:,3);
+    % =======================
+    % Defaults (idénticos al script)
+    % =======================
+    d.S_boost           = 1.55;
+    d.V_gauss_sigma     = 120;
+    d.gamma_val         = 1;
 
-    %% 3) CANAL S (Multi-Otsu + decisión por ratio/solidez)
-    gamma_val = 1.4;
-    S_proc = S .^ gamma_val;
+    d.umbral_area_rel   = 0.15;
+    d.umbral_area_abs   = 1000;
+    d.umbral_ratio_max  = 4.0;
+    d.umbral_saturacion = 0.30;
 
-    thresh_vals = multithresh(S_proc, 2);  % 2 umbrales -> 3 clases
-    Lq = imquantize(S_proc, thresh_vals);
-    mask_mid_temp = (Lq == 2);
+    d.se_suture_r = 3;
+    d.se_noise_r  = 3;
+    d.se_merge_r  = 14;
+    d.se_smooth_r = 4;
 
-    ratio_mid = nnz(mask_mid_temp) / numel(mask_mid_temp);
+    % Realce final de V en el recorte (idéntico al script)
+    d.v_prc_low  = 1;
+    d.v_prc_high = 95;
 
-    umbral_inferior = 0.055;
-    umbral_superior = 0.17;
+    % Guardado opcional (por defecto apagado; el script lo controlaba con save_images)
+    d.save_images    = false;
+    d.output_folder  = "";
 
-    use_lower_thresh = false;
-
-    if ratio_mid < umbral_inferior
-        use_lower_thresh = true;
-    elseif ratio_mid > umbral_superior
-        use_lower_thresh = false;
-    else
-        stMid = regionprops(mask_mid_temp, 'Area', 'Solidity');
-        if ~isempty(stMid)
-            [~, idxMax] = max([stMid.Area]);
-            solidez_mid = stMid(idxMax).Solidity;
-            use_lower_thresh = (solidez_mid > 0.6);
-        else
-            use_lower_thresh = false;
+    % Override con opts
+    fn = fieldnames(d);
+    for k = 1:numel(fn)
+        if isfield(opts, fn{k})
+            d.(fn{k}) = opts.(fn{k});
         end
     end
+    opts = d;
 
-    if use_lower_thresh
-        level_otsu_S = thresh_vals(1);
-    else
-        level_otsu_S = thresh_vals(2);
+    % =======================
+    % Init outputs
+    % =======================
+    pieces = {};
+    stats_final = struct([]);
+    num_final = 0;
+    I_corrected = [];
+    mask_filtered = [];
+
+    % =======================
+    % Load
+    % =======================
+    if ~isfile(nombre_imagen)
+        return;
+    end
+    try
+        I = imread(nombre_imagen);
+    catch
+        return;
+    end
+    if size(I,3) ~= 3
+        I = repmat(I, [1 1 3]);
     end
 
-    mask_S = imbinarize(S_proc, level_otsu_S);
+    I_double = im2double(I);
 
-    %% 4) CANAL H (morado/rosa)
-    min_sat_H_purple = 0.4 * level_otsu_S;
-    min_sat_H_pink   = 1.0 * level_otsu_S;
+    % =====================================================================
+    % 1) PRE-PROCESAMIENTO: Corrección de fondo (idéntico al script)
+    % =====================================================================
+    R = I_double(:,:,1);
+    G = I_double(:,:,2);
+    B = I_double(:,:,3);
 
-    mask_H_purple = (H >= 0.58) & (H <= 0.92) & (S > min_sat_H_purple);
-    mask_H_pink   = (H >= 0.01) & (H <= 0.065) & (S > min_sat_H_pink);
+    mean_R = mean(R(:));
+    mean_G = mean(G(:));
+    mean_B = mean(B(:));
 
-    mask_H = mask_H_purple | mask_H_pink;
+    % Para evitar NaN/Inf si algo raro:
+    if abs(mean_R) < 1e-12, mean_R = 1e-12; end
+    if abs(mean_B) < 1e-12, mean_B = 1e-12; end
 
-    %% 5) CANAL V (desactivado como en tu código)
-    mask_V_dark = false(size(V));
+    R_bal = R * (mean_G / mean_R);
+    G_bal = G;
+    B_bal = B * (mean_G / mean_B);
 
-    %% 6) FUSIÓN + MORFOLOGÍA (igual que tu bloque)
-    mask_combined = mask_S | mask_H | mask_V_dark;
+    I_balanced = cat(3, R_bal, G_bal, B_bal);
+    I_balanced(I_balanced > 1) = 1;
 
-    se_suture  = strel('disk', 3);
+    I_hsv_temp = rgb2hsv(I_balanced);
+
+    % Multiplicar canal S por 1.55
+    S_raw = I_hsv_temp(:,:,2);
+    S_boosted = S_raw * opts.S_boost;
+    S_boosted(S_boosted > 1) = 1;
+
+    % Corrección de V: Gauss + normalización por max global (idéntico)
+    V_raw = I_hsv_temp(:,:,3);
+    V_filt = imgaussfilt(V_raw, opts.V_gauss_sigma);
+    denom = max(V_filt(:));
+    if denom < 1e-12, denom = 1e-12; end
+    V_corrected = V_raw ./ denom;
+
+    I_hsv_temp(:,:,3) = V_corrected;
+    I_hsv_temp(:,:,2) = S_boosted;
+
+    I_corrected = hsv2rgb(I_hsv_temp);
+
+    % =====================================================================
+    % 2) TRANSFORMACIÓN A HSV (idéntico)
+    % =====================================================================
+    I_hsv = rgb2hsv(I_corrected);
+    S = I_hsv(:,:,2);
+
+    % =====================================================================
+    % 3) ANÁLISIS CANAL S (Otsu) (idéntico)
+    % =====================================================================
+    S_proc = S .^ opts.gamma_val;
+
+    thresh_vals = multithresh(S_proc, 1);
+    if isempty(thresh_vals) || ~isfinite(thresh_vals(1))
+        mask_filtered = false(size(S_proc));
+        return;
+    end
+
+    mask_S = S_proc > thresh_vals(1);
+
+    % =====================================================================
+    % 4) MORFOLOGÍA (idéntico)
+    % =====================================================================
+    mask_combined = mask_S;
+
+    se_suture = strel('disk', opts.se_suture_r);
     mask_sutured = imclose(mask_combined, se_suture);
-
     mask_filled = imfill(mask_sutured, 'holes');
 
-    se_noise   = strel('disk', 3);
+    se_noise = strel('disk', opts.se_noise_r);
     mask_clean = imopen(mask_filled, se_noise);
+    mask_final = imclearborder(mask_clean);
 
-    mask_noBorder = imclearborder(mask_clean);
-
-    radio_disco = 14;
-    se_merge = strel('disk', radio_disco);
-    mask_merged = imclose(mask_noBorder, se_merge);
+    se_merge = strel('disk', opts.se_merge_r);
+    mask_merged = imclose(mask_final, se_merge);
     mask_merged = imfill(mask_merged, 'holes');
 
-    se_smooth = strel('disk', 4);
-    mask_final = imopen(mask_merged, se_smooth);
+    se_smooth = strel('disk', opts.se_smooth_r);
+    mask_final_consolidated = imopen(mask_merged, se_smooth);
 
-    %% 7) OBJETOS + FILTRADO POR ÁREA (tu criterio)
+    mask_final = mask_final_consolidated;
+
+    % =====================================================================
+    % 5) RESULTADOS Y FILTRADO (idéntico)
+    % =====================================================================
     [L, ~] = bwlabel(mask_final, 8);
-    stats = regionprops(L, 'Area','Centroid','BoundingBox','Circularity','Image');
+    stats = regionprops(L, 'Area', 'Centroid', 'BoundingBox', 'Perimeter', ...
+                           'Circularity', 'Image', 'PixelIdxList');
 
     if isempty(stats)
+        mask_filtered = false(size(mask_final));
         stats_final = struct([]);
         num_final = 0;
-        piece = [];
+        pieces = {};
         return;
     end
 
     all_areas = [stats.Area];
-    max_area  = max(all_areas);
+    max_area = max(all_areas);
 
-    umbral_area = 0.15 * max_area;
-    valid_idx = find(all_areas > umbral_area);
+    umbral_area_rel = opts.umbral_area_rel * max_area;
+
+    candidates_idx = find((all_areas > umbral_area_rel) & (all_areas > opts.umbral_area_abs));
+
+    % En el script se recalculaba hsv sobre I_corrected; aquí es equivalente:
+    S_channel = I_hsv(:,:,2);
+
+    valid_idx = [];
+
+    for k = 1:length(candidates_idx)
+        idx_obj = candidates_idx(k);
+
+        % Aspect ratio
+        bb = stats(idx_obj).BoundingBox; % [x, y, w, h]
+        width = bb(3);
+        height = bb(4);
+        minwh = min(width, height);
+        if minwh < 1e-12, minwh = 1e-12; end
+        ratio = max(width, height) / minwh;
+
+        if ratio > opts.umbral_ratio_max
+            continue;
+        end
+
+        % Saturación promedio
+        pixels_indices = stats(idx_obj).PixelIdxList;
+        mean_sat = mean(S_channel(pixels_indices));
+
+        if mean_sat > opts.umbral_saturacion
+            valid_idx = [valid_idx; idx_obj]; %#ok<AGROW>
+        end
+    end
 
     mask_filtered = ismember(L, valid_idx);
 
-    stats_final = regionprops(mask_filtered, 'Area','Centroid','BoundingBox','Circularity','Image');
-    num_final = numel(stats_final);
+    % OJO: en el script: stats_final = regionprops(mask_filtered, ...)
+    % (regionprops acepta máscara lógica)
+    stats_final = regionprops(mask_filtered, 'Area', 'Centroid', 'BoundingBox', ...
+                              'Circularity', 'Image', 'PixelIdxList');
 
-    %% 8) CONDICIÓN CLAVE: SOLO 1 PIEZA
-    if num_final ~= 1
-        piece = [];
-        stats_final = struct([]);
+    if isempty(stats_final)
         num_final = 0;
+        pieces = {};
         return;
     end
 
-    %% 9) EXTRAER PIEZA (fondo negro)
-    bb = stats_final(1).BoundingBox;
-    img_crop = imcrop(I_corrected, bb);
+    % Ordenar por área descendente (idéntico)
+    areas_finales = [stats_final.Area];
+    [~, sort_idx] = sort(areas_finales, 'descend');
+    stats_final = stats_final(sort_idx);
 
-    mask_local = stats_final(1).Image;
-    mask_local = imresize(mask_local, [size(img_crop,1), size(img_crop,2)], 'nearest');
+    num_final = length(stats_final);
 
-    piece = img_crop;
-    mask_3ch = cat(3, mask_local, mask_local, mask_local);
-    piece(~mask_3ch) = 0;
+    % =====================================================================
+    % 6) RECORTE DE PIEZAS + FONDO NEGRO + REALCE V (idéntico)
+    % =====================================================================
+    pieces = cell(num_final, 1);
+
+    % Para el guardado opcional, necesitamos nombre base
+    [~, name_base, ext_orig] = fileparts(nombre_imagen);
+
+    for k = 1:num_final
+        bb = stats_final(k).BoundingBox;
+
+        % Extraer la pieza con fondo negro
+        img_crop = imcrop(I_double, bb);
+
+        % Máscara local del objeto (Image) redimensionada al crop (idéntico)
+        mask_local = stats_final(k).Image;
+        mask_local = imresize(mask_local, [size(img_crop,1), size(img_crop,2)], 'nearest');
+
+        % Aplicar máscara (fondo negro)
+        img_crop_masked = img_crop;
+        mask_3ch = cat(3, mask_local, mask_local, mask_local);
+        img_crop_masked(~mask_3ch) = 0;
+
+        % Realce V por percentiles (idéntico)
+        hsv_crop = rgb2hsv(img_crop_masked);
+        V_crop = hsv_crop(:,:,3);
+
+        p1  = prctile(V_crop(:), opts.v_prc_low);
+        p95 = prctile(V_crop(:), opts.v_prc_high);
+
+        denomV = (p95 - p1);
+        if abs(denomV) < 1e-12
+            denomV = 1e-12;
+        end
+
+        v_eq = (V_crop - p1) / denomV;
+        v_eq = max(0, min(1, v_eq));
+        hsv_crop(:,:,3) = v_eq;
+
+        img_crop_enhanced = hsv2rgb(hsv_crop);
+
+        pieces{k} = img_crop_enhanced;
+
+        % Guardado opcional (equivalente al script)
+        if opts.save_images
+            if strlength(opts.output_folder) == 0
+                continue;
+            end
+            if ~exist(opts.output_folder, 'dir')
+                mkdir(opts.output_folder);
+            end
+
+            if num_final > 1
+                suffix = sprintf('_%c', char(96 + k)); % _a, _b, ...
+            else
+                suffix = '';
+            end
+
+            nombre_guardado = sprintf('segmented_%s%s%s', name_base, suffix, ext_orig);
+            ruta_completa = fullfile(opts.output_folder, nombre_guardado);
+            imwrite(img_crop_enhanced, ruta_completa);
+        end
+    end
 end
