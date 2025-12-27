@@ -4,8 +4,8 @@
 %% Requiere: trainedModel (modelo M) cargado + model_912 cargado
 %% ================================================================
 
-segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test2_local';
-outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_test2_dobleClassificador_2.txt';
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local';
+outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador.txt';
 
 %--- Cargar modelo M (12 features) ---
 S = load("TrainedModelWith_Mtrain_12.mat");
@@ -106,7 +106,7 @@ for i = 1:N
     % =========================
     pb_num = str2double(string(predictedLabel_base));  % "09"->9, "12"->12
 
-    if isfinite(pb_num) && (pb_num == 9) %(pb_num==9 || pb_num==12)
+    if isfinite(pb_num) && (pb_num==9 || pb_num==12)
         nRef912 = nRef912 + 1;
 
         feat24 = extractShapeFeatures(Ipiece);   % 1x14

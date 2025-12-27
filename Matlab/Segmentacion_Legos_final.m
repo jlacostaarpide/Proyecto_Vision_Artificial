@@ -10,6 +10,7 @@ addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G03_CO
 addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\DB_G04_COD101112")
 addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\tests")
 addpath("C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database")
+addpath("C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\test2");
 
 %% Procesamiento por lotes
 

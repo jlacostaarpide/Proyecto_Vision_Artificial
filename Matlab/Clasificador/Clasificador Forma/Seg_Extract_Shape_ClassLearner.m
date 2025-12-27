@@ -109,4 +109,4 @@ disp(F_a(1:min(5,height(F_a)), :));
 
 %% 4) GUARDAR A .MAT PARA USAR EN CLASSIFICATION LEARNER
 save('legoFeatures_TRAIN_shape_24carac_F_amarillas.mat', 'F_a');
-disp('✔ Archivo guardado: legoFeatures_TRAIN_shape_9carac_F_amarillas.mat');
+disp('✔ Archivo guardado: legoFeatures_TRAIN_shape_24carac_F_amarillas.mat');

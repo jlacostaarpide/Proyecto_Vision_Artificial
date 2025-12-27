@@ -6,9 +6,9 @@ load('legoFeatures_TRAIN_color_shape_12carac.mat'); % M todas 12 carac
 
 %% Seleccionar de forma aleatoria las Train y las Test
 load('I_random.mat');
-%I=randperm(1835);
-M_train=M(I(1:1300),:);
-M_test=M(I(1301:end),:);
+% I=randperm(1923);
+M_train=M(I(1:1500),:);
+M_test=M(I(1501:end),:);
 
 %F_red = M(1:314,:);
 %F_yellow = M(315:end,:);
