@@ -6,286 +6,569 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1332</width>
-    <height>791</height>
+    <width>1280</width>
+    <height>768</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>ProyectoPSM</string>
+   <string>Visión Artificial LEGO - PSM</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
+   <layout class="QVBoxLayout" name="verticalLayout_Main">
+    <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
        <number>0</number>
       </property>
-      <widget class="QWidget" name="tab">
+      <widget class="QWidget" name="tabLive">
        <attribute name="title">
-        <string>Capturar</string>
+        <string>En Vivo</string>
        </attribute>
-       <widget class="QLabel" name="lblImagen">
-        <property name="geometry">
-         <rect>
-          <x>0</x>
-          <y>0</y>
-          <width>960</width>
-          <height>540</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="scaledContents">
-         <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="pbtnEncender">
-        <property name="geometry">
-         <rect>
-          <x>550</x>
-          <y>550</y>
-          <width>80</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Encender</string>
-        </property>
-        <property name="checkable">
-         <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="pbtnCapturar">
-        <property name="geometry">
-         <rect>
-          <x>640</x>
-          <y>550</y>
-          <width>80</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Capturar</string>
-        </property>
-       </widget>
-       <widget class="QSpinBox" name="boxImageNumber">
-        <property name="geometry">
-         <rect>
-          <x>460</x>
-          <y>550</y>
-          <width>71</width>
-          <height>22</height>
-         </rect>
-        </property>
-        <property name="maximum">
-         <number>500</number>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="pbtnSegmentar">
-        <property name="geometry">
-         <rect>
-          <x>730</x>
-          <y>550</y>
-          <width>111</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Segmentar en vivo</string>
-        </property>
-        <property name="checkable">
-         <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QLabel" name="lblSeg1">
-        <property name="geometry">
-         <rect>
-          <x>1060</x>
-          <y>50</y>
-          <width>171</width>
-          <height>191</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>imagen 1</string>
-        </property>
-       </widget>
-       <widget class="QLabel" name="lblSeg2">
-        <property name="geometry">
-         <rect>
-          <x>1060</x>
-          <y>280</y>
-          <width>171</width>
-          <height>191</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>imagen 2</string>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="pbtnClasificar">
-        <property name="geometry">
-         <rect>
-          <x>850</x>
-          <y>550</y>
-          <width>111</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Clasificar en vivo</string>
-        </property>
-        <property name="checkable">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </widget>
-      <widget class="QWidget" name="tab_2">
-       <attribute name="title">
-        <string>Generar DB</string>
-       </attribute>
-       <widget class="QLabel" name="lblImagenCapturada">
-        <property name="geometry">
-         <rect>
-          <x>0</x>
-          <y>0</y>
-          <width>960</width>
-          <height>540</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="scaledContents">
-         <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="pbtnDescartar">
-        <property name="geometry">
-         <rect>
-          <x>520</x>
-          <y>550</y>
-          <width>80</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Descartar</string>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="pbtnGuardar">
-        <property name="geometry">
-         <rect>
-          <x>610</x>
-          <y>550</y>
-          <width>80</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Guardar</string>
-        </property>
-        <property name="checkable">
-         <bool>false</bool>
-        </property>
-       </widget>
-       <widget class="QLabel" name="txtImageName">
-        <property name="geometry">
-         <rect>
-          <x>250</x>
-          <y>550</y>
-          <width>261</width>
-          <height>16</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Guardar siguiente imagen como: </string>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="pbtnClasificarOffline">
-        <property name="geometry">
-         <rect>
-          <x>860</x>
-          <y>550</y>
-          <width>101</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Clasificar offline</string>
-        </property>
-        <property name="checkable">
-         <bool>false</bool>
-        </property>
-       </widget>
-       <widget class="QComboBox" name="comboSegMode">
-        <property name="geometry">
-         <rect>
-          <x>700</x>
-          <y>550</y>
-          <width>151</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="editable">
-         <bool>false</bool>
-        </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_Live">
         <item>
-         <property name="text">
-          <string>Segmentar esta imagen</string>
-         </property>
+         <layout class="QVBoxLayout" name="layoutControlsLeft">
+          <item>
+           <widget class="QPushButton" name="btnReconectar">
+            <property name="text">
+             <string>Reconectar</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblStatusCamara">
+            <property name="styleSheet">
+             <string>font-weight: bold; color: #555;</string>
+            </property>
+            <property name="text">
+             <string>Estado: Desconectada</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="Line" name="lineSep1">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pbtnEncender">
+            <property name="text">
+             <string>Encender Cámara</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="chkLiveSeg">
+            <property name="text">
+             <string>Ver Segmentación</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="chkLiveClass">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>Ver Clasificación</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btnCapturarAnalizar">
+            <property name="styleSheet">
+             <string>font-weight: bold; font-size: 14px; background-color: #e1f5fe;</string>
+            </property>
+            <property name="text">
+             <string>Capturar</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
         <item>
-         <property name="text">
-          <string>Segmentar imagen local</string>
-         </property>
+         <widget class="QLabel" name="lblVideoLive">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::Shape::Box</enum>
+          </property>
+          <property name="text">
+           <string>Cámara Apagada</string>
+          </property>
+          <property name="scaledContents">
+           <bool>false</bool>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
         </item>
-       </widget>
+        <item>
+         <layout class="QVBoxLayout" name="layoutThumbsRight">
+          <property name="spacing">
+           <number>10</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="lblLiveThumb1">
+            <property name="minimumSize">
+             <size>
+              <width>200</width>
+              <height>200</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>200</width>
+              <height>200</height>
+             </size>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::Shape::StyledPanel</enum>
+            </property>
+            <property name="text">
+             <string>Pieza 1</string>
+            </property>
+            <property name="scaledContents">
+             <bool>false</bool>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblLiveThumb2">
+            <property name="minimumSize">
+             <size>
+              <width>200</width>
+              <height>200</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>200</width>
+              <height>200</height>
+             </size>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::Shape::StyledPanel</enum>
+            </property>
+            <property name="text">
+             <string>Pieza 2</string>
+            </property>
+            <property name="scaledContents">
+             <bool>false</bool>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblLiveThumb3">
+            <property name="minimumSize">
+             <size>
+              <width>200</width>
+              <height>200</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>200</width>
+              <height>200</height>
+             </size>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::Shape::StyledPanel</enum>
+            </property>
+            <property name="text">
+             <string>Pieza 3</string>
+            </property>
+            <property name="scaledContents">
+             <bool>false</bool>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
       </widget>
-      <widget class="QWidget" name="tab_3">
+      <widget class="QWidget" name="tabAnalysis">
        <attribute name="title">
-        <string>Segmentacion</string>
+        <string>Análisis</string>
        </attribute>
-       <widget class="QPushButton" name="pbtnAbrirImag">
-        <property name="geometry">
-         <rect>
-          <x>880</x>
-          <y>550</y>
-          <width>121</width>
-          <height>24</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Seleccionar imagen</string>
-        </property>
-       </widget>
-       <widget class="QLabel" name="lblImagNoSegmentada">
-        <property name="geometry">
-         <rect>
-          <x>30</x>
-          <y>80</y>
-          <width>281</width>
-          <height>261</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>TextLabel</string>
-        </property>
-       </widget>
-       <widget class="QLabel" name="lblImagSegmentada">
-        <property name="geometry">
-         <rect>
-          <x>350</x>
-          <y>80</y>
-          <width>521</width>
-          <height>461</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>TextLabel</string>
-        </property>
-       </widget>
+       <layout class="QVBoxLayout" name="verticalLayout_Analysis">
+        <item>
+         <widget class="QTabWidget" name="tabWidgetAnalysis">
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QWidget" name="subTabResultados">
+           <attribute name="title">
+            <string>Resultados</string>
+           </attribute>
+           <layout class="QHBoxLayout" name="layoutResults">
+            <item>
+             <widget class="QLabel" name="lblOfflineMain">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::Shape::NoFrame</enum>
+              </property>
+              <property name="text">
+               <string>Imagen Procesada</string>
+              </property>
+              <property name="scaledContents">
+               <bool>false</bool>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QVBoxLayout" name="layoutOfflineThumbs">
+              <item>
+               <widget class="QLabel" name="lblOfflineThumb1">
+                <property name="minimumSize">
+                 <size>
+                  <width>150</width>
+                  <height>150</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>150</height>
+                 </size>
+                </property>
+                <property name="frameShape">
+                 <enum>QFrame::Shape::StyledPanel</enum>
+                </property>
+                <property name="text">
+                 <string>P1</string>
+                </property>
+                <property name="scaledContents">
+                 <bool>false</bool>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblOfflineThumb2">
+                <property name="minimumSize">
+                 <size>
+                  <width>150</width>
+                  <height>150</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>150</height>
+                 </size>
+                </property>
+                <property name="frameShape">
+                 <enum>QFrame::Shape::StyledPanel</enum>
+                </property>
+                <property name="text">
+                 <string>P2</string>
+                </property>
+                <property name="scaledContents">
+                 <bool>false</bool>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblOfflineThumb3">
+                <property name="minimumSize">
+                 <size>
+                  <width>150</width>
+                  <height>150</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>150</width>
+                  <height>150</height>
+                 </size>
+                </property>
+                <property name="frameShape">
+                 <enum>QFrame::Shape::StyledPanel</enum>
+                </property>
+                <property name="text">
+                 <string>P3</string>
+                </property>
+                <property name="scaledContents">
+                 <bool>false</bool>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="verticalSpacer_Offline">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Vertical</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>20</width>
+                  <height>40</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="subTabDebugSeg">
+           <attribute name="title">
+            <string>Segmentación</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="layoutDebugSeg">
+            <item>
+             <widget class="QTabWidget" name="tabWidgetDebug">
+              <property name="currentIndex">
+               <number>0</number>
+              </property>
+              <widget class="QWidget" name="tabHSV">
+               <attribute name="title">
+                <string>HSV</string>
+               </attribute>
+               <layout class="QVBoxLayout" name="layHSV">
+                <item>
+                 <widget class="QLabel" name="lblDebugHSV">
+                  <property name="text">
+                   <string>Vista de Canales HSV</string>
+                  </property>
+                  <property name="scaledContents">
+                   <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+              <widget class="QWidget" name="tabOtsu">
+               <attribute name="title">
+                <string>Otsu (S)</string>
+               </attribute>
+               <layout class="QVBoxLayout" name="layOtsu">
+                <item>
+                 <widget class="QLabel" name="lblDebugOtsu">
+                  <property name="text">
+                   <string>Máscara Binaria Otsu</string>
+                  </property>
+                  <property name="scaledContents">
+                   <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+              <widget class="QWidget" name="tabMorph">
+               <attribute name="title">
+                <string>Morfología</string>
+               </attribute>
+               <layout class="QVBoxLayout" name="layMorph">
+                <item>
+                 <widget class="QLabel" name="lblDebugMorph">
+                  <property name="text">
+                   <string>Proceso Morfológico</string>
+                  </property>
+                  <property name="scaledContents">
+                   <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+              <widget class="QWidget" name="tabFinal">
+               <attribute name="title">
+                <string>Seg. Final</string>
+               </attribute>
+               <layout class="QVBoxLayout" name="layFinal">
+                <item>
+                 <widget class="QLabel" name="lblDebugFinal">
+                  <property name="text">
+                   <string>Resultado Final con Bounding Boxes</string>
+                  </property>
+                  <property name="scaledContents">
+                   <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupAnalysisControls">
+          <property name="title">
+           <string>Panel de Control</string>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_Controls">
+           <item>
+            <widget class="QPushButton" name="btnCargarDisco">
+             <property name="text">
+              <string>Abrir Imagen...</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="Line" name="line1">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnRecalcSeg">
+             <property name="text">
+              <string>Segmentar</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnRecalcClass">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="text">
+              <string>Clasificar</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="Line" name="line2">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="labelDB">
+             <property name="text">
+              <string>Index DB:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="boxImageNumber">
+             <property name="maximum">
+              <number>9999</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="lblImageName">
+             <property name="styleSheet">
+              <string>color: #333; font-style: italic; margin-left: 5px; margin-right: 5px;</string>
+             </property>
+             <property name="text">
+              <string>Nombre: -</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="pbtnGuardar">
+             <property name="text">
+              <string>Guardar</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btnGuardarComo">
+             <property name="text">
+              <string>Guardar Como...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>
@@ -296,7 +579,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1332</width>
+     <width>1280</width>
      <height>21</height>
     </rect>
    </property>
