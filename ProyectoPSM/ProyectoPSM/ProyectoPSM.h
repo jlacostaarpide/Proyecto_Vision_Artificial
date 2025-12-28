@@ -69,8 +69,6 @@ private slots:
     void NewImage(Mat Img);
     void SaveImage();
 	void ShowImage();
-	void VisualizeImage();
-	void ReturnTab();
 
 	// control de segmentación
     void EnableLiveSegmentation(bool enabled);
@@ -80,9 +78,10 @@ private slots:
     void onSegmentationTimer();
 
     // selección/procesado de imagen desde fichero (offline)
-    void SegmentarImagDisco();
-	void SegmentarImagCapturada();
-    void OpenPicture();
-	void SegmentationMode(int index);
+
+    void CapturarYAnalizar();     
+    void CargarImagenDisco();     
+    void RecalcularSegmentacion();
+    void ProcesarImagenOffline(const cv::Mat& img);
 };
 
