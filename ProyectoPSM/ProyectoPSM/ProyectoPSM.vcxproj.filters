@@ -49,7 +49,10 @@
     <ClCompile Include="Segmentacion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SegmentacionAvanzada.cpp">
+    <ClCompile Include="ExtractCaracteristicas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="entrenarSVM.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -60,9 +63,6 @@
     <QtMoc Include="ProyectoPSM.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="Segmentacion.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Capturar.h">
@@ -71,7 +71,13 @@
     <ClInclude Include="NameHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SegmentacionAvanzada.h">
+    <ClInclude Include="ExtractCaracteristicas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Segmentacion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="entrenarSVM.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
