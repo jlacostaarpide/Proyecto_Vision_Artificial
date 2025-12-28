@@ -458,10 +458,44 @@ void ProyectoPSM::SaveImageAs()
 {
     if (CapturedImage.empty()) return;
 
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Guardar Imagen"), "", tr("Images (*.jpg);;All Files (*)"));
+    // 1. Abrir diálogo obligando a extensión .jpg
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Guardar Imagen"), "", tr("JPEG Image (*.jpg);;All Files (*)"));
     if (fileName.isEmpty()) return;
 
-    cv::imwrite(fileName.toStdString(), CapturedImage);
+    // 2. AUTO-CORRECCIÓN: Si el usuario no escribió ".jpg", se lo ponemos nosotros
+    if (!fileName.endsWith(".jpg", Qt::CaseInsensitive) && !fileName.endsWith(".jpeg", Qt::CaseInsensitive)) {
+        fileName += ".jpg";
+    }
+
+    // 3. GUARDADO ROBUSTO (Buffer OpenCV -> QFile Qt)
+    // Esto evita problemas con tildes, ñ o rutas largas en Windows que hacen fallar a imwrite
+    std::vector<uchar> buffer;
+    try {
+        // Codificar a JPG en memoria (Calidad 95)
+        std::vector<int> params = { cv::IMWRITE_JPEG_QUALITY, 95 };
+        cv::imencode(".jpg", CapturedImage, buffer, params);
+
+        // Escribir a disco usando Qt (que maneja bien las rutas)
+        QFile file(fileName);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+            file.close();
+
+            // 4. Feedback Visual (Cambiar texto del botón)
+            ui.btnGuardarComo->setText("¡Guardado!");
+            ui.btnGuardarComo->setEnabled(false);
+            QTimer::singleShot(1500, [this]() {
+                ui.btnGuardarComo->setText("Guardar Como...");
+                ui.btnGuardarComo->setEnabled(true);
+                });
+        }
+        else {
+            qDebug() << "Error: No se pudo escribir en el archivo (Permisos?).";
+        }
+    }
+    catch (...) {
+        qDebug() << "Error al codificar la imagen.";
+    }
 }
 
 void ProyectoPSM::SaveImage()
