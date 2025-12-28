@@ -140,6 +140,9 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnCargarDisco, SIGNAL(clicked()), this, SLOT(CargarImagenDisco()));
     connect(ui.btnRecalcSeg, SIGNAL(clicked()), this, SLOT(RecalcularSegmentacion()));
     connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
+    // Nuevas conexiones para el nombre dinámico y guardar como
+    connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
+    connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
 
     // Inicializar estados de botones de análisis
     ui.pbtnGuardar->setEnabled(false);
@@ -174,6 +177,9 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     ImageIndex = 0;
     SavedImageIndex = 1;
     ui.boxImageNumber->setValue(SavedImageIndex);
+
+    // Inicializar etiqueta de nombre
+    UpdateFileNameLabel();
 }
 
 ProyectoPSM::~ProyectoPSM()
@@ -234,45 +240,30 @@ void ProyectoPSM::ShowImage()
 
     QPixmap scaled = pix.scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-    // DIBUJAR CAJAS VERDES + NÚMEROS (Segmentación en vivo)
+    // DIBUJAR CAJAS VERDES (Segmentación en vivo)
     if (LiveSegmentationEnabled && !lastBoxesNormalized.empty()) {
         QPainter p(&scaled);
+        QPen pen(Qt::green);
+        pen.setWidth(3);
+        p.setPen(pen);
 
-        // Configurar pincel para las cajas
-        QPen penBox(Qt::green);
-        penBox.setWidth(3);
-        p.setPen(penBox);
-
-        // Configurar fuente para los números
         QFont font = p.font();
-        // Tamaño dinámico pero legible (min 14px)
         font.setPixelSize(std::max<double>(12, scaled.height() / 25));
         font.setBold(true);
         p.setFont(font);
 
-        // Usamos un índice 'i' para saber qué número pintar
         for (size_t i = 0; i < lastBoxesNormalized.size(); ++i) {
             const auto& boxNorm = lastBoxesNormalized[i];
-
-            // Desnormalizar coordenadas
             int x = static_cast<int>(boxNorm.x() * scaled.width());
             int y = static_cast<int>(boxNorm.y() * scaled.height());
             int w = static_cast<int>(boxNorm.width() * scaled.width());
             int h = static_cast<int>(boxNorm.height() * scaled.height());
 
-            // 1. Dibujar Rectángulo
             p.drawRect(x, y, w, h);
 
-            // 2. Dibujar Número (ID = i + 1)
             QString text = QString::number(i + 1);
-
-            // Calcular posición del texto (encima de la esquina izquierda)
             int textY = y - 5;
-            // Si la pieza está muy arriba y el texto se sale, lo ponemos dentro
-            if (textY < font.pixelSize()) {
-                textY = y + font.pixelSize() + 5;
-            }
-
+            if (textY < font.pixelSize()) textY = y + font.pixelSize() + 5;
             p.drawText(x, textY, text);
         }
     }
@@ -341,9 +332,9 @@ void ProyectoPSM::CapturarYAnalizar()
     // 2. Congelar imagen actual
     CapturedImage = LastImage.clone();
 
-    // 3. Parar segmentación en vivo para ahorrar recursos y evitar conflictos
+    // 3. Parar segmentación en vivo para ahorrar recursos
     if (ui.chkLiveSeg->isChecked()) {
-        ui.chkLiveSeg->setChecked(false); // Esto dispara EnableLiveSegmentation(false)
+        ui.chkLiveSeg->setChecked(false);
     }
 
     // 4. Cambiar a la pestaña de Análisis
@@ -401,15 +392,11 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
 
     // C. Preparar la Imagen Central (Original + Cajas Verdes)
-    // Clonamos para pintar encima sin estropear la imagen que guardaremos en disco
     cv::Mat displayImg = img.clone();
 
     // Dibujamos los recuadros sobre la imagen completa
     for (const auto& res : resultados) {
-        // Rectángulo verde (BGR: 0, 255, 0), grosor 3
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
-
-        // Opcional: Escribir el ID encima de la pieza
         cv::putText(displayImg, std::to_string(res.id),
             cv::Point(res.boundingBox.x, res.boundingBox.y - 10),
             cv::FONT_HERSHEY_SIMPLEX, 0.9, cv::Scalar(0, 255, 0), 2);
@@ -449,11 +436,32 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
             }
             else {
                 thumbs[i]->clear();
-                // Dejamos un texto gris indicando hueco vacío
                 thumbs[i]->setText("---");
             }
         }
     }
+}
+
+void ProyectoPSM::UpdateFileNameLabel()
+{
+    int idx = ui.boxImageNumber->value();
+    if (idx > 0 && idx <= NameList.size()) {
+        QString name = QString::fromStdString(NameList[idx - 1]);
+        ui.lblImageName->setText("Nombre: " + name + ".jpg");
+    }
+    else {
+        ui.lblImageName->setText("Nombre: [Fuera de Rango]");
+    }
+}
+
+void ProyectoPSM::SaveImageAs()
+{
+    if (CapturedImage.empty()) return;
+
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Guardar Imagen"), "", tr("Images (*.jpg);;All Files (*)"));
+    if (fileName.isEmpty()) return;
+
+    cv::imwrite(fileName.toStdString(), CapturedImage);
 }
 
 void ProyectoPSM::SaveImage()
@@ -468,15 +476,18 @@ void ProyectoPSM::SaveImage()
 
         cv::imwrite(Path, CapturedImage);
 
-        // Feedback visual (cambiar texto del botón momentáneamente)
+        // Feedback visual
         ui.pbtnGuardar->setText("¡Guardado!");
-        ui.pbtnGuardar->setEnabled(false); // Evitar doble click rápido
+        ui.pbtnGuardar->setEnabled(false);
         QTimer::singleShot(1000, [this]() {
-            ui.pbtnGuardar->setText("Guardar Imagen");
+            ui.pbtnGuardar->setText("Guardar");
             ui.pbtnGuardar->setEnabled(true);
             });
 
-        // Avanzar índice
-        if (idx < 9999) ui.boxImageNumber->setValue(idx + 1);
+        // Avanzar índice y actualizar etiqueta
+        if (idx < 9999) {
+            ui.boxImageNumber->setValue(idx + 1);
+            // El setValue disparará el signal valueChanged que llamará a UpdateFileNameLabel
+        }
     }
 }

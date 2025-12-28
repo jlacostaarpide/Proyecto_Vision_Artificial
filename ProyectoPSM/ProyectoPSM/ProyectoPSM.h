@@ -31,7 +31,7 @@ class ProyectoPSM : public QMainWindow
     Q_OBJECT
 
 public:
-    ProyectoPSM(QWidget *parent = nullptr);
+    ProyectoPSM(QWidget* parent = nullptr);
     ~ProyectoPSM();
 
 signals:
@@ -68,9 +68,9 @@ private slots:
     void EnableButtons(bool StartCapture);
     void NewImage(Mat Img);
     void SaveImage();
-	void ShowImage();
+    void ShowImage();
 
-	// control de segmentación
+    // control de segmentación
     void EnableLiveSegmentation(bool enabled);
     void UpdateSegmentationResults(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails);
 
@@ -78,10 +78,11 @@ private slots:
     void onSegmentationTimer();
 
     // selección/procesado de imagen desde fichero (offline)
-
-    void CapturarYAnalizar();     
-    void CargarImagenDisco();     
+    void CapturarYAnalizar();
+    void CargarImagenDisco();
     void RecalcularSegmentacion();
     void ProcesarImagenOffline(const cv::Mat& img);
-};
+    void UpdateFileNameLabel();
+    void SaveImageAs();
 
+};
