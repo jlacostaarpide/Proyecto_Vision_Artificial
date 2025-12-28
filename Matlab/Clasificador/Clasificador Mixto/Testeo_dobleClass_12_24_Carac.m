@@ -4,8 +4,8 @@
 %% Requiere: trainedModel (modelo M) cargado + model_912 cargado
 %% ================================================================
 
-segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test2_local';
-outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_test2_dobleClassificador_2.txt';
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local';
+outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador.txt';
 
 %--- Cargar modelo M (12 features) ---
 S = load("TrainedModelWith_Mtrain_12.mat");
@@ -16,6 +16,11 @@ clear S;
 S = load("C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Forma\TrainedModelWith_Ftrain_9_12_yellow_24carac.mat");
 model_912 = S.trainedModel;
 clear S;
+
+% === RUTAS ORIENTACIÓN ===
+orientRoot = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Orientacion";
+templatesFolder = fullfile(orientRoot, "Templates");
+addpath(genpath(orientRoot)); % para predictYawPitch_byTemplate, extractMaskLego, etc.
 
 % OJO: como ya no usamos M_test, define aquí las 12 variables en el orden
 % exacto que espera el modelo M (mejor esto que depender de M_test).
@@ -101,12 +106,13 @@ for i = 1:N
     predictedLabel_final = predictedLabel_base;
     refinador = "none";
 
+   
     % =========================
-    % 2) CASCADA AMARILLO 9-12
+    % 2) CASCADA AMARILLO 9-12 (si aplica)
     % =========================
     pb_num = str2double(string(predictedLabel_base));  % "09"->9, "12"->12
 
-    if isfinite(pb_num) && (pb_num == 9) %(pb_num==9 || pb_num==12)
+    if isfinite(pb_num) && (pb_num==9 || pb_num==12)
         nRef912 = nRef912 + 1;
 
         feat24 = extractShapeFeatures(Ipiece);   % 1x14
@@ -126,7 +132,14 @@ for i = 1:N
     end
 
     % =========================
-    % 3) Comparar (solo si hay GT)
+    % 3) ORIENTACIÓN (según código final)
+    % =========================
+    codeFinal = string(predictedLabel_final); % "01".."12"
+    [yaw, pitch, oScore, oGap] = predictOrientationFromTemplates(Ipiece, codeFinal, templatesFolder);
+
+
+    % =========================
+    % 4) Comparar (solo si hay GT)
     % =========================
     if hasGT
         isCorrect = (string(predictedLabel_final) == string(trueLabelStr));
@@ -149,15 +162,18 @@ for i = 1:N
     end
 
     % =========================
-    % 4) Log por imagen
+    % 5) Log por imagen (CON ORIENTACIÓN)
     % =========================
-    fprintf(fid, '[%4d/%4d] %s | REAL=%s | PRED_BASE=%s | PRED_FINAL=%s | REF=%s | %s\n', ...
-        i, N, string(imgName), string(trueLabelStr), string(predictedLabel_base), string(predictedLabel_final), refinador, resultStr);
+    fprintf(fid, '[%4d/%4d] %s | REAL=%s | PRED_BASE=%s | PRED_FINAL=%s | REF=%s | ORI=%03d/%02d (s=%.3f g=%.3f) | %s\n', ...
+        i, N, string(imgName), string(trueLabelStr), string(predictedLabel_base), string(predictedLabel_final), refinador, ...
+        yaw, pitch, oScore, oGap, resultStr);
 
     if mod(i,50)==0 || i==N
         fprintf('Procesadas %d/%d\n', i, N);
     end
 end
+
+ 
 
 % --- Resumen ---
 totalEvaluated = nOK + nFail; % solo las que tienen GT y fueron evaluadas
@@ -224,3 +240,75 @@ function [hasGT, gtStr] = parseGTfromFilename(fname)
     hasGT = true;
     gtStr = sprintf('%02d', v); % "3" -> "03"
 end
+
+
+
+
+
+
+function [yaw, pitch, bestScore, gap] = predictOrientationFromTemplates(Ipiece, codeStr, templatesFolder)
+% Devuelve yaw/pitch usando templates del código codeStr ("01".."12")
+% Cachea las templates por código para no recargar en cada imagen.
+
+    persistent cache
+    if isempty(cache)
+        cache = containers.Map('KeyType','char','ValueType','any');
+    end
+
+    codeKey = char(codeStr);
+
+    % --- Cargar del cache o desde disco ---
+    if isKey(cache, codeKey)
+        templates = cache(codeKey);
+    else
+        anglesStr = ["000","045","090","135","180","225","270","315"];
+        pitchStr  = ["10","40","70","90"];
+
+        templatesCell = {};
+        for a = 1:numel(anglesStr)
+            for p = 1:numel(pitchStr)
+                ang = anglesStr(a);
+                pit = pitchStr(p);
+
+                f = fullfile(templatesFolder, sprintf("tpl_%s_%s_%s.mat", codeKey, ang, pit));
+                if ~isfile(f), continue; end
+                S = load(f);
+                if ~isfield(S,"tpl"), continue; end
+                templatesCell{end+1} = S.tpl; %#ok<AGROW>
+            end
+        end
+
+        if isempty(templatesCell)
+            yaw = NaN; pitch = NaN; bestScore = NaN; gap = NaN;
+            cache(codeKey) = []; % para no insistir
+            return;
+        end
+
+        % Unificar fields (evita el “dissimilar structures”)
+        allFields = {};
+        for k = 1:numel(templatesCell)
+            allFields = union(allFields, fieldnames(templatesCell{k}));
+        end
+        for k = 1:numel(templatesCell)
+            for ff = 1:numel(allFields)
+                fn = allFields{ff};
+                if ~isfield(templatesCell{k}, fn)
+                    templatesCell{k}.(fn) = [];
+                end
+            end
+        end
+
+        templates = [templatesCell{:}];
+        cache(codeKey) = templates;
+    end
+
+    if isempty(templates)
+        yaw = NaN; pitch = NaN; bestScore = NaN; gap = NaN;
+        return;
+    end
+
+    % --- Predicción ---
+    [yaw, pitch, scores, gap] = predictYawPitch_byTemplate(Ipiece, templates);
+    bestScore = max(scores);
+end
+
