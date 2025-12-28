@@ -89,17 +89,12 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
-    // Registrar tipos para señales
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
     qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
 
-    // Crear carpeta DB
-    if (!filesystem::exists("Database")) {
-        filesystem::create_directory("Database");
-    }
+    if (!filesystem::exists("Database")) filesystem::create_directory("Database");
 
-    // Inicializar lógica
     NameList = NameHelper::GenerarNombres();
     LiveSegmentationEnabled = false;
     SegProcessing = false;
@@ -107,78 +102,58 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     SegmentationIntervalMs = 40;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
 
-    // Inicializar Cámara
+    // 1. Inicializar Cámara
     Camera = new CVideoAcquisition();
 
-    // Configurar Worker Thread
+    // 2. Configurar Worker
     segWorker = new SegmentationWorker();
     segThread = new QThread(this);
     segWorker->moveToThread(segThread);
     connect(segThread, &QThread::finished, segWorker, &QObject::deleteLater);
-
-    // Conexiones Worker
     connect(segWorker, &SegmentationWorker::finishedResult, this, &ProyectoPSM::UpdateSegmentationResults, Qt::QueuedConnection);
     connect(this, &ProyectoPSM::requestSegmentation, segWorker, &SegmentationWorker::process, Qt::QueuedConnection);
     segThread->start();
 
-    // Timer segmentación en vivo
+    // 3. Timers
     segTimer = new QTimer(this);
     segTimer->setInterval(SegmentationIntervalMs);
     connect(segTimer, &QTimer::timeout, this, &ProyectoPSM::onSegmentationTimer);
     segTimer->start();
 
-    // ---------------------------------------------------------
-    // CONEXIONES DE INTERFAZ
-    // ---------------------------------------------------------
+    // Watchdog Timer
+    statusTimer = new QTimer(this);
+    statusTimer->setInterval(2000);
+    connect(statusTimer, &QTimer::timeout, this, &ProyectoPSM::CheckCameraStatus);
+    statusTimer->start();
 
-    // Tab "En Vivo"
+    // 4. Conexiones UI
     connect(ui.pbtnEncender, SIGNAL(toggled(bool)), this, SLOT(EnableButtons(bool)));
     connect(ui.chkLiveSeg, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
     connect(ui.btnCapturarAnalizar, SIGNAL(clicked()), this, SLOT(CapturarYAnalizar()));
 
-    // Tab "Análisis"
+    // Botón Reconectar
+    connect(ui.btnReconectar, SIGNAL(clicked()), this, SLOT(ReconectarCamara()));
+
     connect(ui.btnCargarDisco, SIGNAL(clicked()), this, SLOT(CargarImagenDisco()));
     connect(ui.btnRecalcSeg, SIGNAL(clicked()), this, SLOT(RecalcularSegmentacion()));
     connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
-    // Nuevas conexiones para el nombre dinámico y guardar como
     connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
     connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
 
-    // Inicializar estados de botones de análisis
     ui.pbtnGuardar->setEnabled(false);
 
-    // ESTADO DE LA CÁMARA
-    if (Camera->CameraOK) {
-        // Cámara detectada
-        ui.lblStatusCamara->setText("Estado: Conectada (Lista)");
-        ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: green;");
-
-        ui.pbtnEncender->setEnabled(true);
-        ui.btnReconectar->setEnabled(false);
-        ui.btnCapturarAnalizar->setEnabled(false); // Desactivado hasta que se encienda
-
-        // Conectar señal de nueva imagen
+    // 5. Configurar estado inicial
+    bool camOk = (Camera && Camera->CameraOK);
+    SetCameraStatusUI(camOk);
+    if (camOk) {
         connect(ui.pbtnEncender, SIGNAL(toggled(bool)), Camera, SLOT(StartStopCapture(bool)));
         connect(Camera, SIGNAL(NewImageSignal(Mat)), this, SLOT(NewImage(Mat)));
-
         Camera->SetCameraAutoExposure();
-    }
-    else {
-        // Cámara NO detectada
-        ui.lblStatusCamara->setText("Estado: DESCONECTADA");
-        ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: red;");
-
-        ui.pbtnEncender->setEnabled(false);      // Botón inusable
-        ui.pbtnEncender->setText("No Disponible");
-        ui.btnCapturarAnalizar->setEnabled(false);
-        ui.btnReconectar->setEnabled(true);     // Permitir intentar reconectar (futuro)
     }
 
     ImageIndex = 0;
     SavedImageIndex = 1;
     ui.boxImageNumber->setValue(SavedImageIndex);
-
-    // Inicializar etiqueta de nombre
     UpdateFileNameLabel();
 }
 
@@ -188,17 +163,102 @@ ProyectoPSM::~ProyectoPSM()
         segThread->quit();
         segThread->wait();
     }
+    if (Camera) {
+        delete Camera;
+    }
 }
 
+// --- LÓGICA DE RECONEXIÓN ---
 
-// GESTIÓN DE CÁMARA Y VIVO
+void ProyectoPSM::ReconectarCamara()
+{
+    // Desactivar botón para evitar pulsaciones múltiples
+    ui.btnReconectar->setEnabled(false);
+    ui.lblStatusCamara->setText("Estado: Conectando...");
+    ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: orange;");
+    QApplication::processEvents();
+
+    // 1. Destruir objeto antiguo si existe
+    if (Camera) {
+        // Desconectar señales viejas
+        disconnect(Camera, 0, 0, 0);
+
+        // Importante: Asegurar que el hilo de captura ha muerto antes de borrar
+        delete Camera;
+        Camera = nullptr;
+    }
+
+    // 2. Crear nuevo objeto
+    try {
+        Camera = new CVideoAcquisition();
+    }
+    catch (...) {
+        Camera = nullptr;
+    }
+
+    // 3. Verificar éxito
+    bool success = (Camera && Camera->CameraOK);
+
+    // Configurar interfaz según resultado
+    SetCameraStatusUI(success);
+
+    if (success) {
+        // Reconectar señales al nuevo objeto
+        connect(ui.pbtnEncender, SIGNAL(toggled(bool)), Camera, SLOT(StartStopCapture(bool)));
+        connect(Camera, SIGNAL(NewImageSignal(Mat)), this, SLOT(NewImage(Mat)));
+        Camera->SetCameraAutoExposure();
+    }
+    else {
+        // Si falla, volver a habilitar el botón para reintentar
+        ui.btnReconectar->setEnabled(true);
+    }
+}
+
+void ProyectoPSM::SetCameraStatusUI(bool isConnected)
+{
+    if (isConnected) {
+        ui.lblStatusCamara->setText("Estado: Listo");
+        ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: green;");
+
+        ui.pbtnEncender->setEnabled(true);
+        ui.pbtnEncender->setChecked(false);
+        ui.pbtnEncender->setText("Encender Cámara");
+        ui.btnReconectar->setEnabled(true);
+    }
+    else {
+        ui.lblStatusCamara->setText("Estado: Desconectado");
+        ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: red;");
+
+        ui.pbtnEncender->setEnabled(false);
+        ui.pbtnEncender->setChecked(false);
+        ui.pbtnEncender->setText("No Disponible");
+
+        ui.btnReconectar->setEnabled(true);
+        ui.btnCapturarAnalizar->setEnabled(false);
+    }
+}
+
+void ProyectoPSM::CheckCameraStatus()
+{
+    // Watchdog: Si detectamos que CameraOK pasó a false inesperadamente
+    if (Camera) {
+        if (!Camera->CameraOK && ui.pbtnEncender->isEnabled()) {
+            // Forzar apagado UI
+            if (ui.pbtnEncender->isChecked()) {
+                ui.pbtnEncender->setChecked(false);
+            }
+            SetCameraStatusUI(false);
+        }
+    }
+}
+
 void ProyectoPSM::EnableButtons(bool StartCapture)
 {
     if (StartCapture) {
         // Se ha encendido
         ui.pbtnEncender->setText("Apagar Cámara");
         ui.btnCapturarAnalizar->setEnabled(true);
-        ui.lblStatusCamara->setText("Estado: CAPTURANDO");
+        ui.lblStatusCamara->setText("Estado: Capturando");
         ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: blue;");
         ui.btnReconectar->setEnabled(false);
     }
@@ -206,11 +266,18 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
         // Se ha apagado
         ui.pbtnEncender->setText("Encender Cámara");
         ui.btnCapturarAnalizar->setEnabled(false);
-        ui.lblStatusCamara->setText("Estado: Conectada (Standby)");
-        ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: green;");
+
+        if (Camera && Camera->CameraOK) {
+            ui.lblStatusCamara->setText("Estado: Listo");
+            ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: green;");
+            ui.btnReconectar->setEnabled(true);
+        }
+        else {
+            SetCameraStatusUI(false);
+        }
+
         ui.lblVideoLive->clear();
         ui.lblVideoLive->setText("Cámara Pausada");
-        ui.btnReconectar->setEnabled(true);
     }
 }
 

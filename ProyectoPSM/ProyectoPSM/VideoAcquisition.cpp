@@ -1,107 +1,154 @@
 #include "VideoAcquisition.h"
 
-//constructor
+// Constructor
 CVideoAcquisition::CVideoAcquisition()
 {
-	try
-	{
-		PylonInitialize();
+    try
+    {
+        PylonInitialize();
 
-		//comenzar sin conexión con la cámara y sin grabar
-		CameraOK = false;
-		Recording = false;
+        CameraOK = false;
+        Recording = false;
 
-		//crear el objeto que se utiliza para capturar imagenes
-		Camera = new CBaslerUniversalInstantCamera(CTlFactory::GetInstance().CreateFirstDevice());
-		//definir el formato de la imagen
-		FormatConverter.OutputPixelFormat = PixelType_BGR8packed;
+        // Intentar conectar con la primera cámara disponible
+        CTlFactory& tlFactory = CTlFactory::GetInstance();
+        DeviceInfoList_t devices;
+        if (tlFactory.EnumerateDevices(devices) == 0) {
+            return;
+        }
 
-		//abrir la cámara			
-		Camera->Open();
-		CameraOK = Camera->IsOpen();
-	}
-	catch (RuntimeException ex)
-	{	
-		cout << ex.GetDescription() << endl;
-	}
+        Camera = new CBaslerUniversalInstantCamera(tlFactory.CreateFirstDevice());
+        FormatConverter.OutputPixelFormat = PixelType_BGR8packed;
+
+        Camera->Open();
+        CameraOK = Camera->IsOpen();
+    }
+    catch (const GenericException& ex)
+    {
+        // Capturar excepciones de Pylon al iniciar
+        cout << "Error iniciando camara: " << ex.GetDescription() << endl;
+        CameraOK = false;
+    }
+    catch (...)
+    {
+        cout << "Error desconocido iniciando camara." << endl;
+        CameraOK = false;
+    }
 }
 
-//destructor
+// Destructor
 CVideoAcquisition::~CVideoAcquisition(void)
 {
-	//parar captura
-	StartStopCapture(false);
-	wait(100);
+    // Parar captura de forma segura
+    Recording = false;
+    wait(1000); // Esperar a que el hilo termine (1 seg max)
 
-	//liberar la memoria del objeto
-	Camera->Close();
-	PylonTerminate();
+    if (Camera) {
+        try {
+            if (Camera->IsOpen()) {
+                Camera->Close();
+            }
+            delete Camera;
+            Camera = nullptr;
+        }
+        catch (...) {}
+    }
+    PylonTerminate();
 }
 
-//funcion para empezar a capturar imagenes o parar
+// Iniciar/Parar captura
 void CVideoAcquisition::StartStopCapture(bool startCapture)
-{	
-	//si hay que capturar
-	if (startCapture)
-	{
-		//si se ha podido abrir la cámara
-		if (CameraOK)
-		{
-			//habilitar la captura
-			Camera->StartGrabbing();
-			Recording = true;
-			//lanzar el hilo de captura
-			this->start(); 
-		}
-		else
-			//si la cámara no se ha podido abrir, se lanza un mensaje de error
-			qDebug() << QString("ERROR: La cámara no ha podido ser abierta");
-	}		
-	else
-		//si no hay que capturar, deshabilitar la captura	
-		Recording = false;
+{
+    if (startCapture)
+    {
+        if (CameraOK && Camera && !Camera->IsGrabbing())
+        {
+            try {
+                Camera->StartGrabbing();
+                Recording = true;
+                this->start();
+            }
+            catch (const GenericException& e) {
+                qDebug() << "Error al iniciar captura:" << e.GetDescription();
+                CameraOK = false;
+            }
+        }
+        else if (!CameraOK) {
+            qDebug() << "ERROR: Camara no lista.";
+        }
+    }
+    else
+    {
+        Recording = false;
+        // Esperar a que el hilo termine
+        wait();
+    }
 }
 
-//función que captura imágenes
+// Bucle principal de captura
 void CVideoAcquisition::run(void)
-{	
-	//mientras la cámara esté grabando
-	while (Recording)
-	{		
-		//cuando la imagen esté disponible		
-		Camera->RetrieveResult(5000, PtrGrabResult, TimeoutHandling_ThrowException);
-		if (PtrGrabResult->GrabSucceeded())
-		{		
-			//capturar la imagen			
-			FormatConverter.Convert(PylonImage, PtrGrabResult);			
-			//convertirla a opencv
-			OpenCvImage = Mat(PylonImage.GetHeight(), PylonImage.GetWidth(), CV_8UC3, PylonImage.GetBuffer());			
-			//lanzar la señal de que ya hay disponible una nueva imagen
-			emit NewImageSignal(OpenCvImage);
-		}	
-	}
-	//parar la grabación de la cámara
-	Camera->StopGrabbing();
+{
+    while (Recording && CameraOK)
+    {
+        try {
+            // Esperar resultado (Timeout 1000ms para revisar 'Recording' freq)
+            if (Camera->RetrieveResult(1000, PtrGrabResult, TimeoutHandling_Return)) {
+                if (PtrGrabResult->GrabSucceeded())
+                {
+                    FormatConverter.Convert(PylonImage, PtrGrabResult);
+                    OpenCvImage = Mat(PylonImage.GetHeight(), PylonImage.GetWidth(), CV_8UC3, PylonImage.GetBuffer());
+                    emit NewImageSignal(OpenCvImage);
+                }
+                else {
+                    qDebug() << "Error GrabResult: " << PtrGrabResult->GetErrorCode() << " " << PtrGrabResult->GetErrorDescription();
+                }
+            }
+        }
+        catch (const GenericException& e) {
+            // ¡CRÍTICO! Si se desconecta el cable, entra aquí.
+            if (Camera->IsCameraDeviceRemoved()) {
+                qDebug() << "CAMARA DESCONECTADA FISICAMENTE.";
+                CameraOK = false;
+                Recording = false; // Salir del bucle
+            }
+            else {
+                qDebug() << "Error en run(): " << e.GetDescription();
+            }
+        }
+    }
+
+    // Parar grabación de forma segura si sigue abierta
+    if (Camera && Camera->IsGrabbing()) {
+        try {
+            Camera->StopGrabbing();
+        }
+        catch (...) {}
+    }
 }
 
-//función que devuelve la ultima imagen obtenida
 Mat CVideoAcquisition::GetImage()
-{	
-	//devolver la última imagen capturada
-	return OpenCvImage.clone();
+{
+    if (!OpenCvImage.empty()) return OpenCvImage.clone();
+    return Mat();
 }
 
-//función para poner en automatico el tiempo de exposición
 void CVideoAcquisition::SetCameraAutoExposure()
-{	
-	Camera->ExposureAuto.SetValue(ExposureAuto_Continuous);
+{
+    if (CameraOK && Camera) {
+        try {
+            Camera->ExposureAuto.SetValue(ExposureAuto_Continuous);
+        }
+        catch (...) {}
+    }
 }
 
-//función para cambiar el tiempo de exposición
 void CVideoAcquisition::SetCameraExposure(double exposure)
 {
-	//valor de fábrica: 350000,0
-	Camera->ExposureAuto.SetValue(ExposureAuto_Off);
-	Camera->ExposureTimeAbs.SetValue(exposure);
+    if (CameraOK && Camera) {
+        try {
+            Camera->ExposureAuto.SetValue(ExposureAuto_Off);
+            Camera->ExposureTimeAbs.SetValue(exposure);
+        }
+        catch (...) {}
+    }
 }
-

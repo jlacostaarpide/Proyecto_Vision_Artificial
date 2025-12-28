@@ -46,6 +46,9 @@ private:
     int SavedImageIndex = 1;
     std::vector<std::string> NameList;
 
+    QTimer* statusTimer = nullptr;
+    void SetCameraStatusUI(bool isConnected);
+
     // Variables de control
     bool LiveSegmentationEnabled = false;
     std::atomic<bool> SegProcessing{ false };
@@ -69,6 +72,8 @@ private slots:
     void NewImage(Mat Img);
     void SaveImage();
     void ShowImage();
+    void ReconectarCamara();
+    void CheckCameraStatus();
 
     // control de segmentación
     void EnableLiveSegmentation(bool enabled);

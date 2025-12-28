@@ -18,7 +18,7 @@
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tabLive">
        <attribute name="title">
@@ -43,14 +43,14 @@
              <string>Estado: Desconectada</string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item>
            <widget class="Line" name="lineSep1">
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
            </widget>
           </item>
@@ -84,7 +84,7 @@
           <item>
            <spacer name="verticalSpacer">
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Orientation::Vertical</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -115,16 +115,16 @@
            </sizepolicy>
           </property>
           <property name="frameShape">
-           <enum>QFrame::Box</enum>
+           <enum>QFrame::Shape::Box</enum>
           </property>
           <property name="text">
            <string>Cámara Apagada</string>
           </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
           <property name="scaledContents">
            <bool>false</bool>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
@@ -148,7 +148,7 @@
              </size>
             </property>
             <property name="frameShape">
-             <enum>QFrame::StyledPanel</enum>
+             <enum>QFrame::Shape::StyledPanel</enum>
             </property>
             <property name="text">
              <string>Pieza 1</string>
@@ -157,7 +157,7 @@
              <bool>false</bool>
             </property>
             <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
@@ -176,7 +176,7 @@
              </size>
             </property>
             <property name="frameShape">
-             <enum>QFrame::StyledPanel</enum>
+             <enum>QFrame::Shape::StyledPanel</enum>
             </property>
             <property name="text">
              <string>Pieza 2</string>
@@ -185,7 +185,7 @@
              <bool>false</bool>
             </property>
             <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
@@ -204,7 +204,7 @@
              </size>
             </property>
             <property name="frameShape">
-             <enum>QFrame::StyledPanel</enum>
+             <enum>QFrame::Shape::StyledPanel</enum>
             </property>
             <property name="text">
              <string>Pieza 3</string>
@@ -213,14 +213,14 @@
              <bool>false</bool>
             </property>
             <property name="alignment">
-             <set>Qt::AlignCenter</set>
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item>
            <spacer name="verticalSpacer_2">
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Orientation::Vertical</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
@@ -258,16 +258,16 @@
                </sizepolicy>
               </property>
               <property name="frameShape">
-               <enum>QFrame::NoFrame</enum>
+               <enum>QFrame::Shape::NoFrame</enum>
               </property>
               <property name="text">
                <string>Imagen Procesada</string>
               </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
               <property name="scaledContents">
                <bool>false</bool>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
@@ -288,7 +288,7 @@
                  </size>
                 </property>
                 <property name="frameShape">
-                 <enum>QFrame::StyledPanel</enum>
+                 <enum>QFrame::Shape::StyledPanel</enum>
                 </property>
                 <property name="text">
                  <string>P1</string>
@@ -297,7 +297,7 @@
                  <bool>false</bool>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignCenter</set>
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
                 </property>
                </widget>
               </item>
@@ -316,7 +316,7 @@
                  </size>
                 </property>
                 <property name="frameShape">
-                 <enum>QFrame::StyledPanel</enum>
+                 <enum>QFrame::Shape::StyledPanel</enum>
                 </property>
                 <property name="text">
                  <string>P2</string>
@@ -325,7 +325,7 @@
                  <bool>false</bool>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignCenter</set>
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
                 </property>
                </widget>
               </item>
@@ -344,7 +344,7 @@
                  </size>
                 </property>
                 <property name="frameShape">
-                 <enum>QFrame::StyledPanel</enum>
+                 <enum>QFrame::Shape::StyledPanel</enum>
                 </property>
                 <property name="text">
                  <string>P3</string>
@@ -353,14 +353,14 @@
                  <bool>false</bool>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignCenter</set>
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
                 </property>
                </widget>
               </item>
               <item>
                <spacer name="verticalSpacer_Offline">
                 <property name="orientation">
-                 <enum>Qt::Vertical</enum>
+                 <enum>Qt::Orientation::Vertical</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -394,11 +394,11 @@
                   <property name="text">
                    <string>Vista de Canales HSV</string>
                   </property>
-                  <property name="alignment">
-                   <set>Qt::AlignCenter</set>
-                  </property>
                   <property name="scaledContents">
                    <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -414,11 +414,11 @@
                   <property name="text">
                    <string>Máscara Binaria Otsu</string>
                   </property>
-                  <property name="alignment">
-                   <set>Qt::AlignCenter</set>
-                  </property>
                   <property name="scaledContents">
                    <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -434,11 +434,11 @@
                   <property name="text">
                    <string>Proceso Morfológico</string>
                   </property>
-                  <property name="alignment">
-                   <set>Qt::AlignCenter</set>
-                  </property>
                   <property name="scaledContents">
                    <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -454,11 +454,11 @@
                   <property name="text">
                    <string>Resultado Final con Bounding Boxes</string>
                   </property>
-                  <property name="alignment">
-                   <set>Qt::AlignCenter</set>
-                  </property>
                   <property name="scaledContents">
                    <bool>false</bool>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                  </widget>
                 </item>
@@ -470,7 +470,6 @@
           </widget>
          </widget>
         </item>
-
         <item>
          <widget class="QGroupBox" name="groupAnalysisControls">
           <property name="title">
@@ -487,7 +486,7 @@
            <item>
             <widget class="Line" name="line1">
              <property name="orientation">
-              <enum>Qt::Vertical</enum>
+              <enum>Qt::Orientation::Vertical</enum>
              </property>
             </widget>
            </item>
@@ -511,15 +510,14 @@
            <item>
             <widget class="Line" name="line2">
              <property name="orientation">
-              <enum>Qt::Vertical</enum>
+              <enum>Qt::Orientation::Vertical</enum>
              </property>
             </widget>
            </item>
-
            <item>
             <spacer name="horizontalSpacer">
              <property name="orientation">
-              <enum>Qt::Horizontal</enum>
+              <enum>Qt::Orientation::Horizontal</enum>
              </property>
              <property name="sizeHint" stdset="0">
               <size>
@@ -529,7 +527,6 @@
              </property>
             </spacer>
            </item>
-
            <item>
             <widget class="QLabel" name="labelDB">
              <property name="text">
@@ -546,11 +543,11 @@
            </item>
            <item>
             <widget class="QLabel" name="lblImageName">
-             <property name="text">
-              <string>Nombre: -</string>
-             </property>
              <property name="styleSheet">
               <string>color: #333; font-style: italic; margin-left: 5px; margin-right: 5px;</string>
+             </property>
+             <property name="text">
+              <string>Nombre: -</string>
              </property>
             </widget>
            </item>
@@ -571,7 +568,6 @@
           </layout>
          </widget>
         </item>
-
        </layout>
       </widget>
      </widget>
