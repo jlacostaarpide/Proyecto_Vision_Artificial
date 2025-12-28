@@ -1,0 +1,26 @@
+EVAL ORI YAW vs YAW EN NOMBRE
+Archivo: C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador.txt
+
+Líneas totales:                1958
+Líneas con ORI (intentadas):   1923
+Evaluadas:                     1923
+Aciertos:                      1910
+Fallos:                        13
+Accuracy YAW:                  99.32 %
+No parsea ORI:                 0
+Nombre raro/no parseable:      0
+
+FALLOS:
+01_045_10_002.jpg | nameYaw=045  predYaw=270
+03_045_40_001.jpg | nameYaw=045  predYaw=315
+03_045_40_002.jpg | nameYaw=045  predYaw=315
+03_090_10_003.jpg | nameYaw=090  predYaw=000
+03_090_10_004.jpg | nameYaw=090  predYaw=000
+04_000_90_002.jpg | nameYaw=000  predYaw=180
+06_315_10_003.jpg | nameYaw=315  predYaw=180
+10_090_10_006.jpg | nameYaw=090  predYaw=180
+10_225_70_006.jpg | nameYaw=225  predYaw=270
+11_000_70_003.jpg | nameYaw=000  predYaw=180
+11_045_10_002.jpg | nameYaw=045  predYaw=225
+11_135_40_006.jpg | nameYaw=135  predYaw=315
+11_315_70_003.jpg | nameYaw=315  predYaw=090
