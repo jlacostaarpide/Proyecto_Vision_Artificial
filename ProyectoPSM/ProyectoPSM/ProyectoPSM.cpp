@@ -400,9 +400,9 @@ void ProyectoPSM::CapturarYAnalizar()
     CapturedImage = LastImage.clone();
 
     // 3. Parar segmentación en vivo para ahorrar recursos
-    if (ui.chkLiveSeg->isChecked()) {
-        ui.chkLiveSeg->setChecked(false);
-    }
+    //if (ui.chkLiveSeg->isChecked()) {
+    //    ui.chkLiveSeg->setChecked(false);
+    //}
 
     // 4. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
