@@ -49,10 +49,7 @@
     <ClCompile Include="Segmentacion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ExtractCaracteristicas.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="entrenarSVM.cpp">
+    <ClCompile Include="ClasificadorOrientacion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -71,13 +68,10 @@
     <ClInclude Include="NameHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ExtractCaracteristicas.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Segmentacion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="entrenarSVM.h">
+    <ClInclude Include="ClasificadorOrientacion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

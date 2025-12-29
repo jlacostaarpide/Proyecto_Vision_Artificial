@@ -15,6 +15,9 @@
 #include "VideoAcquisition.h"
 #include "NameHelper.h"
 
+#include <memory>
+#include "ClasificadorOrientacion.h"
+
 class SegmentationWorker : public QObject
 {
     Q_OBJECT
@@ -67,6 +70,10 @@ private:
 
     QString fileName;
 
+    std::unique_ptr<ClasificadorOrientacion> orientClf_;
+    bool orientTemplatesLoaded_ = false;
+    QString orientTemplatesDir_;
+
 private slots:
     void EnableButtons(bool StartCapture);
     void NewImage(Mat Img);
@@ -89,5 +96,8 @@ private slots:
     void ProcesarImagenOffline(const cv::Mat& img);
     void UpdateFileNameLabel();
     void SaveImageAs();
+
+
+    void AbrirYClasificarOrientacion();
 
 };
