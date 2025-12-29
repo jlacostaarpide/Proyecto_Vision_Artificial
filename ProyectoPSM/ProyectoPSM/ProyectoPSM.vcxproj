@@ -111,6 +111,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Capturar.cpp" />
+    <ClCompile Include="entrenarSVM.cpp" />
+    <ClCompile Include="ExtractCaracteristicas.cpp" />
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
     <ClCompile Include="VideoAcquisition.cpp" />
@@ -125,6 +127,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Capturar.h" />
+    <ClInclude Include="entrenarSVM.h" />
+    <ClInclude Include="ExtractCaracteristicas.h" />
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />
   </ItemGroup>
