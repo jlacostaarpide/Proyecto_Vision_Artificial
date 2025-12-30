@@ -102,7 +102,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
 	// entrena si no hay modelo de clasificacion
     maybeTrain();
-    runEvalExample();
+    runEvalGlobal();
 
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
@@ -726,7 +726,7 @@ void ProyectoPSM::AbrirYClasificarOrientacion()
 }
 
 //PRUEBAS DE CLASIFICACIÓN
-void ProyectoPSM::runEvalExample() {
+void ProyectoPSM::runEvalGlobal() {
     const char* args[] = {
         "eval",
         R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
