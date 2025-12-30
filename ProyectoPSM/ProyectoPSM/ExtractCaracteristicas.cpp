@@ -46,7 +46,7 @@ namespace FeatureExtractor {
         return out;
     }
 
-    // ----------------- Color features (8) ---------------------------------------
+    // ----------------- Color features (8) 5 y forma 7---------------------------------------
     static std::vector<double> local_extractColorFeatures(const Mat& I_float01) {
         // I_float01: BGR float 0..1
         std::vector<double> feat(8, 0.0);

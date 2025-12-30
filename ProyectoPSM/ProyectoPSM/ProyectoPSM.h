@@ -74,6 +74,10 @@ private:
     bool orientTemplatesLoaded_ = false;
     QString orientTemplatesDir_;
 
+	// función de entrenamiento si no hay modelo
+    void maybeTrain();
+    void runEvalExample();
+
 private slots:
     void EnableButtons(bool StartCapture);
     void NewImage(Mat Img);

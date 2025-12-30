@@ -3,12 +3,16 @@
 #include <QFileDialog>
 #include <QFile>
 #include <QComboBox>
-#include "Segmentacion.h"
 #include <chrono>
 #include <QMetaType>
 #include <QDebug>
 #include <QPainter>
 #include <QApplication>
+#include <iostream>
+
+#include "Segmentacion.h"
+#include "Clasificador.h"
+
 
 // Si no funciona, borrar:
 #include <QMessageBox>
@@ -19,6 +23,8 @@
 Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
 Q_DECLARE_METATYPE(std::vector<QRectF>)
 Q_DECLARE_METATYPE(std::vector<QImage>)
+
+
 
 
 // Segmentación en Segundo Plano
@@ -93,6 +99,11 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
 ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
+
+	// entrena si no hay modelo de clasificacion
+    maybeTrain();
+    runEvalExample();
+
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
@@ -712,4 +723,40 @@ void ProyectoPSM::AbrirYClasificarOrientacion()
         .arg(r.bestScore, 0, 'f', 4)
         .arg(r.gap, 0, 'f', 4)
     );
+}
+
+//PRUEBAS DE CLASIFICACIÓN
+void ProyectoPSM::runEvalExample() {
+    const char* args[] = {
+        "eval",
+        R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
+        R"(C:\Desarrollos\proyectoPSM\eval_out.txt)",      // outTxt
+        R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
+    };
+    int rc = RunEval(4, const_cast<char**>(args));
+    if (rc != 0) {
+        std::cerr << "RunEval returned " << rc << "\n";
+        qDebug("eval terminada");
+
+    }
+}
+
+void ProyectoPSM::maybeTrain() {
+    TrainSVM::Options opts;
+    // Usar raw string literals para preservar las barras invertidas sin escapes
+    opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
+    opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
+    opts.csvOut = ""; // opcional
+    opts.doScale = true;
+    opts.C = 1.0;
+    opts.gamma = 0.0;
+
+    if (!std::filesystem::exists(opts.outModelPath)) {
+        qDebug("Entrenando modelo...");
+        int r = RunTrainRefiner(opts,true);
+        if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
+    }
+    else {
+        std::cout << "Modelo ya existe, omitiendo entrenamiento.\n";
+    }
 }
