@@ -10,7 +10,7 @@
 using namespace cv;
 
 
-//Script para obtener vectores de caracterï¿½sticas
+//Script para obtener vectores de características
 
 namespace FeatureExtractor {
 
@@ -65,7 +65,7 @@ namespace FeatureExtractor {
         return n;
     }
 
-    // helper: rejilla NxN con fracciï¿½n de pixeles "on" por celda
+    // helper: rejilla NxN con fracción de pixeles "on" por celda
     static Mat gridOccupancy(const Mat& mask, int N) {
         Mat out = Mat::zeros(N, N, CV_64F);
         int h = mask.rows, w = mask.cols;
@@ -218,8 +218,8 @@ namespace FeatureExtractor {
         return feat;
     }
 
-    // ----------------- Shape features (14) - versiï¿½n compatible con MATLAB -------------
-    // Implementa la lï¿½gica del local_extractShapeFeatures(matlab) usada por ExtractColorShapeFeatures.
+    // ----------------- Shape features (14) - versión compatible con MATLAB -------------
+    // Implementa la lógica del local_extractShapeFeatures(matlab) usada por ExtractColorShapeFeatures.
     static std::vector<double> local_extractShapeFeatures_14(const cv::Mat& I_float01) {
         const double tBlackMin = 0.03;
         const int minObjArea = 300;
@@ -320,7 +320,7 @@ namespace FeatureExtractor {
         }
         cv::Rect bb = cv::boundingRect(cntR[imaxR]);
         cv::Mat maskRc = maskR(bb);
-        cv::Mat maskN = (maskRc > 0); // NOTE: no scale normalization here, faithful a la versiï¿½n MATLAB
+        cv::Mat maskN = (maskRc > 0); // NOTE: no scale normalization here, faithful a la versión MATLAB
 
         // ---------------- region props ----------------
         std::vector<std::vector<cv::Point>> cntsN;
@@ -481,7 +481,11 @@ namespace FeatureExtractor {
     }
 
     // ----------------- Shape features (24, NEW STRUCTURAL VERSION) -----------------
+<<<<<<< HEAD
     //static std::vector<double> local_extractShapeFeatures(const cv::Mat& I_float01) {
+=======
+    static std::vector<double> local_extractShapeFeatures_24(const cv::Mat& I_float01) {
+>>>>>>> main
 
     //    const double tBlackMin = 0.03;
     //    const int minObjArea = 300;
@@ -1037,7 +1041,11 @@ namespace FeatureExtractor {
         if (I.channels() == 1) cvtColor(I, I, COLOR_GRAY2BGR);
 
         std::vector<double> featColor = local_extractColorFeatures(I);   // 8
+<<<<<<< HEAD
         std::vector<double> featShape = local_extractShapeFeatures(I);   // 14 o 24
+=======
+        std::vector<double> featShape = local_extractShapeFeatures_14(I);   // 14 (MATLAB-like)
+>>>>>>> main
 
         // Map values with MATLAB layout
         double H_mean_circ = featColor[0];
@@ -1052,8 +1060,12 @@ namespace FeatureExtractor {
         double Eccentricity = featShape[5];
         double EulerNumber = featShape[6];
         double SkelLenNorm = featShape[7];
-        // FD5 no estï¿½ en la versiï¿½n estructural -> sustituimos por StudsCountNormArea
+<<<<<<< HEAD
+        // FD5 no está en la versión estructural -> sustituimos por StudsCountNormArea
         double StudsCountNormArea = featShape[13];
+=======
+        double FD5 = featShape[13]; // FD5 en la posición 14 (1-based) -> índice 13
+>>>>>>> main
 
         feat = {
             Extent, Solidity, V_mean, Eccentricity, SkelLenNorm, Circularity,
@@ -1098,6 +1110,14 @@ namespace FeatureExtractor {
 //    }
 //
 
+<<<<<<< HEAD
+=======
+        Mat I = toFloat01(I_in); // BGR float 0..1
+        if (I.channels() == 1) cvtColor(I, I, COLOR_GRAY2BGR);
+
+        std::vector<double> sfeat = local_extractShapeFeatures_14(I); // 24
+        feat = sfeat;
+>>>>>>> main
 
 // Extrae las 14 caracteristicas de forma 
 void ExtractShapeFeatures(const Mat& I_in, std::vector<double>& feat, std::vector<std::string>& featNames) {
