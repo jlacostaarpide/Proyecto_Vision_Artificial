@@ -1,150 +1,147 @@
 %% ================================================================
 %% CLASIFICAR CARPETA: base (modelo M 12 feats) + cascada amarillo (9-12)
-%% (GT opcional: se extrae de los primeros dígitos del nombre)
-%% Requiere: trainedModel (modelo M) cargado + model_912 cargado
 %% ================================================================
+clear; clc;
 
-segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test3_local';
-outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest3_dobleClassificador.txt';
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
+outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador_6caracForma.txt';
+
+validCodes = {'01','02','03','04','05','06','07','08','09','10','11','12'};
+
+% --- Listar imágenes SOLO en la carpeta (jpg/png) y filtrar por 09/12 ---
+files = [dir(fullfile(segFolder,'*.jpg')); dir(fullfile(segFolder,'*.png')); dir(fullfile(segFolder,'*.jpeg'))];
+fprintf('Se han encontrado %d archivos de imagen en %s\n', numel(files), segFolder);
+
+isValid = false(numel(files),1);
+for i = 1:numel(files)
+    [~, baseName, ~] = fileparts(files(i).name);
+    partes = split(baseName, '_');
+    if ~isempty(partes) && ismember(partes{1}, validCodes)
+        isValid(i) = true;
+    end
+end
+files = files(isValid);
+[~,ix] = sort({files.name}); files = files(ix);
+fprintf('Tras filtrar por código se han encontrado %d archivos de imagen en %s\n', numel(files), segFolder);
+
+N = numel(files);
+if N == 0
+    error('No hay imágenes 09/12 en: %s', segFolder);
+end
 
 %--- Cargar modelo M (12 features) ---
 S = load("TrainedModelWith_Mtrain_12.mat");
 trainedModel = S.trainedModel;
 clear S;
 
-% --- Cargar refinador amarillo 9-12 (24 features de forma) ---
-S = load("C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Forma\TrainedModelWith_Ftrain_9_12_yellow_24carac.mat");
-model_912 = S.trainedModel;
+% --- Cargar refinador amarillo 9-12 (árbol) ---
+S = load("C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Forma\Clasificador Sencillo\tree_9v12_final.mat");
+if ~isfield(S,"model")
+    error("El .mat no contiene la variable 'model'.");
+end
+model_912 = S.model;          % struct con fields: tree, featNames
+tree_912  = model_912.tree;   % ClassificationTree
+featNames_shape = model_912.featNames;  % nombres EXACTOS esperados por el árbol
 clear S;
 
 % === RUTAS ORIENTACIÓN ===
 orientRoot = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Orientacion";
 templatesFolder = fullfile(orientRoot, "Templates_local");
-addpath(genpath(orientRoot)); % para predictYawPitch_byTemplate, extractMaskLego, etc.
+addpath(genpath(orientRoot));
 
-% OJO: como ya no usamos M_test, define aquí las 12 variables en el orden
-% exacto que espera el modelo M (mejor esto que depender de M_test).
+% --- PredictorNames del clasificador gordo (NO TOCAR) ---
 predictorNames = { ...
     'Extent','Solidity','V_mean','Eccentricity','SkelLenNorm','Circularity', ...
     'H_mean_circ','S_mean','V_IQR','S_median','FD5','EulerNumber' ...
 };
 
-% --- Variables EXACTAS para el refinador 9-12 (24 shape feats) ---
-featNames_shape = { ...
- 'AreaNorm','PerimNorm','Circularity','Extent','Solidity','Eccentricity','AspectRatio','EulerNumber', ...
- 'HolesCount','HolesAreaFrac','SkelLenNorm','SkelEndpoints','SkelBranchpoints', ...
- 'ProjV_peaks','ProjH_peaks','ProjV_entropy','ProjH_entropy', ...
- 'GridOccFrac_3x3','GridOccGini_3x3','GridOccDiagDiff_3x3', ...
- 'StudsCount','StudsCountNormArea','StudsMeanRadius','StudsRadiusStd' ...
-};
-
-% --- Listar imágenes reales en la carpeta ---
-exts = {'*.jpg','*.jpeg','*.png','*.bmp','*.tif','*.tiff','*.webp'};
-files = [];
-for e = 1:numel(exts)
-    files = [files; dir(fullfile(segFolder, exts{e}))]; %#ok<AGROW>
-end
-[~, idxSort] = sort({files.name});
-files = files(idxSort);
-
-N = numel(files);
-if N == 0
-    error('No se encontraron imágenes en: %s', segFolder);
-end
-
 % --- Abrir TXT ---
 fid = fopen(outputTxt,'w');
-if fid==-1
-    error('No se pudo crear el archivo: %s', outputTxt);
-end
+if fid==-1, error('No se pudo crear: %s', outputTxt); end
 
 fprintf(fid, 'EVALUACIÓN SOBRE CARPETA (modelo M + cascada 9-12)\n');
 fprintf(fid, '==================================================\n\n');
 fprintf(fid, 'Carpeta imágenes: %s\n\n', segFolder);
 
-nOK = 0;
-nFail = 0;
-nMissing = 0;   % aquí debería quedar 0 siempre
-nNoGT = 0;
-
-% contadores del refinador 9-12
-nRef912  = 0;
-nFlip912 = 0;
+nOK = 0; nFail = 0; nNoGT = 0;
+nRef912 = 0; nFlip912 = 0;
 
 failList   = strings(0,1);
 changeList = strings(0,1);
 
+% --- umbrales conservadores del refinador ---
+TH_PMAX   = 0.70;
+TH_MARGIN = 0.20;
+
 for i = 1:N
     imgName = files(i).name;
-    imgPath = fullfile(segFolder, imgName);
+    imgPath = fullfile(files(i).folder, imgName);
 
-    % Ground truth opcional desde nombre
     [hasGT, trueLabelStr] = parseGTfromFilename(imgName);
     if ~hasGT
         trueLabelStr = "---";
         nNoGT = nNoGT + 1;
     end
 
-    if ~isfile(imgPath)
-        fprintf(fid, '[%4d/%4d] %s | REAL=%s | PRED=--- | ERROR: NO FILE\n', ...
-            i, N, string(imgName), trueLabelStr);
-        nMissing = nMissing + 1;
-        continue;
-    end
-
-    % Leer imagen
     Ipiece = imread(imgPath);
 
     % =========================
-    % 1) BASE: Modelo M (12 feats)
+    % 1) BASE: Modelo M (12 feats)  (NO TOCAR)
     % =========================
-    feat12   = extractColorShapeFeatures(Ipiece); % 1x12 (tu función)
-    feat12   = feat12(:).';                        % fila
+    feat12   = extractColorShapeFeatures(Ipiece);
+    feat12   = feat12(:).';
     Xbase    = array2table(feat12, 'VariableNames', predictorNames);
 
     predictedLabel_base  = trainedModel.predictFcn(Xbase);
     predictedLabel_final = predictedLabel_base;
     refinador = "none";
 
-   
     % =========================
-    % 2) CASCADA AMARILLO 9-12 (si aplica)
+    % 2) CASCADA AMARILLO 9-12 (árbol)
     % =========================
-    pb_num = str2double(string(predictedLabel_base));  % "09"->9, "12"->12
+    pb_num = str2double(string(predictedLabel_base));
 
-    if isfinite(pb_num) && (pb_num==9 || pb_num==12)
-        nRef912 = nRef912 + 1;
-
-        feat24 = extractShapeFeatures(Ipiece);   % 1x14
-        feat24 = feat24(:).';                    % fila
-        Xref   = array2table(feat24, 'VariableNames', featNames_shape);
-
-        predictedLabel_ref = model_912.predictFcn(Xref);
-
-        predictedLabel_final = predictedLabel_ref;
-        refinador = "9-12";
-
-        if string(predictedLabel_final) ~= string(predictedLabel_base)
-            nFlip912 = nFlip912 + 1;
-            changeList(end+1,1) = sprintf('%s | REAL=%s | BASE=%s -> FINAL=%s | REF=%s', ...
-                string(imgName), string(trueLabelStr), string(predictedLabel_base), string(predictedLabel_final), refinador);
-        end
-    end
+%     if isfinite(pb_num) && (pb_num==9 || pb_num==12)
+%         nRef912 = nRef912 + 1;
+% 
+%         feat6 = extractShapeFeaturess(Ipiece);   % <- tu extractor de 6 feats
+%         feat6 = feat6(:).';
+% 
+%         Xref = array2table(feat6, 'VariableNames', featNames_shape);
+% 
+%         [predictedLabel_ref, score912] = predict(tree_912, Xref);
+%         predictedLabel_ref = string(predictedLabel_ref);
+% 
+%         pSort  = sort(score912,'descend');
+%         pMax   = pSort(1);
+%         margin = pSort(1) - pSort(2);
+% 
+%         if (pMax >= TH_PMAX) && (margin >= TH_MARGIN)
+%             predictedLabel_final = predictedLabel_ref;
+%             refinador = "9-12";
+%         end
+% 
+%         if string(predictedLabel_final) ~= string(predictedLabel_base)
+%             nFlip912 = nFlip912 + 1;
+%             changeList(end+1,1) = sprintf('%s | REAL=%s | BASE=%s -> FINAL=%s | REF=%s | pMax=%.3f margin=%.3f', ...
+%                 string(imgName), string(trueLabelStr), string(predictedLabel_base), string(predictedLabel_final), refinador, pMax, margin);
+%         end
+%         
+%     end
 
     % =========================
     % 3) ORIENTACIÓN (según código final)
     % =========================
-    codeFinal = string(predictedLabel_final); % "01".."12"
+    codeFinal = string(predictedLabel_final);
     [yaw, pitch, oScore, oGap] = predictOrientationFromTemplates(Ipiece, codeFinal, templatesFolder);
 
-
     % =========================
-    % 4) Comparar (solo si hay GT)
+    % 4) Comparar
     % =========================
     if hasGT
         isCorrect = (string(predictedLabel_final) == string(trueLabelStr));
     else
-        isCorrect = true; % no cuenta como fallo si no hay GT
+        isCorrect = true;
     end
 
     if hasGT
@@ -161,9 +158,6 @@ for i = 1:N
         resultStr = 'NO_GT';
     end
 
-    % =========================
-    % 5) Log por imagen (CON ORIENTACIÓN)
-    % =========================
     fprintf(fid, '[%4d/%4d] %s | REAL=%s | PRED_BASE=%s | PRED_FINAL=%s | REF=%s | ORI=%03d/%02d (s=%.3f g=%.3f) | %s\n', ...
         i, N, string(imgName), string(trueLabelStr), string(predictedLabel_base), string(predictedLabel_final), refinador, ...
         yaw, pitch, oScore, oGap, resultStr);
@@ -173,78 +167,55 @@ for i = 1:N
     end
 end
 
- 
-
-% --- Resumen ---
-totalEvaluated = nOK + nFail; % solo las que tienen GT y fueron evaluadas
+totalEvaluated = nOK + nFail;
 acc = 0;
 if totalEvaluated > 0
-    acc = 100 * (nOK / totalEvaluated);
+    acc = 100*(nOK/totalEvaluated);
 end
 
-fprintf(fid, '\n\nRESUMEN\n');
-fprintf(fid, '------\n');
+fprintf(fid, '\n\nRESUMEN\n------\n');
 fprintf(fid, 'Total imágenes carpeta     : %d\n', N);
-fprintf(fid, 'Imágenes no encontradas    : %d\n', nMissing);
 fprintf(fid, 'Imágenes sin GT en nombre  : %d\n', nNoGT);
 fprintf(fid, 'Evaluadas (con GT)         : %d\n', totalEvaluated);
 fprintf(fid, 'Aciertos                   : %d\n', nOK);
 fprintf(fid, 'Fallos                     : %d\n', nFail);
 fprintf(fid, 'Accuracy (solo con GT)     : %.2f %%\n', acc);
 
-fprintf(fid, '\nUSO REFINADOR 9-12\n');
-fprintf(fid, '-----------------\n');
+fprintf(fid, '\nUSO REFINADOR 9-12\n-----------------\n');
 fprintf(fid, 'Ref 9-12 usado            : %d\n', nRef912);
 fprintf(fid, 'Cambios BASE->FINAL (flip): %d\n', nFlip912);
 
-fprintf(fid, '\n\nLISTA DE FALLOS (si los hay)\n');
-fprintf(fid, '----------------------------\n');
+fprintf(fid, '\n\nLISTA DE FALLOS\n----------------------------\n');
 if nFail == 0
     fprintf(fid, 'Ninguno.\n');
 else
-    for k = 1:numel(failList)
-        fprintf(fid, '%s\n', failList(k));
-    end
+    for k = 1:numel(failList), fprintf(fid, '%s\n', failList(k)); end
 end
 
-fprintf(fid, '\n\nLISTA DE CAMBIOS (BASE -> FINAL)\n');
-fprintf(fid, '--------------------------------\n');
+fprintf(fid, '\n\nLISTA DE CAMBIOS (BASE -> FINAL)\n--------------------------------\n');
 if isempty(changeList)
-    fprintf(fid, 'Ninguno (el refinador nunca cambió la clase).\n');
+    fprintf(fid, 'Ninguno.\n');
 else
-    for k = 1:numel(changeList)
-        fprintf(fid, '%s\n', changeList(k));
-    end
+    for k = 1:numel(changeList), fprintf(fid, '%s\n', changeList(k)); end
 end
 
 fclose(fid);
-
-fprintf('\nHecho. TXT guardado en:\n%s\n', outputTxt);
+fprintf('\nHecho. TXT: %s\n', outputTxt);
 fprintf('Aciertos: %d | Fallos: %d | Acc: %.2f%% | Ref9-12 usado: %d | flips: %d\n', ...
     nOK, nFail, acc, nRef912, nFlip912);
 
-% --- helper: GT desde los primeros dígitos ---
 function [hasGT, gtStr] = parseGTfromFilename(fname)
     tok = regexp(fname, '^(\d{1,2})', 'tokens', 'once');
     if isempty(tok)
-        hasGT = false;
-        gtStr = "";
-        return;
+        hasGT = false; gtStr = ""; return;
     end
     v = str2double(tok{1});
     if ~isfinite(v)
-        hasGT = false;
-        gtStr = "";
-        return;
+        hasGT = false; gtStr = ""; return;
     end
     hasGT = true;
-    gtStr = sprintf('%02d', v); % "3" -> "03"
+    gtStr = sprintf('%02d', v);
 end
-
-
-
-
-
 
 function [yaw, pitch, bestScore, gap] = predictOrientationFromTemplates(Ipiece, codeStr, templatesFolder)
 % Devuelve yaw/pitch usando templates del código codeStr ("01".."12")

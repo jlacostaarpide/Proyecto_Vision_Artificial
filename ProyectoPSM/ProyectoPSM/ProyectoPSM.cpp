@@ -14,6 +14,9 @@
 #include "Clasificador.h"
 
 
+namespace fs = std::filesystem;
+
+
 // Si no funciona, borrar:
 #include <QMessageBox>
 #include <QFileInfo>
@@ -727,11 +730,18 @@ void ProyectoPSM::AbrirYClasificarOrientacion()
 
 //PRUEBAS DE CLASIFICACIÓN
 void ProyectoPSM::runEvalGlobal() {
+    //const char* args[] = {
+    //    "eval",
+    //    R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
+    //    R"(C:\Desarrollos\proyectoPSM\eval_out.txt)",      // outTxt
+    //    R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
+    //};
+
     const char* args[] = {
         "eval",
-        R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
-        R"(C:\Desarrollos\proyectoPSM\eval_out.txt)",      // outTxt
-        R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
+        R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)", // segFolder
+        R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\eval_out.txt)",      // outTxt
+        R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\modelM.yml)" // modelM.yml
     };
     int rc = RunEval(4, const_cast<char**>(args));
     if (rc != 0) {
@@ -744,12 +754,17 @@ void ProyectoPSM::runEvalGlobal() {
 void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
     // Usar raw string literals para preservar las barras invertidas sin escapes
-    opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
-    opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
+    //opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
+    opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
+    //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
+    opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
+
+
     opts.csvOut = ""; // opcional
     opts.doScale = true;
     opts.C = 1.0;
     opts.gamma = 0.0;
+
 
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");

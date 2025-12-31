@@ -84,22 +84,25 @@ static int predictWithSVM(const Ptr<SVM>& svm, const Mat& mean, const Mat& stdv,
 
 // ------------------------- TRAIN (copiado/adaptado de entrenarSVM.cpp) -------------------------
 int RunTrain(const TrainSVM::Options& opts) {
+
+    fs::path inPath = fs::path(QString::fromStdString(opts.inputFolder).toStdWString());
+
     // validar carpeta
-    if (!fs::exists(opts.inputFolder) || !fs::is_directory(opts.inputFolder)) {
-        qCritical() << "Input folder not found or not a directory:" << QString::fromStdString(opts.inputFolder);
+    if (!fs::exists(inPath) || !fs::is_directory(inPath)) {
+        qCritical() << "Input folder not found or not a directory:" << QString::fromStdWString(inPath.wstring());
         return 1;
     }
 
     // listar imágenes
     vector<fs::path> files;
-    for (auto& entry : fs::directory_iterator(opts.inputFolder)) {
+    for (auto& entry : fs::directory_iterator(inPath)) {
         if (!entry.is_regular_file()) continue;
         if (hasSupportedExt(entry.path())) files.push_back(entry.path());
     }
     std::sort(files.begin(), files.end());
 
     if (files.empty()) {
-        qCritical() << "No supported images found in:" << QString::fromStdString(opts.inputFolder);
+        qCritical() << "No supported images found in:" << QString::fromStdWString(inPath.wstring());
         return 1;
     }
 
@@ -241,7 +244,9 @@ int RunEval(int argc, char** argv) {
 
     qDebug("EMPIEZA EVAL");
 
-    string segFolder = argv[1];
+    QString segFolderQ = QString::fromUtf8(argv[1]);
+    fs::path segPath = fs::path(segFolderQ.toStdWString());
+
     string outTxt = argv[2];
     string modelM = argv[3];
     string modelMscaler;
@@ -272,20 +277,20 @@ int RunEval(int argc, char** argv) {
         }
     }
 
-    if (!fs::exists(segFolder) || !fs::is_directory(segFolder)) {
-        qCritical() << "segFolder not found:" << QString::fromStdString(segFolder);
+    if (!fs::exists(segPath) || !fs::is_directory(segPath)) {
+        qCritical() << "segFolder not found:" << segFolderQ;
         return 1;
     }
 
     // list files
     vector<fs::path> files;
-    for (auto& e : fs::directory_iterator(segFolder)) {
+    for (auto& e : fs::directory_iterator(segPath)) {
         if (!e.is_regular_file()) continue;
         if (hasSupportedExt(e.path())) files.push_back(e.path());
     }
     std::sort(files.begin(), files.end());
     int N = static_cast<int>(files.size());
-    if (N == 0) { qCritical() << "No images found in:" << QString::fromStdString(segFolder); return 1; }
+    if (N == 0) { qCritical() << "No images found in:" << segFolderQ; return 1; }
 
     // load SVM M
     Ptr<SVM> svmM;
@@ -323,7 +328,7 @@ int RunEval(int argc, char** argv) {
 
     for (int i = 0; i < N; ++i) {
         string imgName = files[i].filename().string();
-        string imgPath = files[i].string();
+        fs::path imgPath = files[i];
 
         std::regex rx(R"(^(\d{1,2}))");
         std::smatch m;
@@ -342,7 +347,7 @@ int RunEval(int argc, char** argv) {
 
         if (!fs::exists(imgPath)) { fout << "[" << (i + 1) << "/" << N << "] " << imgName << " | REAL=" << trueLabelStr << " | PRED=--- | ERROR: NO FILE\n"; nMissing++; continue; }
 
-        Mat Ipiece = imread(imgPath, IMREAD_COLOR);
+        Mat Ipiece = imread(imgPath.string(), IMREAD_COLOR);
         if (Ipiece.empty()) { fout << "[" << (i + 1) << "/" << N << "] " << imgName << " | REAL=" << trueLabelStr << " | PRED=--- | ERROR: CANNOT READ\n"; nMissing++; continue; }
 
         // BASE
@@ -432,13 +437,15 @@ int RunExtractTest(int argc, char** argv) {
 int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
    
     // If doLOO==true computes leave-one-out accuracy (printed) before training final model.
-    if (!fs::exists(opts.inputFolder) || !fs::is_directory(opts.inputFolder)) {
-        qCritical() << "Input folder not found or not a directory:" << QString::fromStdString(opts.inputFolder);
+    fs::path inPath = fs::path(QString::fromStdString(opts.inputFolder).toStdWString());
+
+    if (!fs::exists(inPath) || !fs::is_directory(inPath)) {
+        qCritical() << "Input folder not found or not a directory:" << QString::fromStdWString(inPath.wstring());
         return 1;
     }
 
     vector<fs::path> files;
-    for (auto& entry : fs::directory_iterator(opts.inputFolder)) {
+    for (auto& entry : fs::directory_iterator(inPath)) {
         if (!entry.is_regular_file()) continue;
         if (!hasSupportedExt(entry.path())) continue;
         files.push_back(entry.path());
