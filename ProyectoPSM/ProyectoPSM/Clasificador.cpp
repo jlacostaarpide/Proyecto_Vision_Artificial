@@ -16,6 +16,7 @@
 #include <iomanip>
 #include <QDebug>
 #include <QString>
+#include <random>
 
 #include "ExtractCaracteristicas.h"
 #include "Clasificador.h"
@@ -191,7 +192,7 @@ int RunTrain(const TrainSVM::Options& opts) {
         }
         // save scaler
         string scalerPath = (fs::path(opts.outModelPath).parent_path() /
-                             (fs::path(opts.outModelPath).stem().string() + "_scaler.yml")).string();
+            (fs::path(opts.outModelPath).stem().string() + "_scaler.yml")).string();
         FileStorage fsSc(scalerPath, FileStorage::WRITE);
         if (fsSc.isOpened()) {
             fsSc << "mean" << meanVec;
@@ -204,51 +205,121 @@ int RunTrain(const TrainSVM::Options& opts) {
         }
     }
 
-    // Leave-one-out cross-validation (optional) - similar strategy to RunTrainRefiner
-    if (opts.doLOO && samples.rows > 1) {
-        int correct = 0;
-        int attempted = 0;
-        int failTrain = 0;
-        qDebug() << "Starting leave-one-out (N =" << samples.rows << ") - this may be slow...";
-        for (int loo = 0; loo < samples.rows; ++loo) {
-            // build train set excluding loo
-            Mat trainS, trainR;
-            for (int r = 0; r < samples.rows; ++r) {
-                if (r == loo) continue;
-                trainS.push_back(samples.row(r));
-                trainR.push_back(responses.row(r));
+    // ---------------------------
+    // Sustituye LOO por Grid-Search K-fold (RBF)
+    // Ejecuta cuando opts.doGridSearch == true (comportamiento cambiado: ahora hace grid-search)
+    // ---------------------------
+    if (opts.doGridSearch && samples.rows > 1) {
+        // grid values (ajusta según necesites)
+        std::vector<double> Cvals = { 0.1, 1, 10, 100 };
+        std::vector<double> gammaVals = { 0.001, 0.01, 0.1, 1 };
+        int K = 5;
+        int N = samples.rows;
+        if (K > N) K = N;
+
+        std::vector<int> indices(N);
+        std::iota(indices.begin(), indices.end(), 0);
+
+        // shuffle fijo para reproducibilidad
+        std::mt19937 rng(1234);
+        std::shuffle(indices.begin(), indices.end(), rng);
+
+        auto crossValidateRBF = [&](double C, double gamma) -> double {
+            int correct = 0;
+            int total = 0;
+
+            for (int k = 0; k < K; ++k) {
+                cv::Mat trainS, trainR, testS, testR;
+
+                for (int i = 0; i < N; ++i) {
+                    int idx = indices[i];
+                    if ((i % K) == k) {
+                        testS.push_back(samples.row(idx));
+                        testR.push_back(responses.row(idx));
+                    }
+                    else {
+                        trainS.push_back(samples.row(idx));
+                        trainR.push_back(responses.row(idx));
+                    }
+                }
+
+                cv::Ptr<cv::ml::SVM> svm = cv::ml::SVM::create();
+                svm->setType(cv::ml::SVM::C_SVC);
+                svm->setKernel(cv::ml::SVM::RBF);
+                svm->setC(C);
+                svm->setGamma(gamma);
+                svm->setTermCriteria(
+                    cv::TermCriteria(
+                        cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS,
+                        2000, 1e-6));
+
+                bool okTrain = svm->train(trainS, cv::ml::ROW_SAMPLE, trainR);
+                if (!okTrain) continue;
+
+                for (int ti = 0; ti < testS.rows; ++ti) {
+                    int pred = static_cast<int>(svm->predict(testS.row(ti)));
+                    int gt = testR.at<int>(ti, 0);
+                    if (pred == gt) correct++;
+                    total++;
+                }
             }
 
-            // configure SVM (same hyperparams as main)
-            Ptr<SVM> svm = SVM::create();
-            svm->setType(SVM::C_SVC);
-            svm->setKernel(SVM::RBF); //svm->setKernel(SVM::POLY);
-            //svm->setDegree(2); //Se usa con POLY con RBF no
-            svm->setC(opts.C);
-            if (opts.gamma > 0.0) svm->setGamma(opts.gamma);
-            else svm->setGamma(1.0 / static_cast<double>(trainS.cols));
-            //svm->setCoef0(0.0); //Se usa con POLY con RBF no
-            svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 2000, 1e-6));
+            return (total > 0) ? (100.0 * static_cast<double>(correct) / static_cast<double>(total)) : 0.0;
+            };
 
-            bool ok = svm->train(trainS, ROW_SAMPLE, trainR);
-            if (!ok) { ++failTrain; continue; }
-            ++attempted;
+        double bestAcc = 0.0;
+        double bestC = Cvals.front();
+        double bestGamma = gammaVals.front();
 
-            Mat sampleRow;
-            samples.row(loo).convertTo(sampleRow, CV_32F);
-            float pred = svm->predict(sampleRow);
-            int ipred = static_cast<int>(pred);
-            int igt = responses.at<int>(loo, 0);
-            if (ipred == igt) correct++;
+        for (double C : Cvals) {
+            for (double gamma : gammaVals) {
 
-            if ((loo % 50) == 0) qDebug() << "LOO progress:" << loo << "/" << samples.rows;
+                double acc = crossValidateRBF(C, gamma);
+
+                qDebug() << "GridSearch: C =" << C
+                    << "gamma =" << gamma
+                    << "CV acc =" << acc << "%";
+
+                if (acc > bestAcc) {
+                    bestAcc = acc;
+                    bestC = C;
+                    bestGamma = gamma;
+                }
+            }
         }
-        double acc = attempted > 0 ? (100.0 * double(correct) / double(attempted)) : 0.0;
-        qDebug() << "LOO accuracy:" << correct << "/" << attempted << "(" << QString::number(acc, 'f', 2) << "% )"
-                 << "| failed train calls:" << failTrain;
+
+        qDebug() << "==============================";
+        qDebug() << "BEST PARAMETERS (grid-search):";
+        qDebug() << "C =" << bestC;
+        qDebug() << "gamma =" << bestGamma;
+        qDebug() << "CV accuracy =" << bestAcc << "%";
+
+        // Entrena modelo final RBF con mejores hiperparámetros
+        Ptr<SVM> svmRBF = SVM::create();
+        svmRBF->setType(SVM::C_SVC);
+        svmRBF->setKernel(SVM::RBF);
+        svmRBF->setC(bestC);
+        svmRBF->setGamma(bestGamma);
+        svmRBF->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 2000, 1e-6));
+
+        qDebug() << "Training final RBF SVM on" << samples.rows << "samples," << samples.cols << "features...";
+        bool trainOk = svmRBF->train(samples, ROW_SAMPLE, responses);
+        if (!trainOk) { qCritical() << "SVM training failed."; return 1; }
+
+        try {
+            svmRBF->save(opts.outModelPath);
+            qDebug() << "Saved SVM model to:" << QString::fromStdString(opts.outModelPath);
+        }
+        catch (std::exception& e) {
+            qCritical() << "Failed saving model:" << e.what();
+            return 1;
+        }
+
+        qDebug() << "Done (grid-search + train).";
+        return 0;
     }
 
-    // config SVM polinomio grado 2
+    // Si no se pidió grid-search (opts.doLOO == false), se entrena el SVM polinómico como antes.
     Ptr<SVM> svm = SVM::create();
     svm->setType(SVM::C_SVC);
     svm->setKernel(SVM::POLY);
@@ -411,7 +482,7 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
         }
         double acc = attempted > 0 ? (100.0 * double(correct) / double(attempted)) : 0.0;
         qDebug() << "LOO accuracy:" << correct << "/" << attempted << "(" << QString::number(acc, 'f', 2) << "% )"
-                 << "| failed train calls:" << failTrain;
+            << "| failed train calls:" << failTrain;
     }
 
     // Train final refiner on full data and save
