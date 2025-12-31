@@ -840,13 +840,28 @@ void ProyectoPSM::runEvalGlobal() {
     }
 }
 
+void ProyectoPSM::runEvalAmarillas() {
+    const char* args[] = {
+        "eval",
+        R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
+        R"(C:\Desarrollos\proyectoPSM\eval_amarillas_out.txt)",      // outTxt
+        R"(C:\Desarrollos\proyectoPSM\models\model912.yml)" // model912.yml
+    };
+    int rc = RunEval(4, const_cast<char**>(args));
+    if (rc != 0) {
+        std::cerr << "RunEval returned " << rc << "\n";
+        qDebug("eval terminada");
+
+    }
+}
+
 void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
     // Usar raw string literals para preservar las barras invertidas sin escapes
     //opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
     //opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
     opts.inputFolder = R"(../../Database/SEGMENTED)";
-    //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
+    //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)";
     opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
     opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/model912.yml)";
 
@@ -859,7 +874,7 @@ void ProyectoPSM::maybeTrain() {
 
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");
-        int r = RunTrainRefiner(opts,true);
+        int r = RunTrain(opts);
         if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
     }
     else {
