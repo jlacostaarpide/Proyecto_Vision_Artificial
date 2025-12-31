@@ -222,12 +222,12 @@ int RunTrain(const TrainSVM::Options& opts) {
             // configure SVM (same hyperparams as main)
             Ptr<SVM> svm = SVM::create();
             svm->setType(SVM::C_SVC);
-            svm->setKernel(SVM::POLY);
-            svm->setDegree(2);
+            svm->setKernel(SVM::RBF); //svm->setKernel(SVM::POLY);
+            //svm->setDegree(2); //Se usa con POLY con RBF no
             svm->setC(opts.C);
             if (opts.gamma > 0.0) svm->setGamma(opts.gamma);
             else svm->setGamma(1.0 / static_cast<double>(trainS.cols));
-            svm->setCoef0(0.0);
+            //svm->setCoef0(0.0); //Se usa con POLY con RBF no
             svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 2000, 1e-6));
 
             bool ok = svm->train(trainS, ROW_SAMPLE, trainR);
@@ -543,3 +543,4 @@ int RunEval(int argc, char** argv) {
     }
 
     // load refiner if requested (either passed by --refine or auto-detecte
+}
