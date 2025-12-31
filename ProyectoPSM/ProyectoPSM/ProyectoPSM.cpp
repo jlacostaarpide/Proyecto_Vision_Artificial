@@ -828,7 +828,7 @@ void ProyectoPSM::runEvalGlobal() {
     //};
     const char* args[] = {
         "eval",
-        R"(../../Database/SEGMENTED)",
+        R"(../../Database/SEGMENTED_TEST)",
         R"(../../Matlab/Clasificador/Clasificador C/eval_out.txt)",
         R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)"
     };

@@ -874,8 +874,8 @@ void ProyectoPSM::maybeTrain() {
 
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");
-        //int r = RunTrainRefiner(opts,true);
-        int r = RunTrain(opts);
+        //int r = RunTrainRefiner(opts,true); //Clasificador amarillo
+        int r = RunTrain(opts); //Clasificador gordo
 
 
         if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
