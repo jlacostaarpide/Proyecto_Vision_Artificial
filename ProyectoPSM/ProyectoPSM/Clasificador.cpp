@@ -574,7 +574,7 @@ int RunEval(int argc, char** argv) {
     int N = static_cast<int>(files.size());
     if (N == 0) { qCritical() << "No images found in:" << QString::fromStdString(segFolder); return 1; }
 
-    // load SVM M
+    // load main SVM model
     Ptr<SVM> svmM;
     try { svmM = Algorithm::load<SVM>(modelM); }
     catch (const cv::Exception& e) { qCritical() << "Failed loading modelM:" << e.what(); return 1; }
@@ -598,11 +598,9 @@ int RunEval(int argc, char** argv) {
                     string stem = entry.path().stem().string();
                     string name_l = name; std::transform(name_l.begin(), name_l.end(), name_l.begin(), ::tolower);
                     string stem_l = stem; std::transform(stem_l.begin(), stem_l.end(), stem_l.begin(), ::tolower);
-                    // buscamos indicios de un refiner (ej. "912", "refiner", "model912")
                     if (name_l.find("912") != string::npos || name_l.find("refiner") != string::npos ||
                         stem_l.find("912") != string::npos || stem_l.find("refiner") != string::npos) {
                         model912 = entry.path().string();
-                        // intentar encontrar scaler junto al modelo
                         fs::path trySc = entry.path().parent_path() / (entry.path().stem().string() + "_scaler.yml");
                         if (fs::exists(trySc)) model912scaler = trySc.string();
                         useRefiner = true;
@@ -618,5 +616,118 @@ int RunEval(int argc, char** argv) {
         }
     }
 
-    // load refiner if requested (either passed by --refine or auto-detecte
+    // load refiner if requested
+    Ptr<SVM> svm912;
+    Mat mean912, std912; bool hasScaler912 = false;
+    if (useRefiner && !model912.empty()) {
+        try {
+            svm912 = Algorithm::load<SVM>(model912);
+            if (!model912scaler.empty()) hasScaler912 = loadScalerIfExists(model912scaler, mean912, std912);
+            else {
+                fs::path p912(model912);
+                string tryPath = (p912.parent_path() / (p912.stem().string() + "_scaler.yml")).string();
+                hasScaler912 = loadScalerIfExists(tryPath, mean912, std912);
+            }
+            if (!svm912) {
+                qWarning() << "Refiner model specified but failed to load:" << QString::fromStdString(model912);
+                useRefiner = false;
+            }
+            else {
+                qDebug() << "Refiner loaded.";
+            }
+        }
+        catch (const cv::Exception& e) {
+            qWarning() << "Failed loading refiner model:" << e.what();
+            useRefiner = false;
+        }
+    }
+
+    // ensure output directory exists (best-effort)
+    {
+        fs::path outp(outTxt);
+        fs::path parent = outp.parent_path();
+        if (!parent.empty() && !fs::exists(parent)) {
+            try { fs::create_directories(parent); }
+            catch (...) { qWarning() << "Could not create output directory:" << QString::fromStdString(parent.string()); }
+        }
+    }
+
+    // open output file
+    std::ofstream out(outTxt, std::ios::out | std::ios::trunc);
+    if (!out.is_open()) {
+        qCritical() << "Cannot open output file for writing:" << QString::fromStdString(outTxt);
+        return 1;
+    }
+
+    // write header
+    out << "filename,gt,pred\n";
+
+    int total = 0;
+    int correct = 0;
+    int skipped = 0;
+
+    for (size_t i = 0; i < files.size(); ++i) {
+        const fs::path& p = files[i];
+        string fname = p.filename().string();
+
+        int gt = -1;
+        if (!parseGTfromFilenameInt(fname, gt)) {
+            qDebug() << "Skipping (no GT in filename):" << QString::fromStdString(fname);
+            skipped++;
+            continue;
+        }
+
+        Mat I = imread(p.string(), IMREAD_COLOR);
+        if (I.empty()) {
+            qDebug() << "Skipping (cannot read):" << QString::fromStdString(p.string());
+            skipped++;
+            continue;
+        }
+
+        // Extract combined features for main model
+        vector<double> feat;
+        vector<string> names;
+        FeatureExtractor::ExtractColorShapeFeatures(I, feat, names);
+        if (feat.empty()) {
+            qDebug() << "Skipping (no features extracted):" << QString::fromStdString(fname);
+            skipped++;
+            continue;
+        }
+
+        int pred = predictWithSVM(svmM, meanM, stdM, hasScalerM, feat);
+        // If refiner present, extract shape features and let refiner override for its target classes
+        if (useRefiner && svm912) {
+            vector<double> featS;
+            vector<string> namesS;
+            FeatureExtractor::ExtractShapeFeatures(I, featS, namesS);
+            if (!featS.empty()) {
+                int predR = predictWithSVM(svm912, mean912, std912, hasScaler912, featS);
+                // decide override logic: only override when refiner predicts a valid class (9 or 12),
+                // otherwise keep main prediction.
+                if (predR == 9 || predR == 12) pred = predR;
+            }
+        }
+
+        out << fname << "," << gt << "," << pred << "\n";
+
+        if (pred == gt) correct++;
+        total++;
+
+        if ((i % 50) == 0) qDebug() << "Eval progress:" << i << "/" << N;
+    }
+
+    double acc = total > 0 ? (100.0 * static_cast<double>(correct) / static_cast<double>(total)) : 0.0;
+
+    // summary
+    out << "\n#summary\n";
+    out << "total," << total << "\n";
+    out << "correct," << correct << "\n";
+    out << "skipped," << skipped << "\n";
+    out << "accuracy_pct," << std::fixed << std::setprecision(2) << acc << "\n";
+    out.close();
+
+    qDebug() << "EVAL finished. total=" << total << " correct=" << correct << " skipped=" << skipped
+        << " acc(%)=" << QString::number(acc, 'f', 2);
+
+    return 0;
 }
