@@ -218,8 +218,270 @@ namespace FeatureExtractor {
         return feat;
     }
 
+    // ----------------- Shape features (14) - versión compatible con MATLAB -------------
+    // Implementa la lógica del local_extractShapeFeatures(matlab) usada por ExtractColorShapeFeatures.
+    static std::vector<double> local_extractShapeFeatures_14(const cv::Mat& I_float01) {
+        const double tBlackMin = 0.03;
+        const int minObjArea = 300;
+        const int holeSmallMaxArea = 200;
+        const int closeRadius = 3;
+        const int openRadius = 2;
+        const int Nboundary = 128;
+        const int Kfourier = 5;
+
+        std::vector<double> feat(14, 0.0);
+        if (I_float01.empty()) return feat;
+
+        // grayscale
+        cv::Mat Ig;
+        if (I_float01.channels() == 3)
+            cv::cvtColor(I_float01, Ig, cv::COLOR_BGR2GRAY);
+        else
+            Ig = I_float01.clone();
+
+        // binary mask
+        cv::Mat mask = (Ig > tBlackMin);
+
+        // remove small objects (bwareaopen)
+        {
+            std::vector<std::vector<cv::Point>> cnts;
+            cv::findContours(mask.clone(), cnts, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+            cv::Mat clean = cv::Mat::zeros(mask.size(), CV_8U);
+            for (auto& c : cnts)
+                if (cv::contourArea(c) >= minObjArea)
+                    cv::drawContours(clean, std::vector<std::vector<cv::Point>>{c}, 0, 255, cv::FILLED);
+            mask = (clean > 0);
+        }
+
+        // close + open
+        cv::morphologyEx(mask, mask, cv::MORPH_CLOSE,
+            cv::getStructuringElement(cv::MORPH_ELLIPSE, Size(2 * closeRadius + 1, 2 * closeRadius + 1)));
+        cv::morphologyEx(mask, mask, cv::MORPH_OPEN,
+            cv::getStructuringElement(cv::MORPH_ELLIPSE, Size(2 * openRadius + 1, 2 * openRadius + 1)));
+
+        // fill holes and keep large holes
+        cv::Mat maskU8; mask.convertTo(maskU8, CV_8U, 255);
+        cv::Mat flood = maskU8.clone();
+        cv::floodFill(flood, Point(0, 0), Scalar(255));
+        cv::Mat floodInv; cv::bitwise_not(flood, floodInv);
+        cv::Mat maskFilled = maskU8 | floodInv;
+        cv::Mat holes = maskFilled & (~maskU8);
+
+        cv::Mat holesToFill = cv::Mat::zeros(holes.size(), CV_8U);
+        {
+            std::vector<std::vector<cv::Point>> hc;
+            cv::findContours(holes.clone(), hc, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+            for (auto& c : hc)
+                if (cv::contourArea(c) < holeSmallMaxArea)
+                    cv::drawContours(holesToFill, std::vector<std::vector<cv::Point>>{c}, 0, 255, cv::FILLED);
+        }
+        cv::bitwise_or(maskU8, holesToFill, maskU8);
+        mask = (maskU8 > 0);
+
+        // keep largest CC
+        std::vector<std::vector<cv::Point>> cnts;
+        cv::findContours(mask.clone(), cnts, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+        if (cnts.empty()) return feat;
+        int imax = 0;
+        double amax = 0;
+        for (int i = 0; i < (int)cnts.size(); ++i) {
+            double a = cv::contourArea(cnts[i]);
+            if (a > amax) { amax = a; imax = i; }
+        }
+
+        // orientation via PCA on largest contour
+        cv::Mat data((int)cnts[imax].size(), 2, CV_64F);
+        for (int i = 0; i < data.rows; ++i) {
+            data.at<double>(i, 0) = cnts[imax][i].x;
+            data.at<double>(i, 1) = cnts[imax][i].y;
+        }
+        cv::PCA pca(data, cv::Mat(), cv::PCA::DATA_AS_ROW);
+        double angle = atan2(pca.eigenvectors.at<double>(0, 1),
+            pca.eigenvectors.at<double>(0, 0)) * 180.0 / CV_PI;
+
+        // rotate + crop (loose)
+        cv::Point2f ctr(mask.cols / 2.f, mask.rows / 2.f);
+        cv::Mat R = cv::getRotationMatrix2D(ctr, -angle, 1.0);
+        cv::Rect bbox = cv::RotatedRect(ctr, mask.size(), -angle).boundingRect();
+        R.at<double>(0, 2) += bbox.width / 2.0 - ctr.x;
+        R.at<double>(1, 2) += bbox.height / 2.0 - ctr.y;
+
+        cv::Mat maskR;
+        cv::warpAffine(maskU8, maskR, R, bbox.size(), cv::INTER_NEAREST, BORDER_CONSTANT, Scalar(0));
+
+        // crop to bounding box of largest contour in rotated image
+        std::vector<std::vector<cv::Point>> cntR;
+        cv::findContours(maskR.clone(), cntR, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+        if (cntR.empty()) return feat;
+        int imaxR = 0; double amaxR = 0;
+        for (int i = 0; i < (int)cntR.size(); ++i) {
+            double a = cv::contourArea(cntR[i]);
+            if (a > amaxR) { amaxR = a; imaxR = i; }
+        }
+        cv::Rect bb = cv::boundingRect(cntR[imaxR]);
+        cv::Mat maskRc = maskR(bb);
+        cv::Mat maskN = (maskRc > 0); // NOTE: no scale normalization here, faithful a la versión MATLAB
+
+        // ---------------- region props ----------------
+        std::vector<std::vector<cv::Point>> cntsN;
+        cv::findContours(maskN.clone(), cntsN, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
+        if (cntsN.empty()) return feat;
+        int idxN = 0; double aNmax = 0;
+        for (int i = 0; i < (int)cntsN.size(); ++i) {
+            double a = cv::contourArea(cntsN[i]);
+            if (a > aNmax) { aNmax = a; idxN = i; }
+        }
+        double A = cv::countNonZero(maskN);
+        double P = std::max(cv::arcLength(cntsN[idxN], true), 1e-9);
+        double circ = 4.0 * CV_PI * A / (P * P + 1e-9);
+
+        cv::Rect bbN = cv::boundingRect(cntsN[idxN]);
+        double ext = A / std::max(1.0, (double)bbN.area());
+
+        std::vector<cv::Point> hull;
+        cv::convexHull(cntsN[idxN], hull);
+        double convexA = std::max(1e-9, cv::contourArea(hull));
+        double conv = A / convexA;
+
+        double maj = std::max(bbN.width, bbN.height);
+        double mino = std::min(bbN.width, bbN.height);
+        double aspect = maj / std::max(1.0, mino);
+        double ecc = sqrt(std::max(0.0, 1.0 - (mino * mino) / (maj * maj)));
+
+        // Euler + holes
+        cv::Mat filled = maskN.clone();
+        {
+            Mat temp = maskN.clone();
+            temp.convertTo(temp, CV_8U, 255);
+            Mat fl = temp.clone();
+            floodFill(fl, Point(0, 0), Scalar(255));
+            Mat flInv; bitwise_not(fl, flInv);
+            Mat filledU8 = temp | flInv;
+            filled = (filledU8 > 0);
+        }
+        cv::Mat holesN = (filled & (~maskN));
+        Mat labels;
+        int nlabels = cv::connectedComponents(holesN, labels);
+        int HolesCount = std::max(0, nlabels - 1);
+        double EulerNumber = 1 - HolesCount;
+
+        // ---------------- skeleton ----------------
+        cv::Mat skel = cv::Mat::zeros(maskN.size(), CV_8U);
+        cv::Mat m = maskN.clone();
+        cv::Mat element = getStructuringElement(MORPH_CROSS, Size(3, 3));
+        while (true) {
+            cv::Mat eroded; cv::erode(m, eroded, element);
+            cv::Mat tempOpen; cv::morphologyEx(eroded, tempOpen, MORPH_OPEN, element);
+            cv::Mat diff = eroded - tempOpen;
+            cv::bitwise_or(skel, diff, skel);
+            m = eroded.clone();
+            if (countNonZero(m) == 0) break;
+        }
+        double skelLen = cv::countNonZero(skel);
+        double skelLenNorm = skelLen / std::max(1.0, std::sqrt(A));
+
+        int nEnd = 0, nBranch = 0;
+        for (int r = 1; r < skel.rows - 1; ++r) {
+            for (int c = 1; c < skel.cols - 1; ++c) {
+                if (!skel.at<uchar>(r, c)) continue;
+                int n = 0;
+                for (int rr = -1; rr <= 1; ++rr)
+                    for (int cc = -1; cc <= 1; ++cc)
+                        if (rr != 0 || cc != 0)
+                            n += skel.at<uchar>(r + rr, c + cc) ? 1 : 0;
+                if (n == 1) nEnd++;
+                else if (n >= 3) nBranch++;
+            }
+        }
+
+        // ---------------- fourier descriptors FD2..FD5 ----------------
+        std::vector<double> fd(4, 0.0);
+        {
+            // use the contour points (CHAIN_APPROX_NONE gives full boundary)
+            std::vector<cv::Point> b = cntsN[idxN];
+            if (!b.empty()) {
+                int M = static_cast<int>(b.size());
+                // create complex vector z = x + i*y (MATLAB used x + i*y where x=b(:,2), y=b(:,1))
+                std::vector<std::complex<double>> z0(M);
+                for (int i = 0; i < M; ++i) {
+                    double x = static_cast<double>(b[i].x);
+                    double y = static_cast<double>(b[i].y);
+                    z0[i] = std::complex<double>(x, y);
+                }
+                // resample/interpolate to Nboundary points (linear)
+                std::vector<std::complex<double>> z(Nboundary);
+                if (M == 1) {
+                    for (int k = 0; k < Nboundary; ++k) z[k] = z0[0];
+                } else {
+                    for (int k = 0; k < Nboundary; ++k) {
+                        double idx = k * (M - 1.0) / (Nboundary - 1.0);
+                        int i0 = static_cast<int>(floor(idx));
+                        int i1 = static_cast<int>(ceil(idx));
+                        if (i1 >= M) i1 = M - 1;
+                        double frac = idx - i0;
+                        z[k] = z0[i0] * (1.0 - frac) + z0[i1] * frac;
+                    }
+                }
+                // subtract mean
+                std::complex<double> mean(0, 0);
+                for (auto& v : z) mean += v;
+                mean /= (double)z.size();
+                for (auto& v : z) v -= mean;
+
+                // prepare cv::Mat complex for DFT (CV_64FC2)
+                cv::Mat dftIn(Nboundary, 1, CV_64FC2);
+                for (int i = 0; i < Nboundary; ++i) {
+                    dftIn.at<cv::Vec2d>(i, 0)[0] = z[i].real();
+                    dftIn.at<cv::Vec2d>(i, 0)[1] = z[i].imag();
+                }
+                cv::Mat dftOut;
+                cv::dft(dftIn, dftOut, cv::DFT_ROWS);
+
+                // magnitudes
+                std::vector<double> mag(Nboundary, 0.0);
+                for (int i = 0; i < Nboundary; ++i) {
+                    double re = dftOut.at<cv::Vec2d>(i, 0)[0];
+                    double im = dftOut.at<cv::Vec2d>(i, 0)[1];
+                    mag[i] = std::hypot(re, im);
+                }
+                double den = std::max(mag.size() > 1 ? mag[1] : 0.0, 1e-12);
+                // MATLAB selected indices Z(3..6) -> zero-based 2..5
+                for (int k = 0; k < 4; ++k) {
+                    int idx = 2 + k;
+                    if (idx < (int)mag.size()) fd[k] = mag[idx] / den;
+                }
+            }
+        }
+
+        // ---------------- assemble ----------------
+        feat = {
+            circ, aspect, ext, conv, conv /* placeholder for Solidity? */,
+            ecc, EulerNumber,
+            skelLenNorm, (double)nEnd, (double)nBranch,
+            fd[0], fd[1], fd[2], fd[3]
+        };
+
+        // Note: MATLAB order in your provided script is:
+        // [circ, aspect, ext, sol, conv, ecc, euler, skelLenNorm, nEnd, nBranch, FD2, FD3, FD4, FD5]
+        // Above we placed 'conv' twice mistakenly in position 4 (index 3). Fix mapping to match MATLAB:
+        // set correct Solidity (sol) as ratio A/ConvexArea, and conv as ratio A/ConvexArea? MATLAB had conv = A / ConvexArea and sol = S.Solidity earlier
+        // We computed 'conv' as A / convexA and 'conv' variable currently holds that. We must also compute Solidity from regionprops; we didn't compute solidity earlier.
+        // Compute Solidity properly (A / convexA) is actually solidity, and conv (in MATLAB script) was defined as A / max(S.ConvexArea,1e-9) which is the same as solidity in practise.
+        // To follow the exact ordering expected by the MATLAB snippet, we set:
+        // position 4: sol (solidity)
+        // position 5: conv (convexity-like) - but both are same here; keep same value.
+
+        double Solidity = A / convexA;
+        double ConvMetric = A / convexA;
+
+        feat[3] = Solidity;   // sol
+        feat[4] = ConvMetric; // conv
+
+        return feat;
+    }
+
     // ----------------- Shape features (24, NEW STRUCTURAL VERSION) -----------------
-    static std::vector<double> local_extractShapeFeatures(const cv::Mat& I_float01) {
+    static std::vector<double> local_extractShapeFeatures_24(const cv::Mat& I_float01) {
 
         const double tBlackMin = 0.03;
         const int minObjArea = 300;
@@ -481,7 +743,7 @@ namespace FeatureExtractor {
         if (I_in.empty()) {
             feat.assign(12, 0.0);
             featNames = { "Extent","Solidity","V_mean","Eccentricity","SkelLenNorm","Circularity",
-                          "H_mean_circ","S_mean","V_IQR","S_median","StudsCountNormArea","EulerNumber" };
+                          "H_mean_circ","S_mean","V_IQR","S_median","FD5","EulerNumber" };
             return;
         }
 
@@ -490,32 +752,31 @@ namespace FeatureExtractor {
         if (I.channels() == 1) cvtColor(I, I, COLOR_GRAY2BGR);
 
         std::vector<double> featColor = local_extractColorFeatures(I);   // 8
-        std::vector<double> featShape = local_extractShapeFeatures(I);   // 24
+        std::vector<double> featShape = local_extractShapeFeatures_14(I);   // 14 (MATLAB-like)
 
-        // Map values with new shape layout
+        // Map values with MATLAB layout
         double H_mean_circ = featColor[0];
         double S_median = featColor[2];
         double V_IQR = featColor[5];
         double S_mean = featColor[6];
         double V_mean = featColor[7];
 
-        double Circularity = featShape[2];
-        double Extent = featShape[3];
-        double Solidity = featShape[4];
+        double Circularity = featShape[0];
+        double Extent = featShape[2];
+        double Solidity = featShape[3];
         double Eccentricity = featShape[5];
-        double EulerNumber = featShape[7];
-        double SkelLenNorm = featShape[10];
-        // FD5 no está en la versión estructural -> sustituimos por StudsCountNormArea
-        double StudsCountNormArea = featShape[21];
+        double EulerNumber = featShape[6];
+        double SkelLenNorm = featShape[7];
+        double FD5 = featShape[13]; // FD5 en la posición 14 (1-based) -> índice 13
 
         feat = {
             Extent, Solidity, V_mean, Eccentricity, SkelLenNorm, Circularity,
-            H_mean_circ, S_mean, V_IQR, S_median, StudsCountNormArea, EulerNumber
+            H_mean_circ, S_mean, V_IQR, S_median, FD5, EulerNumber
         };
 
         featNames = {
             "Extent","Solidity","V_mean","Eccentricity","SkelLenNorm","Circularity",
-            "H_mean_circ","S_mean","V_IQR","S_median","StudsCountNormArea","EulerNumber"
+            "H_mean_circ","S_mean","V_IQR","S_median","FD5","EulerNumber"
         };
     }
 
@@ -538,7 +799,7 @@ namespace FeatureExtractor {
         Mat I = toFloat01(I_in); // BGR float 0..1
         if (I.channels() == 1) cvtColor(I, I, COLOR_GRAY2BGR);
 
-        std::vector<double> sfeat = local_extractShapeFeatures(I); // 24
+        std::vector<double> sfeat = local_extractShapeFeatures_14(I); // 24
         feat = sfeat;
 
         featNames = {

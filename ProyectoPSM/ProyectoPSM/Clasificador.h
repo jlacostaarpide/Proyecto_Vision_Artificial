@@ -10,6 +10,7 @@ namespace TrainSVM {
         double C = 1.0;
         double gamma = 0.0;
         bool doScale = false;
+        bool doLOO = true; // nuevo: habilita Leave-One-Out durante train
     };
 }
 

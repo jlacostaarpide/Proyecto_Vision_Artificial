@@ -82,7 +82,8 @@ static int predictWithSVM(const Ptr<SVM>& svm, const Mat& mean, const Mat& stdv,
     return static_cast<int>(r);
 }
 
-// ------------------------- TRAIN (copiado/adaptado de entrenarSVM.cpp) -------------------------
+// ------------------------- TRAIN  -------------------------
+//Classificador global
 int RunTrain(const TrainSVM::Options& opts) {
     // validar carpeta
     if (!fs::exists(opts.inputFolder) || !fs::is_directory(opts.inputFolder)) {
@@ -203,6 +204,50 @@ int RunTrain(const TrainSVM::Options& opts) {
         }
     }
 
+    // Leave-one-out cross-validation (optional) - similar strategy to RunTrainRefiner
+    if (opts.doLOO && samples.rows > 1) {
+        int correct = 0;
+        int attempted = 0;
+        int failTrain = 0;
+        qDebug() << "Starting leave-one-out (N =" << samples.rows << ") - this may be slow...";
+        for (int loo = 0; loo < samples.rows; ++loo) {
+            // build train set excluding loo
+            Mat trainS, trainR;
+            for (int r = 0; r < samples.rows; ++r) {
+                if (r == loo) continue;
+                trainS.push_back(samples.row(r));
+                trainR.push_back(responses.row(r));
+            }
+
+            // configure SVM (same hyperparams as main)
+            Ptr<SVM> svm = SVM::create();
+            svm->setType(SVM::C_SVC);
+            svm->setKernel(SVM::POLY);
+            svm->setDegree(2);
+            svm->setC(opts.C);
+            if (opts.gamma > 0.0) svm->setGamma(opts.gamma);
+            else svm->setGamma(1.0 / static_cast<double>(trainS.cols));
+            svm->setCoef0(0.0);
+            svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 2000, 1e-6));
+
+            bool ok = svm->train(trainS, ROW_SAMPLE, trainR);
+            if (!ok) { ++failTrain; continue; }
+            ++attempted;
+
+            Mat sampleRow;
+            samples.row(loo).convertTo(sampleRow, CV_32F);
+            float pred = svm->predict(sampleRow);
+            int ipred = static_cast<int>(pred);
+            int igt = responses.at<int>(loo, 0);
+            if (ipred == igt) correct++;
+
+            if ((loo % 50) == 0) qDebug() << "LOO progress:" << loo << "/" << samples.rows;
+        }
+        double acc = attempted > 0 ? (100.0 * double(correct) / double(attempted)) : 0.0;
+        qDebug() << "LOO accuracy:" << correct << "/" << attempted << "(" << QString::number(acc, 'f', 2) << "% )"
+                 << "| failed train calls:" << failTrain;
+    }
+
     // config SVM polinomio grado 2
     Ptr<SVM> svm = SVM::create();
     svm->setType(SVM::C_SVC);
@@ -231,206 +276,9 @@ int RunTrain(const TrainSVM::Options& opts) {
     return 0;
 }
 
-// ------------------------- EVALUATE (adaptación compacta de EvaluacionClasificador.cpp) -------------------------
-static void printEvalUsage() {
-    qDebug() << "Usage: eval <segFolder> <outTxt> <modelM.yml> [modelM_scaler.yml] [--refine <model912.yml> [model912_scaler.yml]] [--templates <templatesFolder>]";
-}
-
-int RunEval(int argc, char** argv) {
-    if (argc < 4) { printEvalUsage(); return 1; }
-
-    qDebug("EMPIEZA EVAL");
-
-    string segFolder = argv[1];
-    string outTxt = argv[2];
-    string modelM = argv[3];
-    string modelMscaler;
-    string model912, model912scaler;
-    string templatesFolder;
-    bool useRefiner = false;
-
-    int idx = 4;
-    if (idx < argc && std::string(argv[idx]).rfind("--", 0) != 0) {
-        modelMscaler = argv[idx++];
-    }
-    for (; idx < argc; ++idx) {
-        string a = argv[idx];
-        if (a == "--refine" && idx + 1 < argc) {
-            useRefiner = true;
-            model912 = argv[++idx];
-            if (idx + 1 < argc && std::string(argv[idx + 1]).rfind("--", 0) != 0) {
-                model912scaler = argv[++idx];
-            }
-        }
-        else if (a == "--templates" && idx + 1 < argc) {
-            templatesFolder = argv[++idx];
-        }
-        else {
-            qCritical() << "Unknown arg:" << QString::fromStdString(a);
-            printEvalUsage();
-            return 1;
-        }
-    }
-
-    if (!fs::exists(segFolder) || !fs::is_directory(segFolder)) {
-        qCritical() << "segFolder not found:" << QString::fromStdString(segFolder);
-        return 1;
-    }
-
-    // list files
-    vector<fs::path> files;
-    for (auto& e : fs::directory_iterator(segFolder)) {
-        if (!e.is_regular_file()) continue;
-        if (hasSupportedExt(e.path())) files.push_back(e.path());
-    }
-    std::sort(files.begin(), files.end());
-    int N = static_cast<int>(files.size());
-    if (N == 0) { qCritical() << "No images found in:" << QString::fromStdString(segFolder); return 1; }
-
-    // load SVM M
-    Ptr<SVM> svmM;
-    try { svmM = Algorithm::load<SVM>(modelM); }
-    catch (const cv::Exception& e) { qCritical() << "Failed loading modelM:" << e.what(); return 1; }
-    Mat meanM, stdM; bool hasScalerM = false;
-    if (!modelMscaler.empty()) hasScalerM = loadScalerIfExists(modelMscaler, meanM, stdM);
-    else {
-        fs::path pm(modelM);
-        string tryPath = (pm.parent_path() / (pm.stem().string() + "_scaler.yml")).string();
-        hasScalerM = loadScalerIfExists(tryPath, meanM, stdM);
-    }
-
-    // load refiner if requested
-    Ptr<SVM> svm912;
-    Mat mean912, std912; bool hasScaler912 = false;
-    if (useRefiner) {
-        try { svm912 = Algorithm::load<SVM>(model912); }
-        catch (const cv::Exception& e) { qCritical() << "Failed loading refiner:" << e.what(); return 1; }
-        if (!model912scaler.empty()) hasScaler912 = loadScalerIfExists(model912scaler, mean912, std912);
-        else { // And similarly for model912 (if you use the refiner)
-            fs::path p912(model912);
-            string tryPath912 = (p912.parent_path() / (p912.stem().string() + "_scaler.yml")).string();
-            hasScaler912 = loadScalerIfExists(tryPath912, mean912, std912);
-        }
-    }
-
-    std::ofstream fout(outTxt);
-    if (!fout.is_open()) { qCritical() << "Cannot create output:" << QString::fromStdString(outTxt); return 1; }
-
-    int nOK = 0, nFail = 0, nMissing = 0, nNoGT = 0;
-    int nRef912 = 0, nFlip912 = 0;
-    std::vector<string> failList;
-    std::vector<string> changeList;
-
-    for (int i = 0; i < N; ++i) {
-        string imgName = files[i].filename().string();
-        string imgPath = files[i].string();
-
-        std::regex rx(R"(^(\d{1,2}))");
-        std::smatch m;
-        bool hasGT = false;
-        string trueLabelStr = "---";
-        if (std::regex_search(imgName, m, rx) && m.size() >= 2) {
-            try {
-                int v = std::stoi(m[1].str());
-                std::ostringstream ss; ss << std::setfill('0') << std::setw(2) << v;
-                trueLabelStr = ss.str();
-                hasGT = true;
-            }
-            catch (...) { hasGT = false; }
-        }
-        if (!hasGT) nNoGT++;
-
-        if (!fs::exists(imgPath)) { fout << "[" << (i + 1) << "/" << N << "] " << imgName << " | REAL=" << trueLabelStr << " | PRED=--- | ERROR: NO FILE\n"; nMissing++; continue; }
-
-        Mat Ipiece = imread(imgPath, IMREAD_COLOR);
-        if (Ipiece.empty()) { fout << "[" << (i + 1) << "/" << N << "] " << imgName << " | REAL=" << trueLabelStr << " | PRED=--- | ERROR: CANNOT READ\n"; nMissing++; continue; }
-
-        // BASE
-        vector<double> feat12; vector<string> tmpNames;
-        FeatureExtractor::ExtractColorShapeFeatures(Ipiece, feat12, tmpNames);
-        int predBase = predictWithSVM(svmM, meanM, stdM, hasScalerM, feat12);
-        string predBaseStr = (predBase < 0) ? string("---") : string();
-        if (predBase >= 0) { std::ostringstream ss; ss << std::setfill('0') << std::setw(2) << predBase; predBaseStr = ss.str(); }
-
-        string predFinalStr = predBaseStr;
-        string refinador = "none";
-
-        // REFINER 9-12
-        if (useRefiner && predBase >= 0 && (predBase == 9 || predBase == 12)) {
-            nRef912++;
-            vector<double> featShape; vector<string> shapeNames;
-            FeatureExtractor::ExtractShapeFeatures(Ipiece, featShape, shapeNames); // 14 features
-            int predRef = predictWithSVM(svm912, mean912, std912, hasScaler912, featShape);
-            string predRefStr = (predRef < 0) ? string("---") : string();
-            if (predRef >= 0) { std::ostringstream ss; ss << std::setfill('0') << std::setw(2) << predRef; predRefStr = ss.str(); }
-            predFinalStr = predRefStr;
-            refinador = "9-12";
-            if (predFinalStr != predBaseStr) {
-                nFlip912++;
-                std::ostringstream sschg;
-                sschg << imgName << " | REAL=" << trueLabelStr << " | BASE=" << predBaseStr << " -> FINAL=" << predFinalStr << " | REF=" << refinador;
-                changeList.push_back(sschg.str());
-            }
-        }
-
-        bool isCorrect = true;
-        if (hasGT) isCorrect = (predFinalStr == trueLabelStr);
-
-        if (hasGT) {
-            if (isCorrect) { nOK++; }
-            else { nFail++; std::ostringstream ss; ss << imgName << " | REAL=" << trueLabelStr << " | BASE=" << predBaseStr << " | FINAL=" << predFinalStr << " | REF=" << refinador; failList.push_back(ss.str()); }
-        }
-
-        fout << "[" << (i + 1) << "/" << N << "] " << imgName << " | REAL=" << trueLabelStr << " | PRED_BASE=" << predBaseStr << " | PRED_FINAL=" << predFinalStr << " | REF=" << refinador;
-        fout << " | " << (hasGT ? (isCorrect ? "OK" : "FAIL") : "NO_GT") << "\n";
-
-        if ((i + 1) % 50 == 0 || i == N - 1) qDebug() << "Procesadas" << (i + 1) << "/" << N;
-    }
-
-    int totalEvaluated = nOK + nFail;
-    double acc = 0.0;
-    if (totalEvaluated > 0) acc = 100.0 * (double(nOK) / double(totalEvaluated));
-
-    fout << "\n\nRESUMEN\n";
-    fout << "Total imágenes carpeta     : " << N << "\n";
-    fout << "Imágenes no encontradas    : " << nMissing << "\n";
-    fout << "Imágenes sin GT en nombre  : " << nNoGT << "\n";
-    fout << "Evaluadas (con GT)         : " << totalEvaluated << "\n";
-    fout << "Aciertos                   : " << nOK << "\n";
-    fout << "Fallos                     : " << nFail << "\n";
-    fout << "Accuracy (solo con GT)     : " << std::fixed << std::setprecision(2) << acc << " %\n\n";
-
-    fout << "USO REFINADOR 9-12\n";
-    fout << "Ref 9-12 usado            : " << nRef912 << "\n";
-    fout << "Cambios BASE->FINAL (flip): " << nFlip912 << "\n\n";
-
-    fout << "LISTA DE FALLOS\n";
-    if (nFail == 0) fout << "Ninguno.\n";
-    else for (auto& s : failList) fout << s << "\n";
-
-    fout.close();
-
-    qDebug() << "Hecho. TXT guardado en:" << QString::fromStdString(outTxt);
-    qDebug() << "Aciertos:" << nOK << "| Fallos:" << nFail << "| Acc:" << QString::number(acc, 'f', 2) + "%" << "| Ref9-12 usado:" << nRef912 << "| flips:" << nFlip912;
-    return 0;
-}
-
-// ------------------------- EXTRACT (pequeño test) -------------------------
-int RunExtractTest(int argc, char** argv) {
-    if (argc < 2) { qDebug() << "Usage: extract <image>"; return 1; }
-    Mat I = imread(argv[1], IMREAD_COLOR);
-    if (I.empty()) { qCritical() << "Cannot read image"; return 1; }
-    vector<double> feat; vector<string> names;
-    FeatureExtractor::ExtractColorShapeFeatures(I, feat, names);
-    qDebug() << "Extracted" << static_cast<int>(feat.size()) << "features:";
-    for (size_t i = 0; i < feat.size(); ++i) {
-        qDebug() << QString::fromStdString(names[i]) << "=" << feat[i];
-    }
-    return 0;
-}
- // Train a refiner SVM using only images whose GT is 9 or 12 and using shape features.
+//Clasificador refiner (9 vs 12) piezas amarillas
 int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
-   
+
     // If doLOO==true computes leave-one-out accuracy (printed) before training final model.
     if (!fs::exists(opts.inputFolder) || !fs::is_directory(opts.inputFolder)) {
         qCritical() << "Input folder not found or not a directory:" << QString::fromStdString(opts.inputFolder);
@@ -525,6 +373,8 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
     // Leave-one-out cross-validation (optional)
     if (doLOO && samples.rows > 1) {
         int correct = 0;
+        int attempted = 0;
+        int failTrain = 0;
         qDebug() << "Starting leave-one-out (N =" << samples.rows << ") - this may be slow...";
         for (int loo = 0; loo < samples.rows; ++loo) {
             // build train set excluding loo
@@ -547,7 +397,8 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
             svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER + TermCriteria::EPS, 2000, 1e-6));
 
             bool ok = svm->train(trainS, ROW_SAMPLE, trainR);
-            if (!ok) continue;
+            if (!ok) { ++failTrain; continue; }
+            ++attempted;
 
             Mat sampleRow;
             samples.row(loo).convertTo(sampleRow, CV_32F);
@@ -555,9 +406,12 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
             int ipred = static_cast<int>(pred);
             int igt = responses.at<int>(loo, 0);
             if (ipred == igt) correct++;
+
+            if ((loo % 50) == 0) qDebug() << "LOO progress:" << loo << "/" << samples.rows;
         }
-        double acc = 100.0 * double(correct) / double(samples.rows);
-        qDebug() << "LOO accuracy:" << correct << "/" << samples.rows << "(" << QString::number(acc, 'f', 2) << "% )";
+        double acc = attempted > 0 ? (100.0 * double(correct) / double(attempted)) : 0.0;
+        qDebug() << "LOO accuracy:" << correct << "/" << attempted << "(" << QString::number(acc, 'f', 2) << "% )"
+                 << "| failed train calls:" << failTrain;
     }
 
     // Train final refiner on full data and save
@@ -587,3 +441,105 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
     qDebug() << "Refiner training done.";
     return 0;
 }
+
+// ------------------------- EVALUATE (adaptación compacta de EvaluacionClasificador.cpp) -------------------------
+static void printEvalUsage() {
+    qDebug() << "Usage: eval <segFolder> <outTxt> <modelM.yml> [modelM_scaler.yml] [--refine <model912.yml> [model912_scaler.yml]] [--templates <templatesFolder>]";
+}
+
+int RunEval(int argc, char** argv) {
+    if (argc < 4) { printEvalUsage(); return 1; }
+
+    qDebug("EMPIEZA EVAL");
+
+    string segFolder = argv[1];
+    string outTxt = argv[2];
+    string modelM = argv[3];
+    string modelMscaler;
+    string model912, model912scaler;
+    string templatesFolder;
+    bool useRefiner = false;
+
+    int idx = 4;
+    if (idx < argc && std::string(argv[idx]).rfind("--", 0) != 0) {
+        modelMscaler = argv[idx++];
+    }
+    for (; idx < argc; ++idx) {
+        string a = argv[idx];
+        if (a == "--refine" && idx + 1 < argc) {
+            useRefiner = true;
+            model912 = argv[++idx];
+            if (idx + 1 < argc && std::string(argv[idx + 1]).rfind("--", 0) != 0) {
+                model912scaler = argv[++idx];
+            }
+        }
+        else if (a == "--templates" && idx + 1 < argc) {
+            templatesFolder = argv[++idx];
+        }
+        else {
+            qCritical() << "Unknown arg:" << QString::fromStdString(a);
+            printEvalUsage();
+            return 1;
+        }
+    }
+
+    if (!fs::exists(segFolder) || !fs::is_directory(segFolder)) {
+        qCritical() << "segFolder not found:" << QString::fromStdString(segFolder);
+        return 1;
+    }
+
+    // list files
+    vector<fs::path> files;
+    for (auto& e : fs::directory_iterator(segFolder)) {
+        if (!e.is_regular_file()) continue;
+        if (hasSupportedExt(e.path())) files.push_back(e.path());
+    }
+    std::sort(files.begin(), files.end());
+    int N = static_cast<int>(files.size());
+    if (N == 0) { qCritical() << "No images found in:" << QString::fromStdString(segFolder); return 1; }
+
+    // load SVM M
+    Ptr<SVM> svmM;
+    try { svmM = Algorithm::load<SVM>(modelM); }
+    catch (const cv::Exception& e) { qCritical() << "Failed loading modelM:" << e.what(); return 1; }
+    Mat meanM, stdM; bool hasScalerM = false;
+    if (!modelMscaler.empty()) hasScalerM = loadScalerIfExists(modelMscaler, meanM, stdM);
+    else {
+        fs::path pm(modelM);
+        string tryPath = (pm.parent_path() / (pm.stem().string() + "_scaler.yml")).string();
+        hasScalerM = loadScalerIfExists(tryPath, meanM, stdM);
+    }
+
+    // auto-detect refiner model near modelM if user didn't pass --refine
+    if (!useRefiner) {
+        try {
+            fs::path pm(modelM);
+            fs::path dir = pm.parent_path();
+            if (fs::exists(dir) && fs::is_directory(dir)) {
+                for (auto& entry : fs::directory_iterator(dir)) {
+                    if (!entry.is_regular_file()) continue;
+                    string name = entry.path().filename().string();
+                    string stem = entry.path().stem().string();
+                    string name_l = name; std::transform(name_l.begin(), name_l.end(), name_l.begin(), ::tolower);
+                    string stem_l = stem; std::transform(stem_l.begin(), stem_l.end(), stem_l.begin(), ::tolower);
+                    // buscamos indicios de un refiner (ej. "912", "refiner", "model912")
+                    if (name_l.find("912") != string::npos || name_l.find("refiner") != string::npos ||
+                        stem_l.find("912") != string::npos || stem_l.find("refiner") != string::npos) {
+                        model912 = entry.path().string();
+                        // intentar encontrar scaler junto al modelo
+                        fs::path trySc = entry.path().parent_path() / (entry.path().stem().string() + "_scaler.yml");
+                        if (fs::exists(trySc)) model912scaler = trySc.string();
+                        useRefiner = true;
+                        qDebug() << "Auto-detected refiner model:" << QString::fromStdString(model912)
+                            << (model912scaler.empty() ? "" : QString(" (scaler: %1)").arg(QString::fromStdString(model912scaler)));
+                        break;
+                    }
+                }
+            }
+        }
+        catch (const std::exception& e) {
+            qWarning() << "Refiner auto-detect failed:" << e.what();
+        }
+    }
+
+    // load refiner if requested (either passed by --refine or auto-detecte
