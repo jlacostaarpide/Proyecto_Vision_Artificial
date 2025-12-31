@@ -3,15 +3,19 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <QDebug>
 
 using namespace cv;
 using namespace std;
 
 // --- MÉTODO PRINCIPAL ---
-vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
+vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* debug)
 {
     vector<ResultadoPieza> resultados;
     if (inputBGR.empty()) return resultados;
+
+    // Guardar original si se pide debug
+    if (debug) debug->I_orig = inputBGR.clone();
 
     // =========================================================
     // 1. PRE-PROCESAMIENTO: CORRECCIÓN DE COLOR Y FONDO
@@ -35,8 +39,6 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
     double mean_R = meanScalar[2];
 
     // Balance de blancos (referencia: G)
-    // R_bal = R * (mean_G / mean_R)
-    // B_bal = B * (mean_G / mean_B)
     Mat R_bal, G_bal, B_bal;
 
     // Evitar división por cero
@@ -73,11 +75,9 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
     threshold(S_boosted, S_boosted, 1.0, 1.0, THRESH_TRUNC); // Clamp a 1.0
 
     // --- B. Corrección de Iluminación en V (División por Gaussiana) ---
-    // MATLAB: V_filt = imgaussfilt(V_raw, 120);
     Mat V_filt;
     GaussianBlur(V_raw, V_filt, Size(0, 0), 120);
 
-    // MATLAB: V_corrected = V_raw ./ max(V_filt(:))
     double minVal, maxValFilt;
     minMaxLoc(V_filt, &minVal, &maxValFilt);
 
@@ -91,7 +91,6 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
     threshold(V_corrected, V_corrected, 1.0, 1.0, THRESH_TRUNC);
 
     // --- Reconstruir HSV corregido y volver a RGB ---
-    // Esto imita: I_corrected = hsv2rgb(I_hsv_temp) en MATLAB
     channelsHSV[0] = H_raw;
     channelsHSV[1] = S_boosted;
     channelsHSV[2] = V_corrected;
@@ -100,12 +99,27 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
     Mat I_corrected;
     cvtColor(hsv_temp, I_corrected, COLOR_HSV2BGR);
 
+    // GUARDAR DEBUG: Normalizada
+    if (debug) {
+        Mat debugNorm;
+        I_corrected.convertTo(debugNorm, CV_8U, 255.0);
+        debug->I_norm = debugNorm;
+    }
+
     // --- Obtener canales finales para segmentación ---
-    // MATLAB: I_hsv = rgb2hsv(I_corrected);
     Mat I_hsv_final;
     cvtColor(I_corrected, I_hsv_final, COLOR_BGR2HSV);
     split(I_hsv_final, channelsHSV);
+    Mat H = channelsHSV[0];
     Mat S_final = channelsHSV[1]; // Este es el S que usaremos
+    Mat V = channelsHSV[2];
+
+    // GUARDAR DEBUG: Canales HSV
+    if (debug) {
+        H.convertTo(debug->H, CV_8U, 1.0);
+        S_final.convertTo(debug->S, CV_8U, 255.0);
+        V.convertTo(debug->V, CV_8U, 255.0);
+    }
 
     // =========================================================
     // 3. SEGMENTACIÓN (OTSU EN CANAL S)
@@ -114,10 +128,12 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
     // Convertir S a 8-bit [0..255] para usar Otsu de OpenCV
     Mat S_8u;
     S_final.convertTo(S_8u, CV_8U, 255.0);
+    if (debug) debug->S_proc = S_8u.clone();
 
     Mat mask_S;
     // THRESH_OTSU calcula automáticamente el umbral óptimo
     threshold(S_8u, mask_S, 0, 255, THRESH_BINARY | THRESH_OTSU);
+    if (debug) debug->mask_otsu = mask_S.clone();
 
     // =========================================================
     // 4. MORFOLOGÍA
@@ -130,13 +146,16 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
 
     // B. Relleno de huecos (imfill)
     mask_morph = ImFillHoles(mask_morph);
+    if (debug) debug->mask_fill = mask_morph.clone();
 
     // C. Limpieza de ruido (imopen disk 3 -> Size 7x7)
     Mat se_noise = getStructuringElement(MORPH_ELLIPSE, Size(7, 7));
     morphologyEx(mask_morph, mask_morph, MORPH_OPEN, se_noise);
+    if (debug) debug->mask_clean = mask_morph.clone();
 
     // D. Eliminar bordes (imclearborder)
     mask_morph = ImClearBorder(mask_morph);
+    if (debug) debug->mask_border = mask_morph.clone();
 
     // E. Cierre grande (imclose disk 14 -> Size 29x29)
     Mat se_merge = getStructuringElement(MORPH_ELLIPSE, Size(29, 29));
@@ -144,11 +163,13 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
 
     // F. Relleno final
     mask_morph = ImFillHoles(mask_morph);
+    if (debug) debug->mask_close = mask_morph.clone();
 
     // G. Suavizado final (imopen disk 4 -> Size 9x9)
     Mat se_smooth = getStructuringElement(MORPH_ELLIPSE, Size(9, 9));
     Mat mask_final;
     morphologyEx(mask_morph, mask_final, MORPH_OPEN, se_smooth);
+    if (debug) debug->mask_final = mask_final.clone();
 
     // =========================================================
     // 5. EXTRACCIÓN Y FILTRADO
@@ -157,7 +178,10 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
     vector<vector<Point>> contours;
     findContours(mask_final, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
-    if (contours.empty()) return resultados;
+    if (contours.empty()) {
+        qDebug() << "ALERTA: No se encontraron contornos tras la morfología.";
+        return resultados;
+    }
 
     // Calcular área máxima para filtro relativo
     double max_area = 0;
@@ -170,15 +194,21 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
     double umbral_area_rel = 0.15 * max_area;
     double umbral_area_abs = 1000.0;
     double umbral_ratio_max = 4.0;
-    double umbral_saturacion = 0.30; // 0.30 sobre 1.0
+    // MODIFICADO: Bajado de 0.30 a 0.20 para ser más tolerante
+    double umbral_saturacion = 0.20;
 
     int id_counter = 1;
+    qDebug() << "--- INICIO SEGMENTACIÓN ---";
+    qDebug() << "Max Area:" << max_area << " | Umbral Relativo:" << umbral_area_rel;
 
     for (const auto& cnt : contours) {
         double area = contourArea(cnt);
 
         // 1. Filtro Área
-        if (area <= umbral_area_rel || area <= umbral_area_abs) continue;
+        if (area <= umbral_area_rel || area <= umbral_area_abs) {
+            // qDebug() << "  [Descartado] Area insuficiente:" << area;
+            continue;
+        }
 
         Rect bbox = boundingRect(cnt);
 
@@ -188,7 +218,7 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
         double ratio = std::max(w, h) / std::min(w, h); // max(width, height) / min(width, height)
 
         if (ratio > umbral_ratio_max) {
-            // Descartado por forma alargada
+            qDebug() << "  [Descartado] Ratio alargado:" << ratio;
             continue;
         }
 
@@ -202,11 +232,12 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
         double meanSat = meanSatScalar[0];
 
         if (meanSat <= umbral_saturacion) {
-            // Descartado por baja saturación
+            qDebug() << "  [Descartado] Saturacion baja:" << meanSat << "(Umbral:" << umbral_saturacion << ")";
             continue;
         }
 
-        // --- OBJETO VÁLIDO ---
+        // --- OBJETO ACEPTADO ---
+        qDebug() << "  [ACEPTADO] ID:" << id_counter << " | Area:" << area << " | Sat:" << meanSat;
 
         // Calcular métricas adicionales
         Moments mu = moments(cnt);
@@ -266,15 +297,16 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR)
 }
 
 // --- IMPLEMENTACIONES AUXILIARES---
-
 Mat Segmentacion::ImFillHoles(const Mat& mask)
 {
-    Mat flood = mask.clone();
+    Mat mask_padded;
+    copyMakeBorder(mask, mask_padded, 1, 1, 1, 1, BORDER_CONSTANT, Scalar(0));
+    Mat flood = mask_padded.clone();
     floodFill(flood, Point(0, 0), Scalar(255));
     Mat invertido;
     bitwise_not(flood, invertido);
     Mat filled;
-    bitwise_or(mask, invertido, filled);
+    bitwise_or(mask_padded, invertido, filled);
     return filled;
 }
 

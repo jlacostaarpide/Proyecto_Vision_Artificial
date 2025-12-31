@@ -1,5 +1,5 @@
 // ClasificacionUnificada.cpp
-// Único ejecutable con subcomandos: train, eval, extract
+// ï¿½nico ejecutable con subcomandos: train, eval, extract
 // Compilable con C++14. Requiere ExtractCaracteristicas.cpp/h en el mismo proyecto.
 
 #include <opencv2/opencv.hpp>
@@ -85,22 +85,25 @@ static int predictWithSVM(const Ptr<SVM>& svm, const Mat& mean, const Mat& stdv,
 // ------------------------- TRAIN  -------------------------
 //Classificador global
 int RunTrain(const TrainSVM::Options& opts) {
+
+    fs::path inPath = fs::path(QString::fromStdString(opts.inputFolder).toStdWString());
+
     // validar carpeta
-    if (!fs::exists(opts.inputFolder) || !fs::is_directory(opts.inputFolder)) {
-        qCritical() << "Input folder not found or not a directory:" << QString::fromStdString(opts.inputFolder);
+    if (!fs::exists(inPath) || !fs::is_directory(inPath)) {
+        qCritical() << "Input folder not found or not a directory:" << QString::fromStdWString(inPath.wstring());
         return 1;
     }
 
-    // listar imágenes
+    // listar imï¿½genes
     vector<fs::path> files;
-    for (auto& entry : fs::directory_iterator(opts.inputFolder)) {
+    for (auto& entry : fs::directory_iterator(inPath)) {
         if (!entry.is_regular_file()) continue;
         if (hasSupportedExt(entry.path())) files.push_back(entry.path());
     }
     std::sort(files.begin(), files.end());
 
     if (files.empty()) {
-        qCritical() << "No supported images found in:" << QString::fromStdString(opts.inputFolder);
+        qCritical() << "No supported images found in:" << QString::fromStdWString(inPath.wstring());
         return 1;
     }
 
@@ -280,13 +283,15 @@ int RunTrain(const TrainSVM::Options& opts) {
 int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
 
     // If doLOO==true computes leave-one-out accuracy (printed) before training final model.
-    if (!fs::exists(opts.inputFolder) || !fs::is_directory(opts.inputFolder)) {
-        qCritical() << "Input folder not found or not a directory:" << QString::fromStdString(opts.inputFolder);
+    fs::path inPath = fs::path(QString::fromStdString(opts.inputFolder).toStdWString());
+
+    if (!fs::exists(inPath) || !fs::is_directory(inPath)) {
+        qCritical() << "Input folder not found or not a directory:" << QString::fromStdWString(inPath.wstring());
         return 1;
     }
 
     vector<fs::path> files;
-    for (auto& entry : fs::directory_iterator(opts.inputFolder)) {
+    for (auto& entry : fs::directory_iterator(inPath)) {
         if (!entry.is_regular_file()) continue;
         if (!hasSupportedExt(entry.path())) continue;
         files.push_back(entry.path());
@@ -442,7 +447,7 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
     return 0;
 }
 
-// ------------------------- EVALUATE (adaptación compacta de EvaluacionClasificador.cpp) -------------------------
+// ------------------------- EVALUATE (adaptaciï¿½n compacta de EvaluacionClasificador.cpp) -------------------------
 static void printEvalUsage() {
     qDebug() << "Usage: eval <segFolder> <outTxt> <modelM.yml> [modelM_scaler.yml] [--refine <model912.yml> [model912_scaler.yml]] [--templates <templatesFolder>]";
 }
