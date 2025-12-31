@@ -847,8 +847,8 @@ void ProyectoPSM::maybeTrain() {
     //opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
     opts.inputFolder = R"(../../Database/SEGMENTED)";
     //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
-    opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
-    opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/model912.yml)";
+    //opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
+    opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)";
 
 
     opts.csvOut = ""; // opcional
@@ -859,7 +859,9 @@ void ProyectoPSM::maybeTrain() {
 
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");
-        int r = RunTrainRefiner(opts,true);
+        //int r = RunTrainRefiner(opts,true);
+        int r = RunTrain(opts);
+
 
         if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
     }

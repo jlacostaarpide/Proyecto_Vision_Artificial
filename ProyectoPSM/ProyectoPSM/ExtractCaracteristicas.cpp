@@ -775,7 +775,7 @@ namespace FeatureExtractor {
         if (I.channels() == 1) cvtColor(I, I, COLOR_GRAY2BGR);
 
         std::vector<double> featColor = local_extractColorFeatures(I);   // 8
-        std::vector<double> featShape = local_extractShapeFeatures(I);   // 24
+        std::vector<double> featShape = local_extractShapeFeatures(I);   // 14 o 24
 
         // Map values with new shape layout
         double H_mean_circ = featColor[0];
@@ -784,14 +784,14 @@ namespace FeatureExtractor {
         double S_mean = featColor[6];
         double V_mean = featColor[7];
 
-        double Circularity = featShape[2];
-        double Extent = featShape[3];
-        double Solidity = featShape[4];
+        double Circularity = featShape[0];
+        double Extent = featShape[2];
+        double Solidity = featShape[3];
         double Eccentricity = featShape[5];
-        double EulerNumber = featShape[7];
-        double SkelLenNorm = featShape[10];
+        double EulerNumber = featShape[6];
+        double SkelLenNorm = featShape[7];
         // FD5 no está en la versión estructural -> sustituimos por StudsCountNormArea
-        double StudsCountNormArea = featShape[21];
+        double StudsCountNormArea = featShape[13];
 
         feat = {
             Extent, Solidity, V_mean, Eccentricity, SkelLenNorm, Circularity,
