@@ -180,7 +180,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
 	// Entrena si no hay modelo de clasificacion
     maybeTrain();
-    //runEvalGlobal();
+    runEvalGlobal();
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
@@ -828,7 +828,7 @@ void ProyectoPSM::runEvalGlobal() {
     //};
     const char* args[] = {
         "eval",
-        R"(../../Database/SEGMENTED)",
+        R"(../../Database/SEGMENTED_TEST)",
         R"(../../Matlab/Clasificador/Clasificador C/eval_out.txt)",
         R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)"
     };

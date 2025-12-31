@@ -1054,6 +1054,7 @@ namespace FeatureExtractor {
         double SkelLenNorm = featShape[7];
         // FD5 no est� en la versi�n estructural -> sustituimos por StudsCountNormArea
         double StudsCountNormArea = featShape[13];
+        double FD5 = featShape[13];
 
         feat = {
             Extent, Solidity, V_mean, Eccentricity, SkelLenNorm, Circularity,
