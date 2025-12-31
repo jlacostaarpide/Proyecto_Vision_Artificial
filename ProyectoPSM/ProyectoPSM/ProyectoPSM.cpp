@@ -124,7 +124,8 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
     // CLASIFICACION ORIENTACION:
     // Ruta ABSOLUTA (recomendada para que funcione ya)
-    orientTemplatesDir_ = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\ProyectoPSM\ProyectoPSM\Templates)";
+    //orientTemplatesDir_ = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\ProyectoPSM\ProyectoPSM\Templates)";
+    orientTemplatesDir_ = "Templates";
     // Crea el clasificador con esa carpeta
     orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
     orientTemplatesLoaded_ = false;
