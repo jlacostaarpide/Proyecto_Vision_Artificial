@@ -4,22 +4,22 @@
 %% Requiere: trainedModel (modelo M) cargado + model_912 cargado
 %% ================================================================
 
-segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local';
-outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador.txt';
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test3_local';
+outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest3_dobleClassificador.txt';
 
 %--- Cargar modelo M (12 features) ---
 S = load("TrainedModelWith_Mtrain_12.mat");
 trainedModel = S.trainedModel;
 clear S;
 
-% --- Cargar refinador amarillo 9-12 (14 features de forma) ---
+% --- Cargar refinador amarillo 9-12 (24 features de forma) ---
 S = load("C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Forma\TrainedModelWith_Ftrain_9_12_yellow_24carac.mat");
 model_912 = S.trainedModel;
 clear S;
 
 % === RUTAS ORIENTACIÓN ===
 orientRoot = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Orientacion";
-templatesFolder = fullfile(orientRoot, "Templates");
+templatesFolder = fullfile(orientRoot, "Templates_local");
 addpath(genpath(orientRoot)); % para predictYawPitch_byTemplate, extractMaskLego, etc.
 
 % OJO: como ya no usamos M_test, define aquí las 12 variables en el orden

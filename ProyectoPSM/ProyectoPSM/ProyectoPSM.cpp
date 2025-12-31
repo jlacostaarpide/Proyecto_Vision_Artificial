@@ -3,12 +3,24 @@
 #include <QFileDialog>
 #include <QFile>
 #include <QComboBox>
-#include "Segmentacion.h"
 #include <chrono>
 #include <QMetaType>
 #include <QDebug>
 #include <QPainter>
 #include <QApplication>
+#include <iostream>
+
+#include "Segmentacion.h"
+#include "Clasificador.h"
+
+
+namespace fs = std::filesystem;
+
+
+// Si no funciona, borrar:
+#include <QMessageBox>
+#include <QFileInfo>
+#include <QRegularExpression>
 
 // Necesario para pasar datos entre hilos
 Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
@@ -46,7 +58,7 @@ void DrawHistogram(QLabel* lbl, const cv::Mat& src) {
     cv::calcHist(&src, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
 
     // Calcular Otsu localmente para saber dónde pintar la línea
-    cv::Mat dummy; 
+    cv::Mat dummy;
     double otsuThresh = cv::threshold(src, dummy, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 
     // Configurar lienzo
@@ -165,7 +177,11 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     ui.tabWidget->setCurrentIndex(0);
     ui.tabWidgetAnalysis->setCurrentIndex(0);
     ui.tabWidgetDebug->setCurrentIndex(0);
-    
+
+	// Entrena si no hay modelo de clasificacion
+    maybeTrain();
+    runEvalGlobal();
+
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
     qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
@@ -178,6 +194,18 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     segInFlight = 0;
     SegmentationIntervalMs = 40;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
+
+
+    // CLASIFICACION ORIENTACION:
+    // Ruta ABSOLUTA (recomendada para que funcione ya)
+    //orientTemplatesDir_ = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\ProyectoPSM\ProyectoPSM\Templates)";
+    orientTemplatesDir_ = "Templates";
+    // Crea el clasificador con esa carpeta
+    orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
+    orientTemplatesLoaded_ = false;
+
+
+
 
     // 1. Inicializar Cámara
     Camera = new CVideoAcquisition();
@@ -227,6 +255,9 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
         connect(Camera, SIGNAL(NewImageSignal(Mat)), this, SLOT(NewImage(Mat)));
         Camera->SetCameraAutoExposure();
     }
+
+    // 6. Conectar boton Clasificador Orientacion:
+    connect(ui.btnClasificarOrientacion, SIGNAL(clicked()),this, SLOT(AbrirYClasificarOrientacion()));
 
     ImageIndex = 0;
     SavedImageIndex = 1;
@@ -568,7 +599,7 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 
     ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
     this->setUpdatesEnabled(true);
-    
+
     // Mostrar Resultado Principal
     cv::Mat displayImg = img.clone();
     for (const auto& res : resultados) {
@@ -675,5 +706,155 @@ void ProyectoPSM::SaveImage()
             ui.boxImageNumber->setValue(idx + 1);
             // El setValue disparará el signal valueChanged que llamará a UpdateFileNameLabel
         }
+    }
+}
+
+
+// helper: extrae code del nombre "02_045_090_001" -> "02"
+static std::string ExtractCodeFromFilename(const QString& baseName)
+{
+    // baseName: sin extensión, ej "02_045_090_001"
+    // queremos los 2 primeros dígitos antes del primer '_'
+    QRegularExpression re(R"(^(\d{2})_)");
+    auto m = re.match(baseName);
+    if (m.hasMatch()) return m.captured(1).toStdString();
+    return "";
+}
+
+void ProyectoPSM::AbrirYClasificarOrientacion()
+{
+    // 1) elegir imagen
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        tr("Abrir imagen de pieza"),
+        "",
+        tr("Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)")
+    );
+    if (fileName.isEmpty()) return;
+
+    // 2) leer con Qt -> cv::Mat (igual que tu CargarImagenDisco)
+    QFile f(fileName);
+    if (!f.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, "Error", "No se pudo abrir el archivo.");
+        return;
+    }
+    QByteArray fileData = f.readAll();
+    f.close();
+
+    std::vector<uchar> vec(fileData.begin(), fileData.end());
+    cv::Mat image = cv::imdecode(vec, cv::IMREAD_COLOR);
+    if (image.empty()) {
+        QMessageBox::warning(this, "Error", "La imagen no se pudo decodificar.");
+        return;
+    }
+
+    // 3) mostrarla en tu visor offline (reutiliza tu pipeline si quieres)
+    CapturedImage = image.clone();
+    ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
+
+    // opcional: muestra la imagen en lblOfflineMain directamente
+    {
+        cv::Mat rgb;
+        cv::cvtColor(CapturedImage, rgb, cv::COLOR_BGR2RGB);
+        QImage qimg(rgb.data, rgb.cols, rgb.rows, (int)rgb.step, QImage::Format_RGB888);
+        ui.lblOfflineMain->setPixmap(QPixmap::fromImage(qimg.copy()).scaled(
+            ui.lblOfflineMain->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+
+    // 4) extraer code desde el nombre
+    QFileInfo info(fileName);
+    QString base = info.completeBaseName();            // "02_045_090_001"
+    std::string code = ExtractCodeFromFilename(base); // "02"
+
+    if (code.empty()) {
+        QMessageBox::warning(this, "Nombre inválido",
+            "No he podido extraer el code del nombre.\n"
+            "Ejemplo esperado: 02_045_090_001.jpg");
+        return;
+    }
+
+    // 5) cargar plantillas (una sola vez)
+
+    if (!QFileInfo::exists(orientTemplatesDir_) || !QFileInfo(orientTemplatesDir_).isDir()) {
+        QMessageBox::critical(this, "Error",
+            "No existe la carpeta de templates:\n" + orientTemplatesDir_);
+        return;
+    }
+    if (!orientTemplatesLoaded_) {
+        if (!orientClf_ || !orientClf_->loadAllTemplates()) {
+            QMessageBox::critical(this, "Error",
+                "No se pudieron cargar las plantillas .yml/.yaml.\n"
+                "Revisa la ruta de templatesFolder_.");
+            return;
+        }
+        orientTemplatesLoaded_ = true;
+    }
+
+    // 6) clasificar orientación
+    // aquí pasas la imagen de la pieza; si ya vienes con recorte, pásale el recorte.
+    // ahora mismo pasamos la imagen completa.
+    OrientationResult r = orientClf_->predict(CapturedImage, code);
+
+    if (!r.ok) {
+        ui.lblOrientacionResult->setText(
+            QString("No se pudo clasificar (code=%1)").arg(QString::fromStdString(code)));
+        return;
+    }
+
+    ui.lblOrientacionResult->setText(
+        QString("code=%1   yaw=%2   pitch=%3   score=%4   gap=%5")
+        .arg(QString::fromStdString(r.matchedCode))
+        .arg(r.yaw)
+        .arg(r.pitch)
+        .arg(r.bestScore, 0, 'f', 4)
+        .arg(r.gap, 0, 'f', 4)
+    );
+}
+
+//PRUEBAS DE CLASIFICACIÓN
+void ProyectoPSM::runEvalGlobal() {
+    //const char* args[] = {
+    //    "eval",
+    //    R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
+    //    R"(C:\Desarrollos\proyectoPSM\eval_out.txt)",      // outTxt
+    //    R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
+    //};
+
+    const char* args[] = {
+        "eval",
+        R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)", // segFolder
+        R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\eval_out.txt)",      // outTxt
+        R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\modelM.yml)" // modelM.yml
+    };
+    int rc = RunEval(4, const_cast<char**>(args));
+    if (rc != 0) {
+        std::cerr << "RunEval returned " << rc << "\n";
+        qDebug("eval terminada");
+
+    }
+}
+
+void ProyectoPSM::maybeTrain() {
+    TrainSVM::Options opts;
+    // Usar raw string literals para preservar las barras invertidas sin escapes
+    //opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
+    opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
+    //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
+    opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
+
+
+    opts.csvOut = ""; // opcional
+    opts.doScale = true;
+    opts.C = 1.0;
+    opts.gamma = 0.0;
+
+
+    if (!std::filesystem::exists(opts.outModelPath)) {
+        qDebug("Entrenando modelo...");
+        int r = RunTrainRefiner(opts,true);
+        if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
+    }
+    else {
+        std::cout << "Modelo ya existe, omitiendo entrenamiento.\n";
     }
 }

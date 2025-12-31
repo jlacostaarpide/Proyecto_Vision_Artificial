@@ -49,7 +49,13 @@
     <ClCompile Include="Segmentacion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SegmentacionAvanzada.cpp">
+    <ClCompile Include="ClasificadorOrientacion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ExtractCaracteristicas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Clasificador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -60,9 +66,6 @@
     <QtMoc Include="ProyectoPSM.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="Segmentacion.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Capturar.h">
@@ -71,7 +74,16 @@
     <ClInclude Include="NameHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SegmentacionAvanzada.h">
+    <ClInclude Include="Segmentacion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ClasificadorOrientacion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ExtractCaracteristicas.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Clasificador.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
