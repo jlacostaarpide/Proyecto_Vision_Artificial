@@ -4,8 +4,11 @@
 %% Requiere: trainedModel (modelo M) cargado + model_912 cargado
 %% ================================================================
 
-segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test3_local';
-outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest3_dobleClassificador.txt';
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
+outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador_amarilloOk_24caracForma_100random.txt';
+
+validCodes = {'01','02','03','04','05','06','07','08','09','10','11','12'};
+
 
 %--- Cargar modelo M (12 features) ---
 S = load("TrainedModelWith_Mtrain_12.mat");
@@ -38,19 +41,42 @@ featNames_shape = { ...
  'StudsCount','StudsCountNormArea','StudsMeanRadius','StudsRadiusStd' ...
 };
 
-% --- Listar imágenes reales en la carpeta ---
-exts = {'*.jpg','*.jpeg','*.png','*.bmp','*.tif','*.tiff','*.webp'};
-files = [];
-for e = 1:numel(exts)
-    files = [files; dir(fullfile(segFolder, exts{e}))]; %#ok<AGROW>
+% Listar imágenes
+filesJPG = dir(fullfile(segFolder, '*.jpg'));
+filesPNG = dir(fullfile(segFolder, '*.png'));
+files    = [filesJPG; filesPNG];
+% Filtrar solo archivos cuyo nombre empiece por 09 o 12
+isValid = false(numel(files),1);
+
+for i = 1:numel(files)
+    [~, baseName, ~] = fileparts(files(i).name);
+    partes = split(baseName, '_');
+    if ~isempty(partes) && ismember(partes{1}, validCodes)
+        isValid(i) = true;
+    end
 end
-[~, idxSort] = sort({files.name});
-files = files(idxSort);
+
+files = files(isValid);
+
+fprintf('Tras filtrar por código (09,12): %d imágenes válidas\n', numel(files));
+
+
+% --- Seleccionar 100 imágenes aleatorias (o todas si hay menos) ---
+K = 100;
+N0 = numel(files);
+
+rng(1); % fija semilla para que sea reproducible (cambia o quita si quieres)
+K = min(K, N0);
+
+idx = randperm(N0, K);
+files = files(idx);
+
+% (opcional) reordenar alfabéticamente las 100 elegidas para que el TXT sea más legible
+[~, ix] = sort({files.name});
+files = files(ix);
 
 N = numel(files);
-if N == 0
-    error('No se encontraron imágenes en: %s', segFolder);
-end
+fprintf('Se evaluarán %d imágenes aleatorias de %s\n', N, segFolder);
 
 % --- Abrir TXT ---
 fid = fopen(outputTxt,'w');

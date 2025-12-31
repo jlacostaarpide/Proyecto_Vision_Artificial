@@ -1,6 +1,5 @@
 // ClasificacionUnificada.cpp
 // �nico ejecutable con subcomandos: train, eval, extract
-// Compilable con C++14. Requiere ExtractCaracteristicas.cpp/h en el mismo proyecto.
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/ml.hpp>
@@ -20,6 +19,7 @@
 
 #include "ExtractCaracteristicas.h"
 #include "Clasificador.h"
+#include "ExtractCaracteristicas24Refinador.h"
 
 namespace fs = std::filesystem;
 using namespace cv;
@@ -391,8 +391,8 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
 
         vector<double> feat;
         vector<string> names;
-        FeatureExtractor::ExtractShapeFeatures(I, feat, names); // shape-only
-        if (feat.empty()) { skipped++; continue; }
+        FeatureExtractor24::ExtractShapeFeatures24(I, feat, names);
+        if (feat.size() != 24) { skipped++; continue; }
 
         if (!featNamesSet) { featNames = names; featNamesSet = true; }
 
@@ -695,15 +695,12 @@ int RunEval(int argc, char** argv) {
         }
 
         int pred = predictWithSVM(svmM, meanM, stdM, hasScalerM, feat);
-        // If refiner present, extract shape features and let refiner override for its target classes
-        if (useRefiner && svm912) {
-            vector<double> featS;
-            vector<string> namesS;
-            FeatureExtractor::ExtractShapeFeatures(I, featS, namesS);
-            if (!featS.empty()) {
+
+        if (useRefiner && svm912 && (pred == 9 || pred == 12)) {
+            vector<double> featS; vector<string> namesS;
+            FeatureExtractor24::ExtractShapeFeatures24(I, featS, namesS);
+            if (featS.size() == 24) {
                 int predR = predictWithSVM(svm912, mean912, std912, hasScaler912, featS);
-                // decide override logic: only override when refiner predicts a valid class (9 or 12),
-                // otherwise keep main prediction.
                 if (predR == 9 || predR == 12) pred = predR;
             }
         }
