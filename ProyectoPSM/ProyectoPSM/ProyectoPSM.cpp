@@ -497,26 +497,36 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 {
     if (img.empty()) return;
 
-    // Asegurar que estamos en la sub-pestaña de Resultados
-    ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
     ui.lblOfflineMain->setText("Procesando...");
+
+	// Actualizar tamaños de las labels sin que el usuario lo note
+    this->setUpdatesEnabled(false);
+
+    ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabDebugSeg);
     QApplication::processEvents();
 
-    // Preparar estructura de Debug
-    DebugInfo debugData;
+	// Recorrer sub-pestañas
+    // Obliga a Qt a calcular el tamaño de los labels
+    int originalSubTab = ui.tabWidgetDebug->currentIndex();
+    for (int i = 0; i < ui.tabWidgetDebug->count(); i++) {
+        ui.tabWidgetDebug->setCurrentIndex(i);
+        QApplication::processEvents();
+    }
+    ui.tabWidgetDebug->setCurrentIndex(originalSubTab);
 
-    // Ejecutar Segmentación pasando el puntero
+    // Preparar datos y Segmentar
+    DebugInfo debugData;
     std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img, &debugData);
 
-    // RELLENAR PESTAÑAS DE DEBUG
+    // RELLENAR PESTAÑAS
     DisplayMat(ui.lblHSV_1_Orig, debugData.I_orig);
     DisplayMat(ui.lblHSV_2_Norm, debugData.I_norm);
-    DisplayMat(ui.lblHSV_3_H, debugData.H, true); // Visualizar como gris
-    DisplayMat(ui.lblHSV_4_S, debugData.S, true); // O aplicar colormap 'Jet' si quieres ser pro
+    DisplayMat(ui.lblHSV_3_H, debugData.H, true);
+    DisplayMat(ui.lblHSV_4_S, debugData.S, true);
     DisplayMat(ui.lblHSV_5_V, debugData.V, true);
 
     DisplayMat(ui.lblOtsu_1_S, debugData.S_proc, true);
-    DrawHistogram(ui.lblOtsu_2_Hist, debugData.S_proc); // Histograma
+    DrawHistogram(ui.lblOtsu_2_Hist, debugData.S_proc);
     DisplayMat(ui.lblOtsu_3_Mask, debugData.mask_otsu, true);
 
     DisplayMat(ui.lblMorph_1_Bin, debugData.mask_otsu, true);
@@ -526,7 +536,10 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     DisplayMat(ui.lblMorph_5_Close, debugData.mask_close, true);
     DisplayMat(ui.lblMorph_6_Final, debugData.mask_final, true);
 
-    // MOSTRAR RESULTADOS
+    ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
+    this->setUpdatesEnabled(true);
+    
+    // Mostrar Resultado Principal
     cv::Mat displayImg = img.clone();
     for (const auto& res : resultados) {
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
@@ -546,7 +559,7 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
         QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
         for (int i = 0; i < 3; i++) {
             if (i < resultados.size()) DisplayMat(thumbs[i], resultados[i].imagenRecortada);
-            else thumbs[i]->clear();
+            else { thumbs[i]->clear(); thumbs[i]->setText("---"); }
         }
     }
 }
