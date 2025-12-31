@@ -180,7 +180,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
 	// Entrena si no hay modelo de clasificacion
     maybeTrain();
-    //runEvalGlobal();
+    runEvalGlobal();
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
@@ -874,8 +874,8 @@ void ProyectoPSM::maybeTrain() {
 
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");
-        //int r = RunTrainRefiner(opts,true); //Clasificador amarillo
-        int r = RunTrain(opts); //Clasificador gordo
+        //int r = RunTrainRefiner(opts,true);
+        int r = RunTrain(opts);
 
 
         if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
