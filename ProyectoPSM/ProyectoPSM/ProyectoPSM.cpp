@@ -16,6 +16,53 @@ Q_DECLARE_METATYPE(std::vector<QRectF>)
 Q_DECLARE_METATYPE(std::vector<QImage>)
 
 
+
+// Función auxiliar para convertir cv::Mat a QPixmap y ponerlo en un Label
+void DisplayMat(QLabel* lbl, const cv::Mat& mat, bool isBinary = false) {
+    if (mat.empty()) { lbl->clear(); return; }
+
+    cv::Mat disp;
+    if (isBinary || mat.type() == CV_8UC1) {
+        // Si es gris/binaria, convertir a RGB para Qt
+        cv::cvtColor(mat, disp, cv::COLOR_GRAY2RGB);
+    }
+    else {
+        // Si es BGR, convertir a RGB
+        cv::cvtColor(mat, disp, cv::COLOR_BGR2RGB);
+    }
+
+    QImage qimg(disp.data, disp.cols, disp.rows, disp.step, QImage::Format_RGB888);
+    lbl->setPixmap(QPixmap::fromImage(qimg).scaled(lbl->size(), Qt::KeepAspectRatio));
+}
+
+void DrawHistogram(QLabel* lbl, const cv::Mat& src) {
+    if (src.empty()) return;
+
+    // Calcular histograma
+    int histSize = 256;
+    float range[] = { 0, 256 };
+    const float* histRange = { range };
+    cv::Mat hist;
+    cv::calcHist(&src, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
+
+    // Crear imagen blanca para pintar
+    int w = 400; int h = 300;
+    cv::Mat histImg(h, w, CV_8UC3, cv::Scalar(255, 255, 255));
+
+    cv::normalize(hist, hist, 0, histImg.rows, cv::NORM_MINMAX);
+
+    int bin_w = cvRound((double)w / histSize);
+    for (int i = 1; i < histSize; i++) {
+        cv::line(histImg,
+            cv::Point(bin_w * (i - 1), h - cvRound(hist.at<float>(i - 1))),
+            cv::Point(bin_w * (i), h - cvRound(hist.at<float>(i))),
+            cv::Scalar(0, 0, 255), 2); // Línea roja
+    }
+
+    DisplayMat(lbl, histImg);
+}
+
+
 // Segmentación en Segundo Plano
 void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
 {
@@ -450,61 +497,56 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 {
     if (img.empty()) return;
 
-    // A. Asegurar que estamos en la sub-pestaña de Resultados
+    // Asegurar que estamos en la sub-pestaña de Resultados
     ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
     ui.lblOfflineMain->setText("Procesando...");
     QApplication::processEvents();
 
-    // B. Ejecutar Segmentación
-    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
+    // Preparar estructura de Debug
+    DebugInfo debugData;
 
-    // C. Preparar la Imagen Central (Original + Cajas Verdes)
+    // Ejecutar Segmentación pasando el puntero
+    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img, &debugData);
+
+    // RELLENAR PESTAÑAS DE DEBUG
+    DisplayMat(ui.lblHSV_1_Orig, debugData.I_orig);
+    DisplayMat(ui.lblHSV_2_Norm, debugData.I_norm);
+    DisplayMat(ui.lblHSV_3_H, debugData.H, true); // Visualizar como gris
+    DisplayMat(ui.lblHSV_4_S, debugData.S, true); // O aplicar colormap 'Jet' si quieres ser pro
+    DisplayMat(ui.lblHSV_5_V, debugData.V, true);
+
+    DisplayMat(ui.lblOtsu_1_S, debugData.S_proc, true);
+    DrawHistogram(ui.lblOtsu_2_Hist, debugData.S_proc); // Histograma
+    DisplayMat(ui.lblOtsu_3_Mask, debugData.mask_otsu, true);
+
+    DisplayMat(ui.lblMorph_1_Bin, debugData.mask_otsu, true);
+    DisplayMat(ui.lblMorph_2_Fill, debugData.mask_fill, true);
+    DisplayMat(ui.lblMorph_3_Clean, debugData.mask_clean, true);
+    DisplayMat(ui.lblMorph_4_Border, debugData.mask_border, true);
+    DisplayMat(ui.lblMorph_5_Close, debugData.mask_close, true);
+    DisplayMat(ui.lblMorph_6_Final, debugData.mask_final, true);
+
+    // MOSTRAR RESULTADOS
     cv::Mat displayImg = img.clone();
-
-    // Dibujamos los recuadros sobre la imagen completa
     for (const auto& res : resultados) {
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
         cv::putText(displayImg, std::to_string(res.id),
             cv::Point(res.boundingBox.x, res.boundingBox.y - 10),
             cv::FONT_HERSHEY_SIMPLEX, 0.9, cv::Scalar(0, 255, 0), 2);
     }
+    DisplayMat(ui.lblOfflineMain, displayImg);
 
-    // Mostrar en el visor central (lblOfflineMain)
-    cv::Mat rgbDisplay;
-    if (displayImg.channels() == 3) cv::cvtColor(displayImg, rgbDisplay, cv::COLOR_BGR2RGB);
-    else cv::cvtColor(displayImg, rgbDisplay, cv::COLOR_GRAY2RGB);
-
-    QImage qDisplay(rgbDisplay.data, rgbDisplay.cols, rgbDisplay.rows, rgbDisplay.step, QImage::Format_RGB888);
-    ui.lblOfflineMain->setPixmap(QPixmap::fromImage(qDisplay).scaled(ui.lblOfflineMain->size(), Qt::KeepAspectRatio));
-
-    // D. Rellenar las Miniaturas Laterales (Recortes)
+    // Miniaturas
     if (resultados.empty()) {
-        ui.lblOfflineThumb1->clear();
-        ui.lblOfflineThumb2->clear();
-        ui.lblOfflineThumb3->clear();
+        ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
         ui.pbtnGuardar->setEnabled(false);
     }
     else {
         ui.pbtnGuardar->setEnabled(true);
-
         QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
-
         for (int i = 0; i < 3; i++) {
-            if (i < resultados.size()) {
-                cv::Mat p = resultados[i].imagenRecortada;
-                if (!p.empty()) {
-                    cv::Mat pRGB;
-                    if (p.channels() == 3) cv::cvtColor(p, pRGB, cv::COLOR_BGR2RGB);
-                    else cv::cvtColor(p, pRGB, cv::COLOR_GRAY2RGB);
-
-                    QImage qp(pRGB.data, pRGB.cols, pRGB.rows, pRGB.step, QImage::Format_RGB888);
-                    thumbs[i]->setPixmap(QPixmap::fromImage(qp).scaled(thumbs[i]->size(), Qt::KeepAspectRatio));
-                }
-            }
-            else {
-                thumbs[i]->clear();
-                thumbs[i]->setText("---");
-            }
+            if (i < resultados.size()) DisplayMat(thumbs[i], resultados[i].imagenRecortada);
+            else thumbs[i]->clear();
         }
     }
 }
