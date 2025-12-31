@@ -297,15 +297,16 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
 }
 
 // --- IMPLEMENTACIONES AUXILIARES---
-
 Mat Segmentacion::ImFillHoles(const Mat& mask)
 {
-    Mat flood = mask.clone();
+    Mat mask_padded;
+    copyMakeBorder(mask, mask_padded, 1, 1, 1, 1, BORDER_CONSTANT, Scalar(0));
+    Mat flood = mask_padded.clone();
     floodFill(flood, Point(0, 0), Scalar(255));
     Mat invertido;
     bitwise_not(flood, invertido);
     Mat filled;
-    bitwise_or(mask, invertido, filled);
+    bitwise_or(mask_padded, invertido, filled);
     return filled;
 }
 
