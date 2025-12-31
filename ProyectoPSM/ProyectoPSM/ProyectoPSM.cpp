@@ -136,6 +136,11 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
+	// Inicializar pestañas
+    ui.tabWidget->setCurrentIndex(0);
+    ui.tabWidgetAnalysis->setCurrentIndex(0);
+    ui.tabWidgetDebug->setCurrentIndex(0);
+    
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
     qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
