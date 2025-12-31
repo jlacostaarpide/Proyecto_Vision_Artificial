@@ -1,0 +1,18 @@
+EVALUACIÓN SOBRE CARPETA (modelo M + cascada 9-12)
+==================================================
+
+Carpeta imágenes: C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test3_local
+
+[   1/  16] 07_000_040_001.jpg | REAL=07 | PRED_BASE=01 | PRED_FINAL=01 | REF=none | ORI=270/40 (s=0.644 g=0.013) | FAIL
+[   2/  16] 07_000_040_002.jpg | REAL=07 | PRED_BASE=08 | PRED_FINAL=08 | REF=none | ORI=180/10 (s=0.518 g=0.011) | FAIL
+[   3/  16] 07_000_040_003.jpg | REAL=07 | PRED_BASE=01 | PRED_FINAL=01 | REF=none | ORI=090/90 (s=0.553 g=0.005) | FAIL
+[   4/  16] 07_000_040_004.jpg | REAL=07 | PRED_BASE=08 | PRED_FINAL=08 | REF=none | ORI=180/10 (s=0.657 g=0.064) | FAIL
+[   5/  16] 07_000_040_005.jpg | REAL=07 | PRED_BASE=07 | PRED_FINAL=07 | REF=none | ORI=315/10 (s=0.730 g=0.136) | OK
+[   6/  16] 08_000_040_001.jpg | REAL=08 | PRED_BASE=01 | PRED_FINAL=01 | REF=none | ORI=090/90 (s=0.591 g=0.023) | FAIL
+[   7/  16] 08_000_040_002.jpg | REAL=08 | PRED_BASE=08 | PRED_FINAL=08 | REF=none | ORI=180/70 (s=0.432 g=0.005) | OK
+[   8/  16] 08_000_040_003.jpg | REAL=08 | PRED_BASE=08 | PRED_FINAL=08 | REF=none | ORI=315/40 (s=0.581 g=0.005) | OK
+[   9/  16] 08_000_040_004.jpg | REAL=08 | PRED_BASE=08 | PRED_FINAL=08 | REF=none | ORI=045/10 (s=0.699 g=0.084) | OK
+[  10/  16] 08_000_040_005.jpg | REAL=08 | PRED_BASE=08 | PRED_FINAL=08 | REF=none | ORI=045/10 (s=0.702 g=0.078) | OK
+[  11/  16] 09_000_040_001.jpg | REAL=09 | PRED_BASE=11 | PRED_FINAL=11 | REF=none | ORI=270/40 (s=0.623 g=0.009) | FAIL
+[  12/  16] 09_000_040_002.jpg | REAL=09 | PRED_BASE=11 | PRED_FINAL=11 | REF=none | ORI=315/40 (s=0.690 g=0.012) | FAIL
+[  13/  16] 09_000_040_003.jpg | REAL=09 | PRED_BASE=11 | PRED_FINAL=11 | REF=none | ORI=270/40 (s=0.645 g=0.123) | FAIL

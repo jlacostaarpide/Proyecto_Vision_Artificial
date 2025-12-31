@@ -14,6 +14,9 @@
 #include "Clasificador.h"
 
 
+namespace fs = std::filesystem;
+
+
 // Si no funciona, borrar:
 #include <QMessageBox>
 #include <QFileInfo>
@@ -26,6 +29,76 @@ Q_DECLARE_METATYPE(std::vector<QImage>)
 
 
 
+// Función auxiliar para convertir cv::Mat a QPixmap y ponerlo en un Label
+void DisplayMat(QLabel* lbl, const cv::Mat& mat, bool isBinary = false) {
+    if (mat.empty()) { lbl->clear(); return; }
+
+    cv::Mat disp;
+    if (isBinary || mat.type() == CV_8UC1) {
+        // Si es gris/binaria, convertir a RGB para Qt
+        cv::cvtColor(mat, disp, cv::COLOR_GRAY2RGB);
+    }
+    else {
+        // Si es BGR, convertir a RGB
+        cv::cvtColor(mat, disp, cv::COLOR_BGR2RGB);
+    }
+
+    QImage qimg(disp.data, disp.cols, disp.rows, disp.step, QImage::Format_RGB888);
+    lbl->setPixmap(QPixmap::fromImage(qimg).scaled(lbl->size(), Qt::KeepAspectRatio));
+}
+
+void DrawHistogram(QLabel* lbl, const cv::Mat& src) {
+    if (src.empty()) return;
+
+    // Calcular histograma
+    int histSize = 256;
+    float range[] = { 0, 256 };
+    const float* histRange = { range };
+    cv::Mat hist;
+    cv::calcHist(&src, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
+
+    // Calcular Otsu localmente para saber dónde pintar la línea
+    cv::Mat dummy;
+    double otsuThresh = cv::threshold(src, dummy, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+    // Configurar lienzo
+    int w = 500; int h = 350;
+    int mX = 40;
+    int mY = 30;
+
+    cv::Mat histImg(h, w, CV_8UC3, cv::Scalar(255, 255, 255));
+
+    int plotHeight = h - 2 * mY;
+    int plotWidth = w - 2 * mX;
+    cv::normalize(hist, hist, 0, plotHeight, cv::NORM_MINMAX);
+
+    // Dibujar Ejes (Marco Negro)
+    cv::rectangle(histImg, cv::Point(mX, mY), cv::Point(w - mX, h - mY), cv::Scalar(0, 0, 0), 2);
+
+    // Dibujar Gráfica (Línea Roja)
+    for (int i = 1; i < histSize; i++) {
+        // Mapear índice 'i' (0-255) a coordenadas X de la gráfica
+        int x1 = mX + cvRound((i - 1) * ((double)plotWidth / 256));
+        int x2 = mX + cvRound((i) * ((double)plotWidth / 256));
+
+        // Mapear valor del histograma a coordenadas Y (invertido porque Y=0 es arriba)
+        int y1 = h - mY - cvRound(hist.at<float>(i - 1));
+        int y2 = h - mY - cvRound(hist.at<float>(i));
+
+        cv::line(histImg, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(0, 0, 255), 2, cv::LINE_AA);
+    }
+
+    // Dibujar Línea de Otsu (Azul)
+    int xTh = mX + cvRound(otsuThresh * ((double)plotWidth / 256));
+    cv::line(histImg, cv::Point(xTh, mY), cv::Point(xTh, h - mY), cv::Scalar(255, 0, 0), 2, cv::LINE_AA);
+
+    // Texto con el valor
+    std::string text = "T: " + std::to_string((int)otsuThresh);
+    cv::putText(histImg, text, cv::Point(xTh + 5, mY + 20),
+        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 0, 0), 2);
+
+    DisplayMat(lbl, histImg);
+}
 
 // Segmentación en Segundo Plano
 void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
@@ -100,10 +173,14 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
-	// entrena si no hay modelo de clasificacion
+	// Inicializar pestañas
+    ui.tabWidget->setCurrentIndex(0);
+    ui.tabWidgetAnalysis->setCurrentIndex(0);
+    ui.tabWidgetDebug->setCurrentIndex(0);
+
+	// Entrena si no hay modelo de clasificacion
     maybeTrain();
     //runEvalGlobal();
-
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
@@ -121,11 +198,12 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
     // CLASIFICACION ORIENTACION:
     // Ruta ABSOLUTA (recomendada para que funcione ya)
-    orientTemplatesDir_ = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\ProyectoPSM\ProyectoPSM\Templates)";
+    //orientTemplatesDir_ = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\ProyectoPSM\ProyectoPSM\Templates)";
+    orientTemplatesDir_ = "Templates";
     // Crea el clasificador con esa carpeta
     orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
     orientTemplatesLoaded_ = false;
-    
+
 
 
 
@@ -430,9 +508,9 @@ void ProyectoPSM::CapturarYAnalizar()
     CapturedImage = LastImage.clone();
 
     // 3. Parar segmentación en vivo para ahorrar recursos
-    if (ui.chkLiveSeg->isChecked()) {
-        ui.chkLiveSeg->setChecked(false);
-    }
+    //if (ui.chkLiveSeg->isChecked()) {
+    //    ui.chkLiveSeg->setChecked(false);
+    //}
 
     // 4. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
@@ -480,61 +558,69 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 {
     if (img.empty()) return;
 
-    // A. Asegurar que estamos en la sub-pestaña de Resultados
-    ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
     ui.lblOfflineMain->setText("Procesando...");
+
+	// Actualizar tamaños de las labels sin que el usuario lo note
+    this->setUpdatesEnabled(false);
+
+    ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabDebugSeg);
     QApplication::processEvents();
 
-    // B. Ejecutar Segmentación
-    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img);
+	// Recorrer sub-pestañas
+    // Obliga a Qt a calcular el tamaño de los labels
+    int originalSubTab = ui.tabWidgetDebug->currentIndex();
+    for (int i = 0; i < ui.tabWidgetDebug->count(); i++) {
+        ui.tabWidgetDebug->setCurrentIndex(i);
+        QApplication::processEvents();
+    }
+    ui.tabWidgetDebug->setCurrentIndex(originalSubTab);
 
-    // C. Preparar la Imagen Central (Original + Cajas Verdes)
+    // Preparar datos y Segmentar
+    DebugInfo debugData;
+    std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img, &debugData);
+
+    // RELLENAR PESTAÑAS
+    DisplayMat(ui.lblHSV_1_Orig, debugData.I_orig);
+    DisplayMat(ui.lblHSV_2_Norm, debugData.I_norm);
+    DisplayMat(ui.lblHSV_3_H, debugData.H, true);
+    DisplayMat(ui.lblHSV_4_S, debugData.S, true);
+    DisplayMat(ui.lblHSV_5_V, debugData.V, true);
+
+    DisplayMat(ui.lblOtsu_1_S, debugData.S_proc, true);
+    DrawHistogram(ui.lblOtsu_2_Hist, debugData.S_proc);
+    DisplayMat(ui.lblOtsu_3_Mask, debugData.mask_otsu, true);
+
+    DisplayMat(ui.lblMorph_1_Bin, debugData.mask_otsu, true);
+    DisplayMat(ui.lblMorph_2_Fill, debugData.mask_fill, true);
+    DisplayMat(ui.lblMorph_3_Clean, debugData.mask_clean, true);
+    DisplayMat(ui.lblMorph_4_Border, debugData.mask_border, true);
+    DisplayMat(ui.lblMorph_5_Close, debugData.mask_close, true);
+    DisplayMat(ui.lblMorph_6_Final, debugData.mask_final, true);
+
+    ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
+    this->setUpdatesEnabled(true);
+
+    // Mostrar Resultado Principal
     cv::Mat displayImg = img.clone();
-
-    // Dibujamos los recuadros sobre la imagen completa
     for (const auto& res : resultados) {
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
         cv::putText(displayImg, std::to_string(res.id),
             cv::Point(res.boundingBox.x, res.boundingBox.y - 10),
             cv::FONT_HERSHEY_SIMPLEX, 0.9, cv::Scalar(0, 255, 0), 2);
     }
+    DisplayMat(ui.lblOfflineMain, displayImg);
 
-    // Mostrar en el visor central (lblOfflineMain)
-    cv::Mat rgbDisplay;
-    if (displayImg.channels() == 3) cv::cvtColor(displayImg, rgbDisplay, cv::COLOR_BGR2RGB);
-    else cv::cvtColor(displayImg, rgbDisplay, cv::COLOR_GRAY2RGB);
-
-    QImage qDisplay(rgbDisplay.data, rgbDisplay.cols, rgbDisplay.rows, rgbDisplay.step, QImage::Format_RGB888);
-    ui.lblOfflineMain->setPixmap(QPixmap::fromImage(qDisplay).scaled(ui.lblOfflineMain->size(), Qt::KeepAspectRatio));
-
-    // D. Rellenar las Miniaturas Laterales (Recortes)
+    // Miniaturas
     if (resultados.empty()) {
-        ui.lblOfflineThumb1->clear();
-        ui.lblOfflineThumb2->clear();
-        ui.lblOfflineThumb3->clear();
+        ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
         ui.pbtnGuardar->setEnabled(false);
     }
     else {
         ui.pbtnGuardar->setEnabled(true);
-
         QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
-
         for (int i = 0; i < 3; i++) {
-            if (i < resultados.size()) {
-                cv::Mat p = resultados[i].imagenRecortada;
-                if (!p.empty()) {
-                    cv::Mat pRGB;
-                    if (p.channels() == 3) cv::cvtColor(p, pRGB, cv::COLOR_BGR2RGB);
-                    else cv::cvtColor(p, pRGB, cv::COLOR_GRAY2RGB);
-
-                    QImage qp(pRGB.data, pRGB.cols, pRGB.rows, pRGB.step, QImage::Format_RGB888);
-                    thumbs[i]->setPixmap(QPixmap::fromImage(qp).scaled(thumbs[i]->size(), Qt::KeepAspectRatio));
-                }
-            }
-            else {
-                thumbs[i]->clear();
-                thumbs[i]->setText("---");
-            }
+            if (i < resultados.size()) DisplayMat(thumbs[i], resultados[i].imagenRecortada);
+            else { thumbs[i]->clear(); thumbs[i]->setText("---"); }
         }
     }
 }
@@ -727,11 +813,24 @@ void ProyectoPSM::AbrirYClasificarOrientacion()
 
 //PRUEBAS DE CLASIFICACIÓN
 void ProyectoPSM::runEvalGlobal() {
+    //const char* args[] = {
+    //    "eval",
+    //    R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
+    //    R"(C:\Desarrollos\proyectoPSM\eval_out.txt)",      // outTxt
+    //    R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
+    //};
+
+    //const char* args[] = {
+    //    "eval",
+    //    R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)", // segFolder
+    //    R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\eval_out.txt)",      // outTxt
+    //    R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\modelM.yml)" // modelM.yml
+    //};
     const char* args[] = {
         "eval",
-        R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
-        R"(C:\Desarrollos\proyectoPSM\eval_out.txt)",      // outTxt
-        R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
+        R"(../../Database/SEGMENTED)",
+        R"(../../Matlab/Clasificador/Clasificador C/eval_out.txt)",
+        R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)"
     };
     int rc = RunEval(4, const_cast<char**>(args));
     if (rc != 0) {
@@ -759,12 +858,19 @@ void ProyectoPSM::runEvalAmarillas() {
 void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
     // Usar raw string literals para preservar las barras invertidas sin escapes
-    opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
-    opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)";
+    //opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
+    //opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
+    opts.inputFolder = R"(../../Database/SEGMENTED)";
+    //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)";
+    opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
+    opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/model912.yml)";
+
+
     opts.csvOut = ""; // opcional
     opts.doScale = true;
     opts.C = 1.0;
     opts.gamma = 0.0;
+
 
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");

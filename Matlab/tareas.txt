@@ -16,8 +16,13 @@ Tareas para C:
 
 
 
-
-
+Tareas interfaz:
+- Ajustes: Barras de ajuste de parámetros segmentación y Clasificación.
+- Rellenar tab de debug Segmentación: Como en matlab
+- Nueva tab: Entrenador. Input sera carpeta(s) con archivos. Outputs archivos de modelos. Ajustes? Barra de progreso?
+- Segmentación offline: A partir de imagen cargada.
+- Clasificación en tiempo real: Etiqueta con ficha y orientación. Sobre el objeto y debajo de la pieza segmentada.
+- Nueva subtab: Clasificación. Pensar que plots poner
 
 
 
