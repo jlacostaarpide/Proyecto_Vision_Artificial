@@ -77,6 +77,7 @@ private:
 	// función de entrenamiento si no hay modelo
     void maybeTrain();
     void runEvalGlobal();
+	void runEvalAmarillas();
 
 private slots:
     void EnableButtons(bool StartCapture);

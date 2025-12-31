@@ -840,6 +840,21 @@ void ProyectoPSM::runEvalGlobal() {
     }
 }
 
+void ProyectoPSM::runEvalAmarillas() {
+    const char* args[] = {
+        "eval",
+        R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
+        R"(C:\Desarrollos\proyectoPSM\eval_amarillas_out.txt)",      // outTxt
+        R"(C:\Desarrollos\proyectoPSM\models\model912.yml)" // model912.yml
+    };
+    int rc = RunEval(4, const_cast<char**>(args));
+    if (rc != 0) {
+        std::cerr << "RunEval returned " << rc << "\n";
+        qDebug("eval terminada");
+
+    }
+}
+
 void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
     // Usar raw string literals para preservar las barras invertidas sin escapes
