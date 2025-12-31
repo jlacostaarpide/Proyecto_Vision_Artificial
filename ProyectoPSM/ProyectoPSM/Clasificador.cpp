@@ -543,3 +543,4 @@ int RunEval(int argc, char** argv) {
     }
 
     // load refiner if requested (either passed by --refine or auto-detecte
+}
