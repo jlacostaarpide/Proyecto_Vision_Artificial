@@ -1,0 +1,8 @@
+EVALUACIÓN SOBRE CARPETA (modelo M + cascada 9-12)
+==================================================
+
+Carpeta imágenes: C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test3_local
+
+[   1/  16] 07_000_040_001.jpg | REAL=07 | PRED_BASE=01 | PRED_FINAL=12 | REF=9-12 | ORI=090/10 (s=0.598 g=0.042) | FAIL
+[   2/  16] 07_000_040_002.jpg | REAL=07 | PRED_BASE=08 | PRED_FINAL=09 | REF=9-12 | ORI=000/10 (s=0.451 g=0.014) | FAIL
+[   3/  16] 07_000_040_003.jpg | REAL=07 | PRED_BASE=01 | PRED_FINAL=09 | REF=9-12 | ORI=000/10 (s=0.467 g=0.037) | FAIL
