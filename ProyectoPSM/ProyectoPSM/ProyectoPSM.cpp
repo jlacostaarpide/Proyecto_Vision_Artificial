@@ -820,11 +820,17 @@ void ProyectoPSM::runEvalGlobal() {
     //    R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
     //};
 
+    //const char* args[] = {
+    //    "eval",
+    //    R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)", // segFolder
+    //    R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\eval_out.txt)",      // outTxt
+    //    R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\modelM.yml)" // modelM.yml
+    //};
     const char* args[] = {
         "eval",
-        R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)", // segFolder
-        R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\eval_out.txt)",      // outTxt
-        R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\modelM.yml)" // modelM.yml
+        R"(../../Database/SEGMENTED)",
+        R"(../../Matlab/Clasificador/Clasificador C/eval_out.txt)",
+        R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)"
     };
     int rc = RunEval(4, const_cast<char**>(args));
     if (rc != 0) {
@@ -838,9 +844,11 @@ void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
     // Usar raw string literals para preservar las barras invertidas sin escapes
     //opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
-    opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
+    //opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
+    opts.inputFolder = R"(../../Database/SEGMENTED)";
     //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
     opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
+    opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/model912.yml)";
 
 
     opts.csvOut = ""; // opcional
