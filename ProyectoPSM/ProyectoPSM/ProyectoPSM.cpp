@@ -45,23 +45,48 @@ void DrawHistogram(QLabel* lbl, const cv::Mat& src) {
     cv::Mat hist;
     cv::calcHist(&src, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
 
-    // Crear imagen blanca para pintar
-    int w = 400; int h = 300;
+    // Calcular Otsu localmente para saber dónde pintar la línea
+    cv::Mat dummy; 
+    double otsuThresh = cv::threshold(src, dummy, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+
+    // Configurar lienzo
+    int w = 500; int h = 350;
+    int mX = 40;
+    int mY = 30;
+
     cv::Mat histImg(h, w, CV_8UC3, cv::Scalar(255, 255, 255));
 
-    cv::normalize(hist, hist, 0, histImg.rows, cv::NORM_MINMAX);
+    int plotHeight = h - 2 * mY;
+    int plotWidth = w - 2 * mX;
+    cv::normalize(hist, hist, 0, plotHeight, cv::NORM_MINMAX);
 
-    int bin_w = cvRound((double)w / histSize);
+    // Dibujar Ejes (Marco Negro)
+    cv::rectangle(histImg, cv::Point(mX, mY), cv::Point(w - mX, h - mY), cv::Scalar(0, 0, 0), 2);
+
+    // Dibujar Gráfica (Línea Roja)
     for (int i = 1; i < histSize; i++) {
-        cv::line(histImg,
-            cv::Point(bin_w * (i - 1), h - cvRound(hist.at<float>(i - 1))),
-            cv::Point(bin_w * (i), h - cvRound(hist.at<float>(i))),
-            cv::Scalar(0, 0, 255), 2); // Línea roja
+        // Mapear índice 'i' (0-255) a coordenadas X de la gráfica
+        int x1 = mX + cvRound((i - 1) * ((double)plotWidth / 256));
+        int x2 = mX + cvRound((i) * ((double)plotWidth / 256));
+
+        // Mapear valor del histograma a coordenadas Y (invertido porque Y=0 es arriba)
+        int y1 = h - mY - cvRound(hist.at<float>(i - 1));
+        int y2 = h - mY - cvRound(hist.at<float>(i));
+
+        cv::line(histImg, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(0, 0, 255), 2, cv::LINE_AA);
     }
+
+    // Dibujar Línea de Otsu (Azul)
+    int xTh = mX + cvRound(otsuThresh * ((double)plotWidth / 256));
+    cv::line(histImg, cv::Point(xTh, mY), cv::Point(xTh, h - mY), cv::Scalar(255, 0, 0), 2, cv::LINE_AA);
+
+    // Texto con el valor
+    std::string text = "T: " + std::to_string((int)otsuThresh);
+    cv::putText(histImg, text, cv::Point(xTh + 5, mY + 20),
+        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(200, 0, 0), 2);
 
     DisplayMat(lbl, histImg);
 }
-
 
 // Segmentación en Segundo Plano
 void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
