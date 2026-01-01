@@ -1,0 +1,12 @@
+para entrenar: primero segmentar, luego extraer características de todas las fotos.
+		Luego Entrenamiento a partir de las características, y evaluación.
+
+Para clasificar: Primero clasificador global, luego 9-12, luego clasificador de orientación para cada clase.
+
+
+runtrain entrena el clasificador gordo modelM.yml
+runtrainrefiner entrena el clasificador amarillo (9-12) model912.yml
+
+RunEvalGlobal coge el modelo (yml) y llama a RunEval. Ese ejecuta la clasificación sobre todas las carpetas. 
+
+Necesitamos una funcion que con un modelo, clasifique una imagen.
