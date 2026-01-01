@@ -832,11 +832,14 @@ void ProyectoPSM::runEvalGlobal() {
         R"(../../Matlab/Clasificador/Clasificador C/eval_out.txt)",
         R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)"
     };
+    qDebug() << "RunEval outTxt =" << args[2];
     int rc = RunEval(4, const_cast<char**>(args));
-    if (rc != 0) {
-        std::cerr << "RunEval returned " << rc << "\n";
-        qDebug("eval terminada");
 
+    if (rc == 0) {
+        qDebug() << "EVAL OK. TXT guardado en:" << args[2];
+    }
+    else {
+        qDebug() << "EVAL FAIL. rc =" << rc << " | outTxt =" << args[2];
     }
 }
 
