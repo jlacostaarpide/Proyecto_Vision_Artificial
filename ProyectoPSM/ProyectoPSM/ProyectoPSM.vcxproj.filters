@@ -58,10 +58,7 @@
     <ClCompile Include="Clasificador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="entrenarSVM.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="EvaluacionClasificador.cpp">
+    <ClCompile Include="ExtractCaracteristicas24Refinador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -92,10 +89,7 @@
     <ClInclude Include="Clasificador.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="entrenarSVM.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="EvaluacionClasificador.h">
+    <ClInclude Include="ExtractCaracteristicas24Refinador.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

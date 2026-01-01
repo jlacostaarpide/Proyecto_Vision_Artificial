@@ -116,6 +116,7 @@
     <ClCompile Include="entrenarSVM.cpp" />
     <ClCompile Include="EvaluacionClasificador.cpp" />
     <ClCompile Include="ExtractCaracteristicas.cpp" />
+    <ClCompile Include="ExtractCaracteristicas24Refinador.cpp" />
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
     <ClCompile Include="VideoAcquisition.cpp" />
@@ -137,6 +138,7 @@
     <ClInclude Include="entrenarSVM.h" />
     <ClInclude Include="EvaluacionClasificador.h" />
     <ClInclude Include="ExtractCaracteristicas.h" />
+    <ClInclude Include="ExtractCaracteristicas24Refinador.h" />
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />
   </ItemGroup>

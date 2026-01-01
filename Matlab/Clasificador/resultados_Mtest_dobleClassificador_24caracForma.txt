@@ -64,6 +64,7 @@ Carpeta imágenes: C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Mu
 RESUMEN
 ------
 Total imágenes carpeta     : 56
+Imágenes no encontradas    : 0
 Imágenes sin GT en nombre  : 0
 Evaluadas (con GT)         : 56
 Aciertos                   : 35
@@ -76,7 +77,7 @@ Ref 9-12 usado            : 0
 Cambios BASE->FINAL (flip): 0
 
 
-LISTA DE FALLOS
+LISTA DE FALLOS (si los hay)
 ----------------------------
 04_000_10_001.jpg | REAL=04 | BASE=07 | FINAL=07 | REF=none
 08_000_10_001.jpg | REAL=08 | BASE=01 | FINAL=01 | REF=none
@@ -103,4 +104,4 @@ LISTA DE FALLOS
 
 LISTA DE CAMBIOS (BASE -> FINAL)
 --------------------------------
-Ninguno.
+Ninguno (el refinador nunca cambió la clase).

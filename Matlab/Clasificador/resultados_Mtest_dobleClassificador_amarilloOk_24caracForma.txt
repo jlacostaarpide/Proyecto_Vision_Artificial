@@ -39,44 +39,45 @@ Carpeta imágenes: C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Mu
 [  34/  56] 08_000_10_007.jpg | REAL=08 | PRED_BASE=07 | PRED_FINAL=07 | REF=none | ORI=270/10 (s=0.638 g=0.034) | FAIL
 [  35/  56] 08_000_10_008.jpg | REAL=08 | PRED_BASE=07 | PRED_FINAL=07 | REF=none | ORI=225/10 (s=0.489 g=0.005) | FAIL
 [  36/  56] 09_000_10_001.jpg | REAL=09 | PRED_BASE=05 | PRED_FINAL=05 | REF=none | ORI=135/40 (s=0.497 g=0.007) | FAIL
-[  37/  56] 09_000_10_002.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=045/10 (s=0.846 g=0.431) | OK
-[  38/  56] 09_000_10_003.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=045/70 (s=0.603 g=0.074) | OK
-[  39/  56] 09_000_10_004.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=135/10 (s=0.886 g=0.152) | OK
-[  40/  56] 09_000_10_005.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=135/10 (s=0.888 g=0.170) | OK
-[  41/  56] 09_000_10_006.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=000/40 (s=0.371 g=0.050) | OK
-[  42/  56] 09_000_10_007.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=180/90 (s=0.638 g=0.040) | OK
-[  43/  56] 09_000_10_008.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=180/10 (s=0.616 g=0.125) | OK
+[  37/  56] 09_000_10_002.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | ORI=045/10 (s=0.846 g=0.431) | OK
+[  38/  56] 09_000_10_003.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | ORI=045/70 (s=0.603 g=0.074) | OK
+[  39/  56] 09_000_10_004.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | ORI=135/10 (s=0.886 g=0.152) | OK
+[  40/  56] 09_000_10_005.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | ORI=135/10 (s=0.888 g=0.170) | OK
+[  41/  56] 09_000_10_006.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | ORI=000/40 (s=0.371 g=0.050) | OK
+[  42/  56] 09_000_10_007.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | ORI=180/90 (s=0.638 g=0.040) | OK
+[  43/  56] 09_000_10_008.jpg | REAL=09 | PRED_BASE=09 | PRED_FINAL=09 | REF=9-12 | ORI=180/10 (s=0.616 g=0.125) | OK
 [  44/  56] 09_000_10_009.jpg | REAL=09 | PRED_BASE=11 | PRED_FINAL=11 | REF=none | ORI=315/40 (s=0.579 g=0.047) | FAIL
 [  45/  56] 09_000_10_010.jpg | REAL=09 | PRED_BASE=04 | PRED_FINAL=04 | REF=none | ORI=000/40 (s=0.713 g=0.035) | FAIL
 [  46/  56] 09_000_10_011.jpg | REAL=09 | PRED_BASE=04 | PRED_FINAL=04 | REF=none | ORI=000/90 (s=0.679 g=0.013) | FAIL
 [  47/  56] 09_000_10_012.jpg | REAL=09 | PRED_BASE=04 | PRED_FINAL=04 | REF=none | ORI=045/90 (s=0.687 g=0.011) | FAIL
-[  48/  56] 12_000_10_001.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=000/10 (s=0.666 g=0.018) | FAIL
+[  48/  56] 12_000_10_001.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | ORI=180/70 (s=0.797 g=0.137) | OK
 [  49/  56] 12_000_10_002.jpg | REAL=12 | PRED_BASE=11 | PRED_FINAL=11 | REF=none | ORI=315/40 (s=0.613 g=0.008) | FAIL
-[  50/  56] 12_000_10_003.jpg | REAL=12 | PRED_BASE=12 | PRED_FINAL=12 | REF=none | ORI=135/40 (s=0.753 g=0.004) | OK
-[  51/  56] 12_000_10_004.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=315/40 (s=0.663 g=0.023) | FAIL
+[  50/  56] 12_000_10_003.jpg | REAL=12 | PRED_BASE=12 | PRED_FINAL=12 | REF=9-12 | ORI=135/40 (s=0.753 g=0.004) | OK
+[  51/  56] 12_000_10_004.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | ORI=135/40 (s=0.797 g=0.031) | OK
 [  52/  56] 12_000_10_005.jpg | REAL=12 | PRED_BASE=05 | PRED_FINAL=05 | REF=none | ORI=180/40 (s=0.636 g=0.044) | FAIL
-[  53/  56] 12_000_10_006.jpg | REAL=12 | PRED_BASE=12 | PRED_FINAL=12 | REF=none | ORI=135/10 (s=0.876 g=0.048) | OK
-[  54/  56] 12_000_10_007.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=270/70 (s=0.634 g=0.041) | FAIL
-[  55/  56] 12_000_10_008.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=270/70 (s=0.598 g=0.041) | FAIL
-[  56/  56] 12_000_10_009.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=09 | REF=none | ORI=270/70 (s=0.653 g=0.003) | FAIL
+[  53/  56] 12_000_10_006.jpg | REAL=12 | PRED_BASE=12 | PRED_FINAL=12 | REF=9-12 | ORI=135/10 (s=0.876 g=0.048) | OK
+[  54/  56] 12_000_10_007.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | ORI=135/70 (s=0.658 g=0.060) | OK
+[  55/  56] 12_000_10_008.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | ORI=135/70 (s=0.645 g=0.108) | OK
+[  56/  56] 12_000_10_009.jpg | REAL=12 | PRED_BASE=09 | PRED_FINAL=12 | REF=9-12 | ORI=135/70 (s=0.582 g=0.049) | OK
 
 
 RESUMEN
 ------
 Total imágenes carpeta     : 56
+Imágenes no encontradas    : 0
 Imágenes sin GT en nombre  : 0
 Evaluadas (con GT)         : 56
-Aciertos                   : 35
-Fallos                     : 21
-Accuracy (solo con GT)     : 62.50 %
+Aciertos                   : 40
+Fallos                     : 16
+Accuracy (solo con GT)     : 71.43 %
 
 USO REFINADOR 9-12
 -----------------
-Ref 9-12 usado            : 0
-Cambios BASE->FINAL (flip): 0
+Ref 9-12 usado            : 14
+Cambios BASE->FINAL (flip): 5
 
 
-LISTA DE FALLOS
+LISTA DE FALLOS (si los hay)
 ----------------------------
 04_000_10_001.jpg | REAL=04 | BASE=07 | FINAL=07 | REF=none
 08_000_10_001.jpg | REAL=08 | BASE=01 | FINAL=01 | REF=none
@@ -92,15 +93,14 @@ LISTA DE FALLOS
 09_000_10_010.jpg | REAL=09 | BASE=04 | FINAL=04 | REF=none
 09_000_10_011.jpg | REAL=09 | BASE=04 | FINAL=04 | REF=none
 09_000_10_012.jpg | REAL=09 | BASE=04 | FINAL=04 | REF=none
-12_000_10_001.jpg | REAL=12 | BASE=09 | FINAL=09 | REF=none
 12_000_10_002.jpg | REAL=12 | BASE=11 | FINAL=11 | REF=none
-12_000_10_004.jpg | REAL=12 | BASE=09 | FINAL=09 | REF=none
 12_000_10_005.jpg | REAL=12 | BASE=05 | FINAL=05 | REF=none
-12_000_10_007.jpg | REAL=12 | BASE=09 | FINAL=09 | REF=none
-12_000_10_008.jpg | REAL=12 | BASE=09 | FINAL=09 | REF=none
-12_000_10_009.jpg | REAL=12 | BASE=09 | FINAL=09 | REF=none
 
 
 LISTA DE CAMBIOS (BASE -> FINAL)
 --------------------------------
-Ninguno.
+12_000_10_001.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_004.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_007.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_008.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12
+12_000_10_009.jpg | REAL=12 | BASE=09 -> FINAL=12 | REF=9-12

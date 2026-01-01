@@ -174,11 +174,10 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     ui.tabWidgetAnalysis->setCurrentIndex(0);
     ui.tabWidgetDebug->setCurrentIndex(0);
 
-    // --- COMENTADO PARA EVITAR BLOQUEO AL INICIO ---
-    // Entrena si no hay modelo de clasificacion
+	// Entrena si no hay modelo de clasificacion
     //maybeTrain();
+    //runEvalAmarillas();
     //runEvalGlobal();
-    // -----------------------------------------------
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
@@ -929,24 +928,16 @@ void ProyectoPSM::runEvalGlobal() {
 }
 
 void ProyectoPSM::runEvalAmarillas() {
-    // Ojo: Estas rutas absolutas hay que quitarlas
-    const char* args[] = {
-        "eval",
-        R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
-        R"(C:\Desarrollos\proyectoPSM\eval_amarillas_out.txt)",      // outTxt
-        R"(C:\Desarrollos\proyectoPSM\models\model912.yml)" // model912.yml
-    };
-    int rc = RunEval(4, const_cast<char**>(args));
-    if (rc != 0) {
-        std::cerr << "RunEval returned " << rc << "\n";
-        qDebug("eval terminada");
-
-    }
+    RunEvalRefinerOnly(
+        R"(../../Database/SEGMENTED_TEST_AMARILLAS)",
+        R"(../../Matlab/Clasificador/Clasificador C/eval_refiner_only.txt)",
+        R"(../../Matlab/Clasificador/Clasificador C/model912.yml)"
+    );
 }
 
 void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
-    opts.inputFolder = R"(../../Database/SEGMENTED)";
+    opts.inputFolder = R"(../../Database/SEGMENTED_TRAIN)";
     opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)";
 
     opts.csvOut = ""; // opcional

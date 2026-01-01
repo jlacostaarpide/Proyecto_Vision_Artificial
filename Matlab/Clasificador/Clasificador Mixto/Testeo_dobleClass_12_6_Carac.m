@@ -3,8 +3,8 @@
 %% ================================================================
 clear; clc;
 
-segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED';
-outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador_6caracForma.txt';
+segFolder  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_test2_local';
+outputTxt  = 'C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\resultados_Mtest_dobleClassificador_amarilloOk_6caracForma.txt';
 
 validCodes = {'01','02','03','04','05','06','07','08','09','10','11','12'};
 
@@ -101,33 +101,33 @@ for i = 1:N
     % =========================
     pb_num = str2double(string(predictedLabel_base));
 
-%     if isfinite(pb_num) && (pb_num==9 || pb_num==12)
-%         nRef912 = nRef912 + 1;
-% 
-%         feat6 = extractShapeFeaturess(Ipiece);   % <- tu extractor de 6 feats
-%         feat6 = feat6(:).';
-% 
-%         Xref = array2table(feat6, 'VariableNames', featNames_shape);
-% 
-%         [predictedLabel_ref, score912] = predict(tree_912, Xref);
-%         predictedLabel_ref = string(predictedLabel_ref);
-% 
-%         pSort  = sort(score912,'descend');
-%         pMax   = pSort(1);
-%         margin = pSort(1) - pSort(2);
-% 
-%         if (pMax >= TH_PMAX) && (margin >= TH_MARGIN)
-%             predictedLabel_final = predictedLabel_ref;
-%             refinador = "9-12";
-%         end
-% 
-%         if string(predictedLabel_final) ~= string(predictedLabel_base)
-%             nFlip912 = nFlip912 + 1;
-%             changeList(end+1,1) = sprintf('%s | REAL=%s | BASE=%s -> FINAL=%s | REF=%s | pMax=%.3f margin=%.3f', ...
-%                 string(imgName), string(trueLabelStr), string(predictedLabel_base), string(predictedLabel_final), refinador, pMax, margin);
-%         end
-%         
-%     end
+    if isfinite(pb_num) && (pb_num==9 || pb_num==12)
+        nRef912 = nRef912 + 1;
+
+        feat6 = extractShapeFeaturess(Ipiece);   % <- tu extractor de 6 feats
+        feat6 = feat6(:).';
+
+        Xref = array2table(feat6, 'VariableNames', featNames_shape);
+
+        [predictedLabel_ref, score912] = predict(tree_912, Xref);
+        predictedLabel_ref = string(predictedLabel_ref);
+
+        pSort  = sort(score912,'descend');
+        pMax   = pSort(1);
+        margin = pSort(1) - pSort(2);
+
+        if (pMax >= TH_PMAX) && (margin >= TH_MARGIN)
+            predictedLabel_final = predictedLabel_ref;
+            refinador = "9-12";
+        end
+
+        if string(predictedLabel_final) ~= string(predictedLabel_base)
+            nFlip912 = nFlip912 + 1;
+            changeList(end+1,1) = sprintf('%s | REAL=%s | BASE=%s -> FINAL=%s | REF=%s | pMax=%.3f margin=%.3f', ...
+                string(imgName), string(trueLabelStr), string(predictedLabel_base), string(predictedLabel_final), refinador, pMax, margin);
+        end
+        
+    end
 
     % =========================
     % 3) ORIENTACIÓN (según código final)

@@ -101,4 +101,7 @@ desktop.ini
 
 # Ignorar cualquier carpeta que empiece por "temp_"
 temp_*/
+SEGMENTED_TEST*/
+SEGMENTED_TRAIN*/
+SEGMENTED_AMARILLAS*/
 
