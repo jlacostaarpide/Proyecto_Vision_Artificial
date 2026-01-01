@@ -206,7 +206,7 @@ namespace TrainSVM {
 
 } // namespace TrainSVM
 
-int main(int argc, char** argv)
+int test_entrenarSVM(int argc, char** argv)
 {
     if (argc < 3) {
         printUsage();

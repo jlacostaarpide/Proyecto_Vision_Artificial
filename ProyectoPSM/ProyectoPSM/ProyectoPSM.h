@@ -102,6 +102,21 @@ private slots:
     void UpdateFileNameLabel();
     void SaveImageAs();
 
+    // Entrenamiento
+    void onBrowseRaw();
+    void onBrowseSeg();
+    void onBrowseFeatures();
+    void onBrowseModel();
+    void onBrowseTest();
+
+    void onCheckSkipSeg(bool checked);
+    void onCheckSkipExtract(bool checked);
+    void onCheckSkipTrain(bool checked);
+    void onCheckSkipEval(bool checked);
+
+    void onStartTrainingClicked();
+
+
 
     void AbrirYClasificarOrientacion();
 

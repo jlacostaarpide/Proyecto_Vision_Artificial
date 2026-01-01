@@ -13,21 +13,17 @@
 #include "Segmentacion.h"
 #include "Clasificador.h"
 
-
-namespace fs = std::filesystem;
-
-
-// Si no funciona, borrar:
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QDateTime>
+
+namespace fs = std::filesystem;
 
 // Necesario para pasar datos entre hilos
 Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
 Q_DECLARE_METATYPE(std::vector<QRectF>)
 Q_DECLARE_METATYPE(std::vector<QImage>)
-
-
 
 // Función auxiliar para convertir cv::Mat a QPixmap y ponerlo en un Label
 void DisplayMat(QLabel* lbl, const cv::Mat& mat, bool isBinary = false) {
@@ -173,7 +169,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
-	// Inicializar pestañas
+    // Inicializar pestañas
     ui.tabWidget->setCurrentIndex(0);
     ui.tabWidgetAnalysis->setCurrentIndex(0);
     ui.tabWidgetDebug->setCurrentIndex(0);
@@ -198,15 +194,11 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
 
     // CLASIFICACION ORIENTACION:
-    // Ruta ABSOLUTA (recomendada para que funcione ya)
-    //orientTemplatesDir_ = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\ProyectoPSM\ProyectoPSM\Templates)";
+    // Ruta RELATIVA (corregida)
     orientTemplatesDir_ = "Templates";
     // Crea el clasificador con esa carpeta
     orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
     orientTemplatesLoaded_ = false;
-
-
-
 
     // 1. Inicializar Cámara
     Camera = new CVideoAcquisition();
@@ -232,7 +224,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(statusTimer, &QTimer::timeout, this, &ProyectoPSM::CheckCameraStatus);
     statusTimer->start();
 
-    // 4. Conexiones UI
+    // 4. Conexiones UI Principales
     connect(ui.pbtnEncender, SIGNAL(toggled(bool)), this, SLOT(EnableButtons(bool)));
     connect(ui.chkLiveSeg, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
     connect(ui.btnCapturarAnalizar, SIGNAL(clicked()), this, SLOT(CapturarYAnalizar()));
@@ -248,7 +240,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
     ui.pbtnGuardar->setEnabled(false);
 
-    // 5. Configurar estado inicial
+    // 5. Configurar estado inicial Cámara
     bool camOk = (Camera && Camera->CameraOK);
     SetCameraStatusUI(camOk);
     if (camOk) {
@@ -257,8 +249,26 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
         Camera->SetCameraAutoExposure();
     }
 
-    // 6. Conectar boton Clasificador Orientacion:
-    connect(ui.btnClasificarOrientacion, SIGNAL(clicked()),this, SLOT(AbrirYClasificarOrientacion()));
+    // 6. Conectar boton Clasificador Orientacion (Legacy):
+    connect(ui.btnClasificarOrientacion, SIGNAL(clicked()), this, SLOT(AbrirYClasificarOrientacion()));
+
+    // 7. CONEXIONES NUEVA PESTAÑA ENTRENAMIENTO
+    // Botones de examinar (Browse)
+    connect(ui.btnBrowseRaw, &QPushButton::clicked, this, &ProyectoPSM::onBrowseRaw);
+    connect(ui.btnBrowseSeg, &QPushButton::clicked, this, &ProyectoPSM::onBrowseSeg);
+    connect(ui.btnBrowseFeatures, &QPushButton::clicked, this, &ProyectoPSM::onBrowseFeatures);
+    connect(ui.btnBrowseModel, &QPushButton::clicked, this, &ProyectoPSM::onBrowseModel);
+    connect(ui.btnBrowseTest, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTest);
+
+    // Checkboxes (Saltar pasos)
+    connect(ui.chkSkipSeg, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipSeg);
+    connect(ui.chkSkipExtract, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipExtract);
+    connect(ui.chkSkipTrain, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipTrain);
+    connect(ui.chkSkipEval, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipEval);
+
+    // Botón Iniciar Proceso
+    connect(ui.btnStartTraining, &QPushButton::clicked, this, &ProyectoPSM::onStartTrainingClicked);
+
 
     ImageIndex = 0;
     SavedImageIndex = 1;
@@ -276,6 +286,79 @@ ProyectoPSM::~ProyectoPSM()
         delete Camera;
     }
 }
+
+// Funciones de la pestaña de entrenamiento
+
+void ProyectoPSM::onBrowseRaw() {
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Imágenes Raw", "Database");
+    if (!dir.isEmpty()) ui.txtPathRaw->setText(dir);
+}
+
+void ProyectoPSM::onBrowseSeg() {
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Destino/Origen Segmentadas", "Database");
+    if (!dir.isEmpty()) ui.txtPathSeg->setText(dir);
+}
+
+void ProyectoPSM::onBrowseFeatures() {
+    QString file = QFileDialog::getSaveFileName(this, "Archivo de Características", "Database/features.xml", "XML Files (*.xml)");
+    if (!file.isEmpty()) ui.txtPathFeatures->setText(file);
+}
+
+void ProyectoPSM::onBrowseModel() {
+    QString file = QFileDialog::getOpenFileName(this, "Archivo de Modelo SVM", "Database/modelM.yml", "YAML Files (*.yml *.yaml)");
+    if (!file.isEmpty()) ui.txtPathModel->setText(file);
+}
+
+void ProyectoPSM::onBrowseTest() {
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Test", "Database");
+    if (!dir.isEmpty()) ui.txtPathTest->setText(dir);
+}
+
+// Lógica visual de los Checkboxes
+void ProyectoPSM::onCheckSkipSeg(bool checked) {
+    ui.txtPathRaw->setEnabled(!checked);
+    ui.btnBrowseRaw->setEnabled(!checked);
+    // Cambiar placeholder o etiqueta para indicar que ahora cargamos desde segmentadas
+    if (checked) ui.label_2->setText("Cargar Segmentadas:");
+    else ui.label_2->setText("Salida Segmentadas:");
+}
+
+void ProyectoPSM::onCheckSkipExtract(bool checked) {
+    // Si saltamos extracción, necesitamos cargar features, pero no necesitamos la carpeta de segmentadas
+    // Esto depende de cómo quieras encadenarlo.
+    // Por simplicidad visual:
+    if (checked) ui.label_3->setText("Cargar Features (.xml):");
+    else ui.label_3->setText("Guardar Features (.xml):");
+}
+
+void ProyectoPSM::onCheckSkipTrain(bool checked) {
+    if (checked) ui.label_4->setText("Cargar Modelo (.yml):");
+    else ui.label_4->setText("Guardar Modelo (.yml):");
+}
+
+void ProyectoPSM::onCheckSkipEval(bool checked) {
+    ui.txtPathTest->setEnabled(!checked);
+    ui.btnBrowseTest->setEnabled(!checked);
+}
+
+void ProyectoPSM::onStartTrainingClicked() {
+    // Resetear Barras
+    ui.progressBarSeg->setValue(0);
+    ui.progressBarExtract->setValue(0);
+    ui.progressBarTrain->setValue(0);
+    ui.progressBarEval->setValue(0);
+
+    ui.txtLogTrain->append("<b>Iniciando proceso...</b>");
+    ui.txtLogTrain->append(QDateTime::currentDateTime().toString("hh:mm:ss") + " - Configurando pipeline...");
+
+    // AQUÍ IRÁ LA LÓGICA DE LANZAMIENTO DEL THREAD DE ENTRENAMIENTO MÁS ADELANTE
+    // Por ahora solo feedback visual
+    if (ui.chkSkipSeg->isChecked()) ui.progressBarSeg->setValue(100);
+    if (ui.chkSkipExtract->isChecked()) ui.progressBarExtract->setValue(100);
+    if (ui.chkSkipTrain->isChecked()) ui.progressBarTrain->setValue(100);
+    if (ui.chkSkipEval->isChecked()) ui.progressBarEval->setValue(100);
+}
+
 
 // --- LÓGICA DE RECONEXIÓN ---
 
@@ -561,13 +644,13 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 
     ui.lblOfflineMain->setText("Procesando...");
 
-	// Actualizar tamaños de las labels sin que el usuario lo note
+    // Actualizar tamaños de las labels sin que el usuario lo note
     this->setUpdatesEnabled(false);
 
     ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabDebugSeg);
     QApplication::processEvents();
 
-	// Recorrer sub-pestañas
+    // Recorrer sub-pestañas
     // Obliga a Qt a calcular el tamaño de los labels
     int originalSubTab = ui.tabWidgetDebug->currentIndex();
     for (int i = 0; i < ui.tabWidgetDebug->count(); i++) {
@@ -854,26 +937,17 @@ void ProyectoPSM::runEvalAmarillas() {
 
 void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
-    // Usar raw string literals para preservar las barras invertidas sin escapes
-    //opts.inputFolder = R"(C:\Desarrollos\proyectoPSM\SEGMENTED)";
-    //opts.inputFolder = R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)";
     opts.inputFolder = R"(../../Database/SEGMENTED_TRAIN)";
-    //opts.outModelPath = R"(C:\Desarrollos\proyectoPSM\models\model912.yml)";
-    //opts.outModelPath = R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\model912.yml)";
     opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)";
-
 
     opts.csvOut = ""; // opcional
     opts.doScale = true;
     opts.C = 1.0;
     opts.gamma = 0.0;
 
-
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");
-        //int r = RunTrainRefiner(opts,true); //Clasificador amarillo
         int r = RunTrain(opts); //Clasificador gordo
-
 
         if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
     }

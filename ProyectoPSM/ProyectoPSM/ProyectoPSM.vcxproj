@@ -113,6 +113,8 @@
     <ClCompile Include="Capturar.cpp" />
     <ClCompile Include="Clasificador.cpp" />
     <ClCompile Include="ClasificadorOrientacion.cpp" />
+    <ClCompile Include="entrenarSVM.cpp" />
+    <ClCompile Include="EvaluacionClasificador.cpp" />
     <ClCompile Include="ExtractCaracteristicas.cpp" />
     <ClCompile Include="ExtractCaracteristicas24Refinador.cpp" />
     <ClCompile Include="NameHelper.cpp" />
@@ -133,6 +135,8 @@
     <ClInclude Include="Capturar.h" />
     <ClInclude Include="Clasificador.h" />
     <ClInclude Include="ClasificadorOrientacion.h" />
+    <ClInclude Include="entrenarSVM.h" />
+    <ClInclude Include="EvaluacionClasificador.h" />
     <ClInclude Include="ExtractCaracteristicas.h" />
     <ClInclude Include="ExtractCaracteristicas24Refinador.h" />
     <ClInclude Include="NameHelper.h" />
