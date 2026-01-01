@@ -366,7 +366,7 @@ static void printUsage() {
     std::cout << "Usage: evaluate_classifiers <segFolder> <outTxt> <modelM.yml> [modelM_scaler.yml] [--templates <templatesFolder>] [--refine <model912.yml> [model912_scaler.yml]]\n";
 }
 
-int main(int argc, char** argv) {
+int test_evaluacionClasificador(int argc, char** argv) {
     if (argc < 4) { printUsage(); return 1; }
 
     string segFolder = argv[1];
