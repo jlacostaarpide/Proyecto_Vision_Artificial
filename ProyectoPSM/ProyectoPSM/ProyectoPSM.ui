@@ -18,7 +18,7 @@
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tabLive">
        <attribute name="title">
@@ -820,6 +820,290 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tabTraining">
+       <attribute name="title">
+        <string>Entrenamiento</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_Training">
+        <item>
+         <widget class="QGroupBox" name="groupTrainSeg">
+          <property name="title">
+           <string>1. Generación del Dataset (Segmentación)</string>
+          </property>
+          <layout class="QGridLayout" name="gridTrainSeg">
+           <item row="0" column="0" colspan="3">
+            <widget class="QCheckBox" name="chkSkipSeg">
+             <property name="text">
+              <string>Saltar (Usar imágenes ya segmentadas)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_1">
+             <property name="text">
+              <string>Carpeta Fotos Raw:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="txtPathRaw">
+             <property name="placeholderText">
+              <string>Selecciona la carpeta raíz con las fotos originales...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QPushButton" name="btnBrowseRaw">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_2">
+             <property name="text">
+              <string>Salida Segmentadas:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QLineEdit" name="txtPathSeg">
+             <property name="placeholderText">
+              <string>Carpeta donde se guardarán las fotos recortadas...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2">
+            <widget class="QPushButton" name="btnBrowseSeg">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupTrainExtract">
+          <property name="title">
+           <string>2. Extracción de Características</string>
+          </property>
+          <layout class="QGridLayout" name="gridTrainExtract">
+           <item row="0" column="0" colspan="3">
+            <widget class="QCheckBox" name="chkSkipExtract">
+             <property name="text">
+              <string>Saltar (Usar archivo de características existente)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_3">
+             <property name="text">
+              <string>Archivo Features (.xml):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="txtPathFeatures">
+             <property name="placeholderText">
+              <string>Ruta del archivo XML para guardar/cargar características...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QPushButton" name="btnBrowseFeatures">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupTrainModel">
+          <property name="title">
+           <string>3. Entrenamiento del Modelo</string>
+          </property>
+          <layout class="QGridLayout" name="gridTrainModel">
+           <item row="0" column="0" colspan="3">
+            <widget class="QCheckBox" name="chkSkipTrain">
+             <property name="text">
+              <string>Saltar (Sólo cargar modelo para usar)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_4">
+             <property name="text">
+              <string>Archivo Modelo (.yml):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="txtPathModel">
+             <property name="placeholderText">
+              <string>Ruta del modelo SVM para guardar/cargar...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QPushButton" name="btnBrowseModel">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupTrainEval">
+          <property name="title">
+           <string>4. Evaluación del Modelo</string>
+          </property>
+          <layout class="QGridLayout" name="gridTrainEval">
+           <item row="0" column="0" colspan="3">
+            <widget class="QCheckBox" name="chkSkipEval">
+             <property name="text">
+              <string>Saltar (No evaluar, solo cargar)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_5">
+             <property name="text">
+              <string>Carpeta Test:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="txtPathTest">
+             <property name="placeholderText">
+              <string>Carpeta con imágenes de prueba (estructurada como la raw)...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QPushButton" name="btnBrowseTest">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupStatus">
+          <property name="title">
+           <string>Estado del Pipeline</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_Status">
+           <item>
+            <widget class="QPushButton" name="btnStartTraining">
+             <property name="styleSheet">
+              <string>font-weight: bold; font-size: 14px; background-color: #dcedc8; padding: 10px;</string>
+             </property>
+             <property name="text">
+              <string>INICIAR PROCESO</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QGridLayout" name="gridProgress">
+             <item row="0" column="0">
+              <widget class="QLabel" name="lblProgSeg">
+               <property name="text">
+                <string>Segmentación:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QProgressBar" name="progressBarSeg">
+               <property name="value">
+                <number>0</number>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="lblProgExtract">
+               <property name="text">
+                <string>Extracción:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QProgressBar" name="progressBarExtract">
+               <property name="value">
+                <number>0</number>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="lblProgTrain">
+               <property name="text">
+                <string>Entrenamiento:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QProgressBar" name="progressBarTrain">
+               <property name="value">
+                <number>0</number>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="lblProgEval">
+               <property name="text">
+                <string>Evaluación:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QProgressBar" name="progressBarEval">
+               <property name="value">
+                <number>0</number>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QTextEdit" name="txtLogTrain">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="html">
+              <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'MS Shell Dlg 2'; font-size:8.25pt; font-weight:600;&quot;&gt;Listo para iniciar.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -830,7 +1114,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>33</height>
+     <height>21</height>
     </rect>
    </property>
   </widget>
