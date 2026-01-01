@@ -58,6 +58,12 @@
     <ClCompile Include="Clasificador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="entrenarSVM.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="EvaluacionClasificador.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="VideoAcquisition.h">
@@ -84,6 +90,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Clasificador.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="entrenarSVM.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EvaluacionClasificador.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
