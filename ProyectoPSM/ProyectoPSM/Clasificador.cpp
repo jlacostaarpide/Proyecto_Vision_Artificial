@@ -728,3 +728,96 @@ int RunEval(int argc, char** argv) {
 
     return 0;
 }
+
+int RunEvalRefinerOnly(const std::string& segFolder,
+    const std::string& outTxt,
+    const std::string& model912,
+    const std::string& model912scaler)
+{
+    if (!fs::exists(segFolder) || !fs::is_directory(segFolder)) {
+        qCritical() << "segFolder not found:" << QString::fromStdString(segFolder);
+        return 1;
+    }
+
+    qDebug() << "RunEvalRefinerOnly segFolder =" << QString::fromStdString(segFolder);
+    qDebug() << "RunEvalRefinerOnly outTxt    =" << QString::fromStdString(outTxt);
+
+    // list files
+    vector<fs::path> files;
+    for (auto& e : fs::directory_iterator(segFolder)) {
+        if (!e.is_regular_file()) continue;
+        if (hasSupportedExt(e.path())) files.push_back(e.path());
+    }
+    std::sort(files.begin(), files.end());
+    if (files.empty()) { qCritical() << "No images found in:" << QString::fromStdString(segFolder); return 1; }
+
+    // load model912
+    Ptr<SVM> svm912;
+    try { svm912 = Algorithm::load<SVM>(model912); }
+    catch (const cv::Exception& e) { qCritical() << "Failed loading model912:" << e.what(); return 1; }
+
+    Mat mean912, std912; bool hasScaler912 = false;
+    if (!model912scaler.empty()) hasScaler912 = loadScalerIfExists(model912scaler, mean912, std912);
+    else {
+        fs::path p(model912);
+        hasScaler912 = loadScalerIfExists((p.parent_path() / (p.stem().string() + "_scaler.yml")).string(), mean912, std912);
+    }
+
+    // ensure output directory exists
+    {
+        fs::path outp(outTxt);
+        fs::path parent = outp.parent_path();
+        if (!parent.empty() && !fs::exists(parent)) {
+            try { fs::create_directories(parent); }
+            catch (...) { qWarning() << "Could not create output dir:" << QString::fromStdString(parent.string()); }
+        }
+    }
+
+    std::ofstream out(outTxt, std::ios::out | std::ios::trunc);
+    if (!out.is_open()) {
+        qCritical() << "Cannot open output:" << QString::fromStdString(outTxt);
+        return 1;
+    }
+    out << "filename,gt,pred\n";
+
+    int total = 0, correct = 0, skipped = 0;
+
+    for (auto& p : files) {
+        string fname = p.filename().string();
+
+        int gt = -1;
+        if (!parseGTfromFilenameInt(fname, gt) || !(gt == 9 || gt == 12)) {
+            skipped++;
+            continue;
+        }
+
+        Mat I = imread(p.string(), IMREAD_COLOR);
+        if (I.empty()) { skipped++; continue; }
+
+        vector<double> feat; vector<string> names;
+        FeatureExtractor24::ExtractShapeFeatures24(I, feat, names);
+        if (feat.size() != 24) { skipped++; continue; }
+
+        int pred = predictWithSVM(svm912, mean912, std912, hasScaler912, feat);
+
+        out << fname << "," << gt << "," << pred << "\n";
+        if (pred == gt) correct++;
+        total++;
+    }
+
+   
+
+    double acc = total ? 100.0 * double(correct) / double(total) : 0.0;
+    out << "\n#summary\n";
+    out << "total," << total << "\n";
+    out << "correct," << correct << "\n";
+    out << "skipped," << skipped << "\n";
+    out << "accuracy_pct," << std::fixed << std::setprecision(2) << acc << "\n";
+    out.close();
+
+    qDebug() << "EVAL REFiner-only finished. total=" << total
+        << " correct=" << correct << " skipped=" << skipped
+        << " acc(%)=" << QString::number(acc, 'f', 2);
+
+    return 0;
+}
