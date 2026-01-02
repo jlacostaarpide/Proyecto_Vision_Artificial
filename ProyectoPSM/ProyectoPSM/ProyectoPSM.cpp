@@ -10,10 +10,6 @@
 #include <QApplication>
 #include <iostream>
 
-#include "Segmentacion.h"
-#include "Clasificador.h"
-#include "TrainingWorker.h"
-
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -170,7 +166,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
-    svmClf_ = std::make_unique<ClasificadorSVM>();
+    svmClf_ = std::make_unique<Clasificador>();
 
     // Inicializar pestañas
     ui.tabWidget->setCurrentIndex(0);

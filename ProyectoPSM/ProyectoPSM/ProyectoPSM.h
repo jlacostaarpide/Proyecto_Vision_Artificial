@@ -10,15 +10,16 @@
 #include <QTimer>
 #include <QRectF>
 #include <QString>
+#include <memory>
 
 #include "ui_ProyectoPSM.h"
 #include "VideoAcquisition.h"
 #include "NameHelper.h"
 
-#include <memory>
-#include "ClasificadorOrientacion.h"
-#include "ClasificadorSVM.h"
 #include "Segmentacion.h"
+#include "Clasificador.h"
+#include "ClasificadorOrientacion.h"
+#include "TrainingWorker.h"
 
 class SegmentationWorker : public QObject
 {
@@ -73,7 +74,7 @@ private:
     QString fileName;
 
     std::unique_ptr<ClasificadorOrientacion> orientClf_;
-    std::unique_ptr<ClasificadorSVM> svmClf_;
+    std::unique_ptr<Clasificador> svmClf_;
     bool orientTemplatesLoaded_ = false;
     QString orientTemplatesDir_;
 
