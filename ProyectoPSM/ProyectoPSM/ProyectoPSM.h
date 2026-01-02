@@ -17,6 +17,7 @@
 
 #include <memory>
 #include "ClasificadorOrientacion.h"
+#include "Segmentacion.h"
 
 class SegmentationWorker : public QObject
 {
@@ -74,6 +75,9 @@ private:
     bool orientTemplatesLoaded_ = false;
     QString orientTemplatesDir_;
 
+    // Guarda el último resultado de la segmentación offline para poder clasificarlo después
+    std::vector<ResultadoPieza> lastResultados_;
+
 	// función de entrenamiento si no hay modelo
     void maybeTrain();
     void runEvalGlobal();
@@ -101,6 +105,7 @@ private slots:
     void ProcesarImagenOffline(const cv::Mat& img);
     void UpdateFileNameLabel();
     void SaveImageAs();
+    void ProcesarClasificacionOffline();
 
     // Entrenamiento
     void onBrowseRaw();
