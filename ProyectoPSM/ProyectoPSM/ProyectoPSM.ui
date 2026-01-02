@@ -242,7 +242,7 @@
         <item>
          <widget class="QTabWidget" name="tabWidgetAnalysis">
           <property name="currentIndex">
-           <number>0</number>
+           <number>2</number>
           </property>
           <widget class="QWidget" name="subTabResultados">
            <attribute name="title">
@@ -717,6 +717,19 @@
              <string>TextLabel</string>
             </property>
            </widget>
+           <widget class="QPushButton" name="btnDB">
+            <property name="geometry">
+             <rect>
+              <x>280</x>
+              <y>50</y>
+              <width>79</width>
+              <height>24</height>
+             </rect>
+            </property>
+            <property name="text">
+             <string>Crear DB</string>
+            </property>
+           </widget>
           </widget>
          </widget>
         </item>
@@ -1114,7 +1127,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>21</height>
+     <height>33</height>
     </rect>
    </property>
   </widget>

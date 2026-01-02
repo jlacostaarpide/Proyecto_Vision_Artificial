@@ -1,4 +1,5 @@
 ﻿#include "ProyectoPSM.h"
+#include "SegmentarGuardar.h"
 #include <filesystem>
 #include <QFileDialog>
 #include <QFile>
@@ -106,7 +107,7 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
         }
 
         // 1. Ejecutar Segmentación
-        std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(*snapshotPtr);
+        std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(*snapshotPtr, nullptr);
 
         double iw = static_cast<double>(snapshotPtr->cols);
         double ih = static_cast<double>(snapshotPtr->rows);
@@ -198,6 +199,8 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     // Crea el clasificador con esa carpeta
     orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
     orientTemplatesLoaded_ = false;
+    EnsureOrientTemplatesLoaded();
+
 
     // 1. Inicializar Cámara
     Camera = new CVideoAcquisition();
@@ -237,6 +240,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
     connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
     connect(ui.btnRecalcClass, SIGNAL(clicked()), this, SLOT(ProcesarClasificacionOffline()));
+    connect(ui.btnDB, SIGNAL(clicked()), this, SLOT(OnBatchSegmentar()));
 
     ui.pbtnGuardar->setEnabled(false);
 
@@ -779,15 +783,8 @@ void ProyectoPSM::ProcesarClasificacionOffline()
     // ---------------------------------------------------------
     // 3. CARGA DE PLANTILLAS
     // ---------------------------------------------------------
-    if (!orientTemplatesLoaded_) {
-        if (!orientClf_->loadAllTemplates()) {
-            QMessageBox::warning(this, "Error", "No se pudieron cargar las plantillas de orientación.");
-            // No abortamos, pero la orientación fallará
-        }
-        else {
-            orientTemplatesLoaded_ = true;
-        }
-    }
+    
+    // Se han cargado al iniciar el programa
 
     // ---------------------------------------------------------
     // 4. BUCLE DE CLASIFICACIÓN
@@ -836,10 +833,10 @@ void ProyectoPSM::ProcesarClasificacionOffline()
             }
 
             if (orientExito) {
-                labelInfo = "ID:" + codigoPieza + " Yaw:" + std::to_string(orr.yaw);
+                labelInfo = "Codigo:" + codigoPieza + " Orientacion:" + std::to_string(orr.yaw);
             }
             else {
-                labelInfo = "ID:" + codigoPieza + " (Ori?)"; // Sabemos la pieza, no el ángulo
+                labelInfo = "Codigo:" + codigoPieza + " (Ori?)"; // Sabemos la pieza, no el ángulo
             }
         }
         else {
@@ -1127,3 +1124,45 @@ void ProyectoPSM::maybeTrain() {
         std::cout << "Modelo ya existe, omitiendo entrenamiento.\n";
     }
 }
+
+
+bool ProyectoPSM::EnsureOrientTemplatesLoaded()
+{
+    if (orientTemplatesLoaded_) return true;
+
+    if (!orientClf_) {
+        QMessageBox::warning(this, "Error", "orientClf_ no está inicializado.");
+        return false;
+    }
+
+    try {
+        if (!orientClf_->loadAllTemplates()) {
+            QMessageBox::warning(this, "Error", "No se pudieron cargar las plantillas de orientación.");
+            orientTemplatesLoaded_ = false;
+            return false;
+        }
+    }
+    catch (...) {
+        QMessageBox::warning(this, "Error", "Excepción al cargar plantillas de orientación.");
+        orientTemplatesLoaded_ = false;
+        return false;
+    }
+
+    orientTemplatesLoaded_ = true;
+    return true;
+}
+
+void ProyectoPSM::OnBatchSegmentar()
+{
+    std::string in = R"(../../Database/RAW)";
+    std::string out = R"(../../Database/SEGMENTED_C)";
+
+    SegmentBatchStats st = SegmentFolderAndSaveCrops(
+        in, out,
+        false,   // keepSubfolders
+        0,       // maxPiecesPerImage (0 = todas)
+        true     // verbose
+    );
+}
+
+

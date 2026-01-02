@@ -73,7 +73,16 @@
     <ClCompile Include="TrainingWorker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ClasificadorSVM.cpp">
+    <ClCompile Include="ExtractorShapeFeatures6.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ExtractShapeFeatures10.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ExtractShapeFeatures8.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SegmentarGuardar.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -119,7 +128,16 @@
     <ClInclude Include="FeatureCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ClasificadorSVM.h">
+    <ClInclude Include="ExtractShapeFeatures10.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ExtractShapeFeatures6.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ExtractShapeFeatures8.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SegmentarGuardar.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
