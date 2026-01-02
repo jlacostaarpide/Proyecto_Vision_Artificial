@@ -12,6 +12,7 @@
 
 #include "Segmentacion.h"
 #include "Clasificador.h"
+#include "TrainingWorker.h"
 
 #include <QMessageBox>
 #include <QFileInfo>
@@ -237,6 +238,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
     connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
     connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
+    connect(ui.btnRecalcClass, SIGNAL(clicked()), this, SLOT(ProcesarClasificacionOffline()));
 
     ui.pbtnGuardar->setEnabled(false);
 
@@ -342,21 +344,49 @@ void ProyectoPSM::onCheckSkipEval(bool checked) {
 }
 
 void ProyectoPSM::onStartTrainingClicked() {
-    // Resetear Barras
+    // 1. Configurar rutas desde la UI
+    TrainingConfig config;
+    config.rawFolder = ui.txtPathRaw->text();
+    config.segFolder = ui.txtPathSeg->text();
+    // (El resto de rutas las rellenaremos cuando hagamos los otros pasos)
+
+    // Resetear UI
+    ui.txtLogTrain->clear();
     ui.progressBarSeg->setValue(0);
-    ui.progressBarExtract->setValue(0);
-    ui.progressBarTrain->setValue(0);
-    ui.progressBarEval->setValue(0);
+    ui.btnStartTraining->setEnabled(false); // Deshabilitar botón para evitar doble click
 
-    ui.txtLogTrain->append("<b>Iniciando proceso...</b>");
-    ui.txtLogTrain->append(QDateTime::currentDateTime().toString("hh:mm:ss") + " - Configurando pipeline...");
+    // 2. Crear Worker y Thread
+    // Nota: QThread gestiona la memoria si lo configuramos bien
+    QThread* thread = new QThread;
+    TrainingWorker* worker = new TrainingWorker(config);
+    worker->moveToThread(thread);
 
-    // AQUÍ IRÁ LA LÓGICA DE LANZAMIENTO DEL THREAD DE ENTRENAMIENTO MÁS ADELANTE
-    // Por ahora solo feedback visual
-    if (ui.chkSkipSeg->isChecked()) ui.progressBarSeg->setValue(100);
-    if (ui.chkSkipExtract->isChecked()) ui.progressBarExtract->setValue(100);
-    if (ui.chkSkipTrain->isChecked()) ui.progressBarTrain->setValue(100);
-    if (ui.chkSkipEval->isChecked()) ui.progressBarEval->setValue(100);
+    // 3. Conectar señales
+
+    // Cuando el hilo arranca -> worker empieza a procesar
+    connect(thread, &QThread::started, worker, &TrainingWorker::process);
+
+    // Actualizar barra de progreso
+    connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
+
+    // Logs al cuadro de texto
+    connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {
+        ui.txtLogTrain->append(msg);
+        });
+
+    // Limpieza al terminar
+    connect(worker, &TrainingWorker::finished, thread, &QThread::quit);
+    connect(worker, &TrainingWorker::finished, worker, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+    // Reactivar botón al terminar
+    connect(thread, &QThread::finished, this, [this]() {
+        ui.btnStartTraining->setEnabled(true);
+        ui.txtLogTrain->append("<b>Proceso finalizado.</b>");
+        });
+
+    // 4. Iniciar
+    thread->start();
 }
 
 
@@ -663,6 +693,9 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     DebugInfo debugData;
     std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(img, &debugData);
 
+    // Guardar resultados para clasificación posterior (botón independiente)
+    lastResultados_ = resultados;
+
     // RELLENAR PESTAÑAS
     DisplayMat(ui.lblHSV_1_Orig, debugData.I_orig);
     DisplayMat(ui.lblHSV_2_Norm, debugData.I_norm);
@@ -684,7 +717,7 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
     this->setUpdatesEnabled(true);
 
-    // Mostrar Resultado Principal
+    // Mostrar Resultado Principal con IDs temporales (sin clasificación automática)
     cv::Mat displayImg = img.clone();
     for (const auto& res : resultados) {
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
@@ -694,7 +727,7 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     }
     DisplayMat(ui.lblOfflineMain, displayImg);
 
-    // Miniaturas
+    // Miniaturas (sin texto de clasificación; se actualizarán al pulsar Clasificar)
     if (resultados.empty()) {
         ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
         ui.pbtnGuardar->setEnabled(false);
@@ -706,6 +739,111 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
             if (i < resultados.size()) DisplayMat(thumbs[i], resultados[i].imagenRecortada);
             else { thumbs[i]->clear(); thumbs[i]->setText("---"); }
         }
+    }
+}
+
+// Nuevo slot: clasifica las piezas guardadas en lastResultados_ y actualiza miniaturas y vista principal
+void ProyectoPSM::ProcesarClasificacionOffline()
+{
+    if (lastResultados_.empty()) {
+        QMessageBox::information(this, "Clasificar", "No hay resultados de segmentación para clasificar.");
+        return;
+    }
+
+    // Asegurar que las plantillas están cargadas
+    if (!orientTemplatesLoaded_) {
+        if (!QFileInfo::exists(orientTemplatesDir_) || !QFileInfo(orientTemplatesDir_).isDir()) {
+            QMessageBox::critical(this, "Error", "No existe la carpeta de templates:\n" + orientTemplatesDir_);
+            return;
+        }
+        if (!orientClf_ || !orientClf_->loadAllTemplates()) {
+            QMessageBox::critical(this, "Error", "No se pudieron cargar las plantillas .yml/.yaml.");
+            return;
+        }
+        orientTemplatesLoaded_ = true;
+    }
+
+    // Clasificar cada pieza y actualizar miniaturas
+    QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
+    for (size_t i = 0; i < lastResultados_.size() && i < 3; ++i) {
+        ResultadoPieza& res = lastResultados_[i];
+        if (res.imagenRecortada.empty()) continue;
+
+        OrientationResult orr;
+        try {
+            orr = orientClf_->predict(res.imagenRecortada);
+        }
+        catch (...) {
+            orr.ok = false;
+        }
+
+        // Preparar label de texto
+        std::string label;
+        if (orr.ok) {
+            label = "code=" + orr.matchedCode +
+                " yaw=" + std::to_string(orr.yaw) +
+                " pitch=" + std::to_string(orr.pitch);
+        }
+        else {
+            label = "id=" + std::to_string(res.id);
+        }
+
+        // Pintar texto sobre la miniatura (trabajar en BGR para putText)
+        cv::Mat thumb = res.imagenRecortada.clone();
+        if (thumb.channels() == 1) cv::cvtColor(thumb, thumb, cv::COLOR_GRAY2BGR);
+
+        int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+        double fontScale = max(0.4, thumb.cols / 200.0);
+        int thickness = max(1, thumb.cols / 200);
+        int baseline = 0;
+        cv::Size textSize = cv::getTextSize(label, fontFace, fontScale, thickness, &baseline);
+
+        // Fondo semitransparente detrás del texto
+        cv::rectangle(thumb, cv::Point(0, thumb.rows - textSize.height - 10),
+            cv::Point(textSize.width + 10, thumb.rows), cv::Scalar(0, 0, 0), cv::FILLED);
+        cv::putText(thumb, label, cv::Point(5, thumb.rows - 8), fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
+
+        // Mostrar miniatura actualizada
+        DisplayMat(thumbs[i], thumb);
+    }
+
+    // También actualizar la imagen principal: pintar etiquetas de clasificación sobre cada bounding box
+    if (!CapturedImage.empty()) {
+        cv::Mat displayImg = CapturedImage.clone();
+        for (const auto& res : lastResultados_) {
+            std::string label = std::to_string(res.id);
+            // Intentar recomputar clasificación si no lo hicimos antes (no obligatorio)
+            OrientationResult orr;
+            bool haveClass = false;
+            if (!res.imagenRecortada.empty() && orientClf_) {
+                try {
+                    orr = orientClf_->predict(res.imagenRecortada);
+                    haveClass = orr.ok;
+                }
+                catch (...) { haveClass = false; }
+            }
+            if (haveClass) {
+                label = "code=" + orr.matchedCode +
+                    " yaw=" + std::to_string(orr.yaw); 
+            }
+
+            cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
+
+            int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+            double fontScale = max(0.4, displayImg.cols / 1000.0);
+            int thickness = max(1, displayImg.cols / 500);
+            int baseline = 0;
+            cv::Size textSize = cv::getTextSize(label, fontFace, fontScale, thickness, &baseline);
+
+            int tx = res.boundingBox.x;
+            int ty = res.boundingBox.y - 8;
+            if (ty < textSize.height) ty = res.boundingBox.y + textSize.height + 8;
+
+            // Fondo para legibilidad
+            cv::rectangle(displayImg, cv::Point(tx, ty - textSize.height - 4), cv::Point(tx + textSize.width + 6, ty + 4), cv::Scalar(0, 0, 0), cv::FILLED);
+            cv::putText(displayImg, label, cv::Point(tx + 2, ty), fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
+        }
+        DisplayMat(ui.lblOfflineMain, displayImg);
     }
 }
 

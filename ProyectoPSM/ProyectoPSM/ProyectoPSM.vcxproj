@@ -121,6 +121,7 @@
     <ClCompile Include="ExtractShapeFeatures10.cpp" />
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
+    <ClCompile Include="TrainingWorker.cpp" />
     <ClCompile Include="VideoAcquisition.cpp" />
     <QtRcc Include="ProyectoPSM.qrc" />
     <QtUic Include="ProyectoPSM.ui" />
@@ -145,6 +146,7 @@
     <ClInclude Include="ExtractShapeFeatures6.h" />
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />
+    <QtMoc Include="TrainingWorker.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
