@@ -119,6 +119,8 @@
     <ClCompile Include="ExtractCaracteristicas.cpp" />
     <ClCompile Include="ExtractCaracteristicas24Refinador.cpp" />
     <ClCompile Include="FeatureCache.cpp" />
+    <ClCompile Include="ExtractorShapeFeatures6.cpp" />
+    <ClCompile Include="ExtractShapeFeatures10.cpp" />
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
     <ClCompile Include="TrainingWorker.cpp" />
@@ -144,6 +146,8 @@
     <ClInclude Include="ExtractCaracteristicas.h" />
     <ClInclude Include="ExtractCaracteristicas24Refinador.h" />
     <ClInclude Include="FeatureCache.h" />
+    <ClInclude Include="ExtractShapeFeatures10.h" />
+    <ClInclude Include="ExtractShapeFeatures6.h" />
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />
     <QtMoc Include="TrainingWorker.h" />

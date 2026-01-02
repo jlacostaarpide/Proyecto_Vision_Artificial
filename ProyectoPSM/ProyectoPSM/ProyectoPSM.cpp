@@ -179,7 +179,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
     // Entrena si no hay modelo de clasificacion
     //maybeTrain();
-    //runEvalAmarillas();
+    runEvalAmarillas();
     //runEvalGlobal();
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
@@ -1112,8 +1112,8 @@ void ProyectoPSM::runEvalAmarillas() {
 
 void ProyectoPSM::maybeTrain() {
     TrainSVM::Options opts;
-    opts.inputFolder = R"(../../Database/SEGMENTED_TRAIN)";
-    opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)";
+    opts.inputFolder = R"(../../Database/SEGMENTED_TRAIN_AMARILLAS)";
+    opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/model912.yml)";
 
     opts.csvOut = ""; // opcional
     opts.doScale = true;
@@ -1122,7 +1122,8 @@ void ProyectoPSM::maybeTrain() {
 
     if (!std::filesystem::exists(opts.outModelPath)) {
         qDebug("Entrenando modelo...");
-        int r = RunTrain(opts); //Clasificador gordo
+       // int r = RunTrain(opts); //Clasificador gordo
+		int r = RunTrainRefiner(opts, true); //Clasificador amarillas
 
         if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
     }
