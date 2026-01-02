@@ -347,7 +347,8 @@ void ProyectoPSM::onStartTrainingClicked() {
     TrainingConfig config;
     config.rawFolder = ui.txtPathRaw->text();
     config.segFolder = ui.txtPathSeg->text();
-    // (El resto de rutas las rellenaremos cuando hagamos los otros pasos)
+    config.skipExtraction = ui.chkSkipExtract->isChecked();
+    config.featuresFile = ui.txtPathFeatures->text();
 
     // Resetear UI
     ui.txtLogTrain->clear();
@@ -367,6 +368,7 @@ void ProyectoPSM::onStartTrainingClicked() {
 
     // Actualizar barra de progreso
     connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
+    connect(worker, &TrainingWorker::progressExtract, ui.progressBarExtract, &QProgressBar::setValue);
 
     // Logs al cuadro de texto
     connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {

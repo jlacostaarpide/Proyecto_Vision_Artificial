@@ -22,7 +22,7 @@ namespace FeatureCache {
 
     // La función ahora pide un "extractor" en vez de un "Mode"
     bool BuildFromFolder(const std::string& segFolder,
-        ExtractorFunc extractor, // <--- Aquí está la magia
+        ExtractorFunc extractor,
         FeatureCacheData& out,
         int* outSkippedNoGT = nullptr,
         int* outSkippedBad = nullptr);

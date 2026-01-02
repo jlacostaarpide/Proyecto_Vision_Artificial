@@ -1,5 +1,7 @@
 #include "TrainingWorker.h"
 #include "Segmentacion.h"
+#include "FeatureCache.h"
+#include "ExtractCaracteristicas.h"
 #include <opencv2/opencv.hpp>
 #include <QDebug>
 #include <QFileInfo>
@@ -8,6 +10,7 @@ void TrainingWorker::process()
 {
     // Solo ejecutamos segmentación
     runStepSegmentation();
+    runStepExtraction();
 
     if (stopRequested.load()) {
         emit logMessage("Proceso cancelado por el usuario.");
@@ -131,4 +134,76 @@ void TrainingWorker::runStepSegmentation()
         int percent = static_cast<int>((static_cast<float>(i + 1) / totalFiles) * 100.0f);
         emit progressSeg(percent);
     }
+}
+
+void TrainingWorker::runStepExtraction()
+{
+    // 1. Comprobación de checkbox "Saltar"
+    if (cfg.skipExtraction) {
+        emit logMessage("Saltando extracción (Usando features existentes)...");
+        emit progressExtract(100);
+        return;
+    }
+
+    emit logMessage("--- INICIANDO EXTRACCIÓN DE CARACTERÍSTICAS ---");
+    emit logMessage("Leyendo carpeta: " + cfg.segFolder);
+
+    FeatureCacheData data;
+    int skippedNoGT = 0;
+    int skippedBad = 0;
+
+    // -----------------------------------------------------------------------
+    // 2. DEFINICIÓN DEL ADAPTADOR (LAMBDA)
+    // Aquí es donde "conectamos" el sistema genérico con tu función concreta
+    // -----------------------------------------------------------------------
+    auto myExtractor = [](const cv::Mat& img, std::vector<double>& feats, std::vector<std::string>& names) -> bool {
+
+        // Llamamos a tu función estática existente.
+        // Asumo que tu función se llama así y devuelve void.
+        // Si devuelve algo, ajusta la lógica.
+        FeatureExtractor::ExtractColorShapeFeatures(img, feats, names);
+        
+
+        // Si el vector se ha llenado, es que ha ido bien
+        return !feats.empty();
+        };
+
+    // 3. Ejecutar el procesamiento masivo
+    // Le pasamos la carpeta y nuestra función 'myExtractor'
+    bool ok = FeatureCache::BuildFromFolder(
+        cfg.segFolder.toStdString(),
+        myExtractor,  // <--- ¡Aquí pasamos la lógica!
+        data,
+        &skippedNoGT,
+        &skippedBad
+    );
+
+    /*if (!ok) {
+        emit logMessage("ERROR CRÍTICO: No se pudieron extraer características. ¿Carpeta vacía?");
+        return;
+    }*/
+
+    // 4. Reporte de resultados
+    emit logMessage(QString("Procesadas correctamente: %1 imágenes.").arg(data.filenames.size()));
+    if (skippedNoGT > 0) emit logMessage(QString("Saltadas (Nombre sin número de clase): %1").arg(skippedNoGT));
+    if (skippedBad > 0) emit logMessage(QString("Saltadas (Error de lectura/cálculo): %1").arg(skippedBad));
+
+    // 5. Guardar a disco (XML/YML)
+    if (cfg.featuresFile.isEmpty()) {
+        emit logMessage("ERROR: No has definido una ruta para guardar el archivo features.xml");
+        return;
+    }
+
+    emit logMessage("Guardando dataset en: " + cfg.featuresFile);
+
+    bool saved = FeatureCache::SaveYml(cfg.featuresFile.toStdString(), data);
+
+    if (saved) {
+        emit logMessage("¡ÉXITO! Archivo de características generado.");
+    }
+    else {
+        emit logMessage("ERROR al escribir el archivo en disco (Permisos o ruta inválida).");
+    }
+
+    emit progressExtract(100);
 }
