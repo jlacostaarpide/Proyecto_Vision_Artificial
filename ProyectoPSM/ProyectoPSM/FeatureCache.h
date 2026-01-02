@@ -2,34 +2,31 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
+#include <functional> // Necesario para pasar funciones como variables
 
+// Estructura genérica: No importa si son 6, 12 o 100 features.
 struct FeatureCacheData {
-    cv::Mat X12; // CV_32F Nx12
-    cv::Mat X24; // CV_32F Nx24 (puede estar vacía)
-    cv::Mat y;   // CV_32S Nx1
-    std::vector<std::string> filenames;
-    std::vector<std::string> featNames12;
-    std::vector<std::string> featNames24;
     std::string extractorVersion;
+    cv::Mat X; // Matriz N filas x M columnas (M se decide al vuelo)
+    cv::Mat y; // Etiquetas
+
+    std::vector<std::string> filenames;
+    std::vector<std::string> featNames; // Nombres de las columnas
 };
 
 namespace FeatureCache {
 
-    enum Mode {
-        GLOBAL_12,
-        REFINER_24,
-        BOTH_12_24
-    };
+    // Definimos el "tipo" de función que aceptamos:
+    // Recibe (Imagen), devuelve (vector valores, vector nombres) -> retorna bool si ok
+    using ExtractorFunc = std::function<bool(const cv::Mat&, std::vector<double>&, std::vector<std::string>&)>;
 
-    bool BuildFromFolder(
-        const std::string& segFolder,
-        Mode mode,
+    // La función ahora pide un "extractor" en vez de un "Mode"
+    bool BuildFromFolder(const std::string& segFolder,
+        ExtractorFunc extractor, // <--- Aquí está la magia
         FeatureCacheData& out,
         int* outSkippedNoGT = nullptr,
-        int* outSkippedBad = nullptr
-    );
+        int* outSkippedBad = nullptr);
 
-    bool SaveYml(const std::string& ymlPath, const FeatureCacheData& data);
-    bool LoadYml(const std::string& ymlPath, FeatureCacheData& data);
-
+    bool SaveYml(const std::string& ymlPath, const FeatureCacheData& d);
+    bool LoadYml(const std::string& ymlPath, FeatureCacheData& d);
 }
