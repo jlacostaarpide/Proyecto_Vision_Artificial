@@ -128,4 +128,7 @@ private slots:
 
     void AbrirYClasificarOrientacion();
 
+    bool EnsureOrientTemplatesLoaded();
+    void OnBatchSegmentar();
+
 };
