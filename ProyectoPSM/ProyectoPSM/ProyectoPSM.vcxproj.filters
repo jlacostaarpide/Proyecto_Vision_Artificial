@@ -61,12 +61,30 @@
     <ClCompile Include="ExtractCaracteristicas24Refinador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="entrenarSVM.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="EvaluacionClasificador.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FeatureCache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TrainingWorker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ClasificadorSVM.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="VideoAcquisition.h">
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="ProyectoPSM.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="TrainingWorker.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>
@@ -90,6 +108,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ExtractCaracteristicas24Refinador.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="entrenarSVM.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EvaluacionClasificador.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FeatureCache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ClasificadorSVM.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

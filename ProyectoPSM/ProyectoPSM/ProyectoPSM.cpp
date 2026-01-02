@@ -10,10 +10,6 @@
 #include <QApplication>
 #include <iostream>
 
-#include "Segmentacion.h"
-#include "Clasificador.h"
-#include "TrainingWorker.h"
-
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -170,12 +166,14 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
+    svmClf_ = std::make_unique<Clasificador>();
+
     // Inicializar pestañas
     ui.tabWidget->setCurrentIndex(0);
     ui.tabWidgetAnalysis->setCurrentIndex(0);
     ui.tabWidgetDebug->setCurrentIndex(0);
 
-	// Entrena si no hay modelo de clasificacion
+    // Entrena si no hay modelo de clasificacion
     //maybeTrain();
     runEvalAmarillas();
     //runEvalGlobal();
@@ -348,7 +346,8 @@ void ProyectoPSM::onStartTrainingClicked() {
     TrainingConfig config;
     config.rawFolder = ui.txtPathRaw->text();
     config.segFolder = ui.txtPathSeg->text();
-    // (El resto de rutas las rellenaremos cuando hagamos los otros pasos)
+    config.skipExtraction = ui.chkSkipExtract->isChecked();
+    config.featuresFile = ui.txtPathFeatures->text();
 
     // Resetear UI
     ui.txtLogTrain->clear();
@@ -368,6 +367,7 @@ void ProyectoPSM::onStartTrainingClicked() {
 
     // Actualizar barra de progreso
     connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
+    connect(worker, &TrainingWorker::progressExtract, ui.progressBarExtract, &QProgressBar::setValue);
 
     // Logs al cuadro de texto
     connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {
@@ -536,11 +536,6 @@ void ProyectoPSM::ShowImage()
         pen.setWidth(3);
         p.setPen(pen);
 
-        QFont font = p.font();
-        font.setPixelSize(std::max<double>(12, scaled.height() / 25));
-        font.setBold(true);
-        p.setFont(font);
-
         for (size_t i = 0; i < lastBoxesNormalized.size(); ++i) {
             const auto& boxNorm = lastBoxesNormalized[i];
             int x = static_cast<int>(boxNorm.x() * scaled.width());
@@ -549,11 +544,6 @@ void ProyectoPSM::ShowImage()
             int h = static_cast<int>(boxNorm.height() * scaled.height());
 
             p.drawRect(x, y, w, h);
-
-            QString text = QString::number(i + 1);
-            int textY = y - 5;
-            if (textY < font.pixelSize()) textY = y + font.pixelSize() + 5;
-            p.drawText(x, textY, text);
         }
     }
 
@@ -612,25 +602,30 @@ void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes, co
 }
 
 
-// CAPTURA Y ANÁLISIS OFFLINE (BRIDGE)
+// CAPTURA Y ANÁLISIS OFFLINE
 void ProyectoPSM::CapturarYAnalizar()
 {
     // 1. Verificar imagen
-    if (LastImage.empty()) return;
+    if (LastImage.empty()) {
+        QMessageBox::warning(this, "Error", "No hay imagen en vivo para capturar.");
+        return;
+    }
 
     // 2. Congelar imagen actual
     CapturedImage = LastImage.clone();
 
-    // 3. Parar segmentación en vivo para ahorrar recursos
-    //if (ui.chkLiveSeg->isChecked()) {
-    //    ui.chkLiveSeg->setChecked(false);
-    //}
-
-    // 4. Cambiar a la pestaña de Análisis
+    // 3. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
 
-    // 5. Procesar automáticamente la imagen capturada
-    ProcesarImagenOffline(CapturedImage);
+    // 4. Limpiar visualización anterior para evitar confusión
+    ui.lblOfflineMain->clear();
+    ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
+
+    // Mostrar la imagen capturada TAL CUAL (sin procesar aún)
+    DisplayMat(ui.lblOfflineMain, CapturedImage);
+
+    // NO procesamos automáticamente. El usuario debe pulsar los botones.
+    // ProcesarImagenOffline(CapturedImage); 
 }
 
 void ProyectoPSM::CargarImagenDisco()
@@ -648,26 +643,37 @@ void ProyectoPSM::CargarImagenDisco()
     std::vector<uchar> vec(fileData.begin(), fileData.end());
     cv::Mat image = cv::imdecode(vec, cv::IMREAD_COLOR);
 
-    if (image.empty()) return;
+    if (image.empty()) {
+        QMessageBox::warning(this, "Error", "No se pudo cargar la imagen seleccionada.");
+        return;
+    }
 
-    // 3. Guardar como imagen capturada y procesar
+    // 3. Guardar como imagen capturada
     CapturedImage = image.clone();
 
     // Asegurar que estamos en la pestaña correcta
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
 
-    ProcesarImagenOffline(CapturedImage);
+    // Limpiar y mostrar imagen cruda
+    ui.lblOfflineMain->clear();
+    ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
+    DisplayMat(ui.lblOfflineMain, CapturedImage);
+
+    // NO procesamos automáticamente
+    // ProcesarImagenOffline(CapturedImage);
 }
 
 void ProyectoPSM::RecalcularSegmentacion()
 {
-    // Re-ejecutar sobre la imagen que ya tenemos
-    if (!CapturedImage.empty()) {
-        ProcesarImagenOffline(CapturedImage);
+    // Validación de imagen capturada
+    if (CapturedImage.empty()) {
+        QMessageBox::warning(this, "Error", "No hay ninguna imagen cargada para clasificar.");
+        return;
     }
+    ProcesarImagenOffline(CapturedImage);    
 }
 
-// Lógica central de Análisis
+// Lógica central de Análisis (Segmentación pura)
 void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 {
     if (img.empty()) return;
@@ -717,13 +723,9 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
     this->setUpdatesEnabled(true);
 
-    // Mostrar Resultado Principal con IDs temporales (sin clasificación automática)
     cv::Mat displayImg = img.clone();
     for (const auto& res : resultados) {
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
-        cv::putText(displayImg, std::to_string(res.id),
-            cv::Point(res.boundingBox.x, res.boundingBox.y - 10),
-            cv::FONT_HERSHEY_SIMPLEX, 0.9, cv::Scalar(0, 255, 0), 2);
     }
     DisplayMat(ui.lblOfflineMain, displayImg);
 
@@ -742,109 +744,140 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     }
 }
 
-// Nuevo slot: clasifica las piezas guardadas en lastResultados_ y actualiza miniaturas y vista principal
+// Clasifica las piezas guardadas en lastResultados_ y actualiza miniaturas y vista principal
 void ProyectoPSM::ProcesarClasificacionOffline()
 {
-    if (lastResultados_.empty()) {
-        QMessageBox::information(this, "Clasificar", "No hay resultados de segmentación para clasificar.");
+    // 1. Validación de imagen capturada
+    if (CapturedImage.empty()) {
+        QMessageBox::warning(this, "Error", "No hay ninguna imagen cargada para clasificar.");
         return;
     }
 
-    // Asegurar que las plantillas están cargadas
-    if (!orientTemplatesLoaded_) {
-        if (!QFileInfo::exists(orientTemplatesDir_) || !QFileInfo(orientTemplatesDir_).isDir()) {
-            QMessageBox::critical(this, "Error", "No existe la carpeta de templates:\n" + orientTemplatesDir_);
+    // Si no se ha segmentado aún, forzamos la segmentación primero
+    if (lastResultados_.empty()) {
+        RecalcularSegmentacion(); // Esto llenará lastResultados_
+        if (lastResultados_.empty()) {
+            QMessageBox::information(this, "Clasificar", "No se detectaron piezas en la imagen.");
             return;
         }
-        if (!orientClf_ || !orientClf_->loadAllTemplates()) {
-            QMessageBox::critical(this, "Error", "No se pudieron cargar las plantillas .yml/.yaml.");
-            return;
-        }
-        orientTemplatesLoaded_ = true;
     }
 
-    // Clasificar cada pieza y actualizar miniaturas
+    // ---------------------------------------------------------
+    // 2. CARGA DEL SVM
+    // ---------------------------------------------------------
+    if (!svmClf_->IsLoaded()) {
+        std::string pathModel = "../../Matlab/Clasificador/Clasificador C/modelM.yml";
+        std::string pathScaler = "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml";
+        bool ok = svmClf_->Load(pathModel, pathScaler);
+        if (!ok) {
+            QMessageBox::warning(this, "Error Crítico",
+                "No se pudo cargar el modelo SVM.\nNo se puede realizar la clasificación.");
+            return; // Abortar si no hay cerebro
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 3. CARGA DE PLANTILLAS
+    // ---------------------------------------------------------
+    if (!orientTemplatesLoaded_) {
+        if (!orientClf_->loadAllTemplates()) {
+            QMessageBox::warning(this, "Error", "No se pudieron cargar las plantillas de orientación.");
+            // No abortamos, pero la orientación fallará
+        }
+        else {
+            orientTemplatesLoaded_ = true;
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 4. BUCLE DE CLASIFICACIÓN
+    // ---------------------------------------------------------
+
+    // Clonamos imagen limpia para pintar resultados nuevos
+    cv::Mat displayImg = CapturedImage.clone();
+
+    // Limpiamos miniaturas visualmente (se repintan limpias abajo)
     QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
-    for (size_t i = 0; i < lastResultados_.size() && i < 3; ++i) {
+    for (int k = 0; k < 3; ++k) thumbs[k]->clear();
+
+    for (size_t i = 0; i < lastResultados_.size(); ++i) {
         ResultadoPieza& res = lastResultados_[i];
         if (res.imagenRecortada.empty()) continue;
 
-        OrientationResult orr;
-        try {
-            orr = orientClf_->predict(res.imagenRecortada);
-        }
-        catch (...) {
-            orr.ok = false;
+        std::string codigoPieza = "";
+        int clasePredicha = -1;
+        bool svmExito = false;
+
+        // --- PASO A: SVM ---
+        if (svmClf_->IsLoaded()) {
+            clasePredicha = svmClf_->Predict(res.imagenRecortada);
+            if (clasePredicha > 0) {
+                codigoPieza = std::to_string(clasePredicha);
+                if (clasePredicha < 10) codigoPieza = "0" + codigoPieza;
+                res.id = clasePredicha;
+                svmExito = true;
+            }
         }
 
-        // Preparar label de texto
-        std::string label;
-        if (orr.ok) {
-            label = "code=" + orr.matchedCode +
-                " yaw=" + std::to_string(orr.yaw) +
-                " pitch=" + std::to_string(orr.pitch);
+        // --- PASO B: ORIENTACIÓN (Solo si SVM tuvo éxito) ---
+        std::string labelInfo = "Desc.";
+
+        if (svmExito) {
+            OrientationResult orr;
+            bool orientExito = false;
+
+            // Intentamos predecir orientación SOLO de esa pieza
+            if (orientTemplatesLoaded_) {
+                try {
+                    orr = orientClf_->predict(res.imagenRecortada, codigoPieza);
+                    orientExito = orr.ok;
+                }
+                catch (...) {}
+            }
+
+            if (orientExito) {
+                labelInfo = "ID:" + codigoPieza + " Yaw:" + std::to_string(orr.yaw);
+            }
+            else {
+                labelInfo = "ID:" + codigoPieza + " (Ori?)"; // Sabemos la pieza, no el ángulo
+            }
         }
         else {
-            label = "id=" + std::to_string(res.id);
+            // Si SVM falló, no intentamos adivinar orientación con plantillas.
+            labelInfo = "Desconocido";
         }
 
-        // Pintar texto sobre la miniatura (trabajar en BGR para putText)
-        cv::Mat thumb = res.imagenRecortada.clone();
-        if (thumb.channels() == 1) cv::cvtColor(thumb, thumb, cv::COLOR_GRAY2BGR);
+        // --- VISUALIZACIÓN ---
+
+        // 1. Miniatura LIMPIA (sin texto)
+        if (i < 3) {
+            DisplayMat(thumbs[i], res.imagenRecortada);
+        }
+
+        // 2. Imagen Principal (Con Caja y Texto)
+        cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
 
         int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-        double fontScale = max(0.4, thumb.cols / 200.0);
-        int thickness = max(1, thumb.cols / 200);
+        double fontScale = std::max<double>(0.5, displayImg.cols / 1000.0);
+        int thickness = std::max<double>(1, displayImg.cols / 500);
         int baseline = 0;
-        cv::Size textSize = cv::getTextSize(label, fontFace, fontScale, thickness, &baseline);
+        cv::Size textSize = cv::getTextSize(labelInfo, fontFace, fontScale, thickness, &baseline);
 
-        // Fondo semitransparente detrás del texto
-        cv::rectangle(thumb, cv::Point(0, thumb.rows - textSize.height - 10),
-            cv::Point(textSize.width + 10, thumb.rows), cv::Scalar(0, 0, 0), cv::FILLED);
-        cv::putText(thumb, label, cv::Point(5, thumb.rows - 8), fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
+        int tx = res.boundingBox.x;
+        int ty = res.boundingBox.y - 10;
+        if (ty < textSize.height) ty = res.boundingBox.y + textSize.height + 10;
 
-        // Mostrar miniatura actualizada
-        DisplayMat(thumbs[i], thumb);
+        // Fondo negro
+        cv::rectangle(displayImg, cv::Point(tx, ty - textSize.height - 5),
+            cv::Point(tx + textSize.width, ty + 5), cv::Scalar(0, 0, 0), cv::FILLED);
+
+        // Texto verde
+        cv::putText(displayImg, labelInfo, cv::Point(tx, ty),
+            fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
     }
 
-    // También actualizar la imagen principal: pintar etiquetas de clasificación sobre cada bounding box
-    if (!CapturedImage.empty()) {
-        cv::Mat displayImg = CapturedImage.clone();
-        for (const auto& res : lastResultados_) {
-            std::string label = std::to_string(res.id);
-            // Intentar recomputar clasificación si no lo hicimos antes (no obligatorio)
-            OrientationResult orr;
-            bool haveClass = false;
-            if (!res.imagenRecortada.empty() && orientClf_) {
-                try {
-                    orr = orientClf_->predict(res.imagenRecortada);
-                    haveClass = orr.ok;
-                }
-                catch (...) { haveClass = false; }
-            }
-            if (haveClass) {
-                label = "code=" + orr.matchedCode +
-                    " yaw=" + std::to_string(orr.yaw); 
-            }
-
-            cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
-
-            int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-            double fontScale = max(0.4, displayImg.cols / 1000.0);
-            int thickness = max(1, displayImg.cols / 500);
-            int baseline = 0;
-            cv::Size textSize = cv::getTextSize(label, fontFace, fontScale, thickness, &baseline);
-
-            int tx = res.boundingBox.x;
-            int ty = res.boundingBox.y - 8;
-            if (ty < textSize.height) ty = res.boundingBox.y + textSize.height + 8;
-
-            // Fondo para legibilidad
-            cv::rectangle(displayImg, cv::Point(tx, ty - textSize.height - 4), cv::Point(tx + textSize.width + 6, ty + 4), cv::Scalar(0, 0, 0), cv::FILLED);
-            cv::putText(displayImg, label, cv::Point(tx + 2, ty), fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
-        }
-        DisplayMat(ui.lblOfflineMain, displayImg);
-    }
+    // Mostrar resultado final
+    DisplayMat(ui.lblOfflineMain, displayImg);
 }
 
 void ProyectoPSM::UpdateFileNameLabel()
