@@ -117,6 +117,7 @@
     <ClCompile Include="EvaluacionClasificador.cpp" />
     <ClCompile Include="ExtractCaracteristicas.cpp" />
     <ClCompile Include="ExtractCaracteristicas24Refinador.cpp" />
+    <ClCompile Include="FeatureCache.cpp" />
     <ClCompile Include="ExtractorShapeFeatures6.cpp" />
     <ClCompile Include="ExtractShapeFeatures10.cpp" />
     <ClCompile Include="ExtractShapeFeatures8.cpp" />
@@ -143,6 +144,7 @@
     <ClInclude Include="EvaluacionClasificador.h" />
     <ClInclude Include="ExtractCaracteristicas.h" />
     <ClInclude Include="ExtractCaracteristicas24Refinador.h" />
+    <ClInclude Include="FeatureCache.h" />
     <ClInclude Include="ExtractShapeFeatures10.h" />
     <ClInclude Include="ExtractShapeFeatures6.h" />
     <ClInclude Include="ExtractShapeFeatures8.h" />

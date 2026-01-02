@@ -9,6 +9,7 @@
 struct TrainingConfig {
     QString rawFolder;       // Entrada: Imágenes Raw
     QString segFolder;       // Salida: Imágenes Recortadas
+    bool skipExtraction;
 
     // Dejamos estos placeholder para el futuro
     QString featuresFile;
@@ -32,6 +33,7 @@ public slots:
 signals:
     // Actualizar barras de progreso (0 a 100)
     void progressSeg(int percent);
+    void progressExtract(int percent);
 
     // Mensajes para el log (texto negro)
     void logMessage(QString msg);
@@ -45,4 +47,5 @@ private:
 
     // Pasos internos
     void runStepSegmentation();
+    void runStepExtraction();
 };

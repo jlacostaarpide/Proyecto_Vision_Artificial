@@ -1,4 +1,4 @@
-// ClasificacionUnificada.cpp
+// Clasificador.cpp
 // ï¿½nico ejecutable con subcomandos: train, eval, extract
 
 #include <opencv2/opencv.hpp>
@@ -30,6 +30,82 @@ using namespace cv;
 using namespace cv::ml;
 using std::string;
 using std::vector;
+
+// =========================================================
+//  IMPLEMENTACIï¿½N DE LA CLASE CLASIFICADOR
+// =========================================================
+
+Clasificador::Clasificador() {
+    svmLoaded = false;
+    hasScaler = false;
+}
+
+bool Clasificador::Load(const std::string& modelPath, const std::string& scalerPath) {
+    svmLoaded = false;
+    hasScaler = false;
+
+    // 1. Cargar SVM
+    try {
+        svm = cv::ml::SVM::load(modelPath);
+        if (svm.empty()) return false;
+    }
+    catch (...) {
+        return false;
+    }
+
+    // 2. Cargar Scaler (Media y Desviaciï¿½n estï¿½ndar) si existe
+    if (!scalerPath.empty()) {
+        cv::FileStorage fs(scalerPath, cv::FileStorage::READ);
+        if (fs.isOpened()) {
+            fs["mean"] >> mean;
+            fs["std"] >> stdv;
+
+            // Asegurar tipos compatibles para operaciones matemï¿½ticas
+            if (!mean.empty() && !stdv.empty()) {
+                mean.convertTo(mean, CV_64F);
+                stdv.convertTo(stdv, CV_64F);
+                hasScaler = true;
+            }
+            fs.release();
+        }
+    }
+
+    svmLoaded = true;
+    return true;
+}
+
+int Clasificador::Predict(const cv::Mat& img) {
+    if (!svmLoaded || img.empty()) return -1;
+
+    // 1. Extraer Caracterï¿½sticas
+    std::vector<double> feats;
+    std::vector<std::string> dummyNames;
+    FeatureExtractor::ExtractColorShapeFeatures(img, feats, dummyNames);
+
+    if (feats.empty()) return -1; // Imagen no vï¿½lida
+
+    // 2. Preparar matriz de fila para OpenCV
+    cv::Mat rowD(1, static_cast<int>(feats.size()), CV_64F);
+    for (size_t i = 0; i < feats.size(); ++i) {
+        rowD.at<double>(0, (int)i) = feats[i];
+    }
+
+    // 3. Aplicar Normalizaciï¿½n (Scaler) si existe
+    if (hasScaler && mean.cols == rowD.cols) {
+        for (int c = 0; c < rowD.cols; ++c) {
+            double mu = mean.at<double>(0, c);
+            double s = std::max(1e-12, stdv.at<double>(0, c)); // Evitar div por cero
+            rowD.at<double>(0, c) = (rowD.at<double>(0, c) - mu) / s;
+        }
+    }
+
+    // 4. Predecir
+    cv::Mat rowF;
+    rowD.convertTo(rowF, CV_32F);
+
+    float response = svm->predict(rowF);
+    return static_cast<int>(response);
+}
 
 static const vector<string> exts = { ".jpg",".jpeg",".png",".bmp",".tif",".tiff",".webp" };
 static bool hasSupportedExt(const fs::path& p) {
@@ -217,7 +293,7 @@ int RunTrain(const TrainSVM::Options& opts) {
     // Ejecuta cuando opts.doGridSearch == true (comportamiento cambiado: ahora hace grid-search)
     // ---------------------------
     if (opts.doGridSearch && samples.rows > 1) {
-        // grid values (ajusta según necesites)
+        // grid values (ajusta segï¿½n necesites)
         std::vector<double> Cvals = { 0.1, 1, 10, 100 };
         std::vector<double> gammaVals = { 0.001, 0.01, 0.1, 1 };
         int K = 5;
@@ -301,7 +377,7 @@ int RunTrain(const TrainSVM::Options& opts) {
         qDebug() << "gamma =" << bestGamma;
         qDebug() << "CV accuracy =" << bestAcc << "%";
 
-        // Entrena modelo final RBF con mejores hiperparámetros
+        // Entrena modelo final RBF con mejores hiperparï¿½metros
         Ptr<SVM> svmRBF = SVM::create();
         svmRBF->setType(SVM::C_SVC);
         svmRBF->setKernel(SVM::RBF);
@@ -326,7 +402,7 @@ int RunTrain(const TrainSVM::Options& opts) {
         return 0;
     }
 
-    // Si no se pidió grid-search (opts.doLOO == false), se entrena el SVM polinómico como antes.
+    // Si no se pidiï¿½ grid-search (opts.doLOO == false), se entrena el SVM polinï¿½mico como antes.
     Ptr<SVM> svm = SVM::create();
     svm->setType(SVM::C_SVC);
     svm->setKernel(SVM::POLY);
@@ -818,7 +894,7 @@ int RunEvalRefinerOnly(const std::string& segFolder,
         total++;
     }
 
-   
+
 
     double acc = total ? 100.0 * double(correct) / double(total) : 0.0;
     out << "\n#summary\n";
