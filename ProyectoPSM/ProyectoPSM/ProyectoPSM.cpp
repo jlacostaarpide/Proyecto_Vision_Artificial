@@ -170,14 +170,14 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
-    svmClf_ = std::make_unique<ClasificadorSVM>();  
+    svmClf_ = std::make_unique<ClasificadorSVM>();
 
     // Inicializar pestañas
     ui.tabWidget->setCurrentIndex(0);
     ui.tabWidgetAnalysis->setCurrentIndex(0);
     ui.tabWidgetDebug->setCurrentIndex(0);
 
-	// Entrena si no hay modelo de clasificacion
+    // Entrena si no hay modelo de clasificacion
     //maybeTrain();
     //runEvalAmarillas();
     //runEvalGlobal();
@@ -533,7 +533,7 @@ void ProyectoPSM::ShowImage()
 
     QPixmap scaled = pix.scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-    // DIBUJAR CAJAS VERDES
+    // DIBUJAR CAJAS VERDES (Segmentación en vivo)
     if (LiveSegmentationEnabled && !lastBoxesNormalized.empty()) {
         QPainter p(&scaled);
         QPen pen(Qt::green);
@@ -606,7 +606,7 @@ void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes, co
 }
 
 
-// CAPTURA Y ANÁLISIS OFFLINE 
+// CAPTURA Y ANÁLISIS OFFLINE
 void ProyectoPSM::CapturarYAnalizar()
 {
     // 1. Verificar imagen
@@ -667,7 +667,17 @@ void ProyectoPSM::CargarImagenDisco()
     // ProcesarImagenOffline(CapturedImage);
 }
 
-// Lógica central de Análisis
+void ProyectoPSM::RecalcularSegmentacion()
+{
+    // Validación de imagen capturada
+    if (CapturedImage.empty()) {
+        QMessageBox::warning(this, "Error", "No hay ninguna imagen cargada para clasificar.");
+        return;
+    }
+    ProcesarImagenOffline(CapturedImage);    
+}
+
+// Lógica central de Análisis (Segmentación pura)
 void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 {
     if (img.empty()) return;
@@ -741,7 +751,7 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 // Clasifica las piezas guardadas en lastResultados_ y actualiza miniaturas y vista principal
 void ProyectoPSM::ProcesarClasificacionOffline()
 {
-    // 1. Validación: ¿Tenemos imagen capturada?
+    // 1. Validación de imagen capturada
     if (CapturedImage.empty()) {
         QMessageBox::warning(this, "Error", "No hay ninguna imagen cargada para clasificar.");
         return;
@@ -852,8 +862,8 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
 
         int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-        double fontScale = std::max(0.5, displayImg.cols / 1000.0);
-        int thickness = std::max(1, displayImg.cols / 500);
+        double fontScale = std::max<double>(0.5, displayImg.cols / 1000.0);
+        int thickness = std::max<double>(1, displayImg.cols / 500);
         int baseline = 0;
         cv::Size textSize = cv::getTextSize(labelInfo, fontFace, fontScale, thickness, &baseline);
 
