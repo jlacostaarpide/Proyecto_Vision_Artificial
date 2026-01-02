@@ -12,6 +12,7 @@
 
 #include "Segmentacion.h"
 #include "Clasificador.h"
+#include "TrainingWorker.h"
 
 #include <QMessageBox>
 #include <QFileInfo>
@@ -342,21 +343,49 @@ void ProyectoPSM::onCheckSkipEval(bool checked) {
 }
 
 void ProyectoPSM::onStartTrainingClicked() {
-    // Resetear Barras
+    // 1. Configurar rutas desde la UI
+    TrainingConfig config;
+    config.rawFolder = ui.txtPathRaw->text();
+    config.segFolder = ui.txtPathSeg->text();
+    // (El resto de rutas las rellenaremos cuando hagamos los otros pasos)
+
+    // Resetear UI
+    ui.txtLogTrain->clear();
     ui.progressBarSeg->setValue(0);
-    ui.progressBarExtract->setValue(0);
-    ui.progressBarTrain->setValue(0);
-    ui.progressBarEval->setValue(0);
+    ui.btnStartTraining->setEnabled(false); // Deshabilitar botón para evitar doble click
 
-    ui.txtLogTrain->append("<b>Iniciando proceso...</b>");
-    ui.txtLogTrain->append(QDateTime::currentDateTime().toString("hh:mm:ss") + " - Configurando pipeline...");
+    // 2. Crear Worker y Thread
+    // Nota: QThread gestiona la memoria si lo configuramos bien
+    QThread* thread = new QThread;
+    TrainingWorker* worker = new TrainingWorker(config);
+    worker->moveToThread(thread);
 
-    // AQUÍ IRÁ LA LÓGICA DE LANZAMIENTO DEL THREAD DE ENTRENAMIENTO MÁS ADELANTE
-    // Por ahora solo feedback visual
-    if (ui.chkSkipSeg->isChecked()) ui.progressBarSeg->setValue(100);
-    if (ui.chkSkipExtract->isChecked()) ui.progressBarExtract->setValue(100);
-    if (ui.chkSkipTrain->isChecked()) ui.progressBarTrain->setValue(100);
-    if (ui.chkSkipEval->isChecked()) ui.progressBarEval->setValue(100);
+    // 3. Conectar señales
+
+    // Cuando el hilo arranca -> worker empieza a procesar
+    connect(thread, &QThread::started, worker, &TrainingWorker::process);
+
+    // Actualizar barra de progreso
+    connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
+
+    // Logs al cuadro de texto
+    connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {
+        ui.txtLogTrain->append(msg);
+        });
+
+    // Limpieza al terminar
+    connect(worker, &TrainingWorker::finished, thread, &QThread::quit);
+    connect(worker, &TrainingWorker::finished, worker, &QObject::deleteLater);
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+    // Reactivar botón al terminar
+    connect(thread, &QThread::finished, this, [this]() {
+        ui.btnStartTraining->setEnabled(true);
+        ui.txtLogTrain->append("<b>Proceso finalizado.</b>");
+        });
+
+    // 4. Iniciar
+    thread->start();
 }
 
 
