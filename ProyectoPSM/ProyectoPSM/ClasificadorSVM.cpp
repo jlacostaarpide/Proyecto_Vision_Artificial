@@ -49,7 +49,7 @@ int ClasificadorSVM::Predict(const cv::Mat& img) {
     std::vector<std::string> dummyNames;
     FeatureExtractor::ExtractColorShapeFeatures(img, feats, dummyNames);
 
-    //if (!ok || feats.empty()) return -1; // Imagen no válida
+    if (feats.empty()) return -1; // Imagen no válida
 
     // 2. Preparar matriz de fila para OpenCV
     cv::Mat rowD(1, static_cast<int>(feats.size()), CV_64F);
@@ -69,7 +69,7 @@ int ClasificadorSVM::Predict(const cv::Mat& img) {
 
     // 4. Predecir
     cv::Mat rowF;
-    rowD.convertTo(rowF, CV_32F); // SVM de OpenCV suele querer float (32F)
+    rowD.convertTo(rowF, CV_32F);
 
     float response = svm->predict(rowF);
     return static_cast<int>(response);
