@@ -22,6 +22,8 @@
 #include "ExtractCaracteristicas24Refinador.h"
 #include "ExtractShapeFeatures6.h"
 #include "ExtractShapeFeatures10.h"
+#include "ExtractShapeFeatures8.h"
+
 
 namespace fs = std::filesystem;
 using namespace cv;
@@ -395,9 +397,10 @@ int RunTrainRefiner(const TrainSVM::Options& opts, bool doLOO) {
         vector<string> names;
         //FeatureExtractor24::ExtractShapeFeatures24(I, feat, names);
         //FeatureExtractor6::ExtractShapeFeatures6(I, feat, names);
-        FeatureExtractor10::ExtractShapeFeatures10(I, feat, names);
+        //FeatureExtractor10::ExtractShapeFeatures10(I, feat, names);
+        FeatureExtractor8::ExtractShapeFeatures8(I, feat, names);
 
-        if (feat.size() != 10) { skipped++; continue; } // 24 si se usa el otro
+        if (feat.size() != 8) { skipped++; continue; } // 24 si se usa el otro
 
         if (!featNamesSet) { featNames = names; featNamesSet = true; }
 
@@ -802,9 +805,10 @@ int RunEvalRefinerOnly(const std::string& segFolder,
         vector<double> feat; vector<string> names;
         //FeatureExtractor24::ExtractShapeFeatures24(I, feat, names);
         //FeatureExtractor6::ExtractShapeFeatures6(I, feat, names);
-        FeatureExtractor10::ExtractShapeFeatures10(I, feat, names);
+        //FeatureExtractor10::ExtractShapeFeatures10(I, feat, names);
+        FeatureExtractor8::ExtractShapeFeatures8(I, feat, names);
 
-        if (feat.size() != 10) { skipped++; continue; } //24 si se usa el otro
+        if (feat.size() != 8) { skipped++; continue; } //24 si se usa el otro
 		// predict
 
         int pred = predictWithSVM(svm912, mean912, std912, hasScaler912, feat);

@@ -177,7 +177,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
 	// Entrena si no hay modelo de clasificacion
     //maybeTrain();
-    runEvalAmarillas();
+    //runEvalAmarillas();
     //runEvalGlobal();
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
