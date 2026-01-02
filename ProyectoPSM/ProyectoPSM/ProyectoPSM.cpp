@@ -170,6 +170,8 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 {
     ui.setupUi(this);
 
+    svmClf_ = std::make_unique<ClasificadorSVM>();  
+
     // Inicializar pestañas
     ui.tabWidget->setCurrentIndex(0);
     ui.tabWidgetAnalysis->setCurrentIndex(0);
@@ -719,14 +721,13 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     ui.tabWidgetAnalysis->setCurrentWidget(ui.subTabResultados);
     this->setUpdatesEnabled(true);
 
-    // Mostrar Resultado Principal con IDs temporales (sin clasificación automática)
     cv::Mat displayImg = img.clone();
-    for (const auto& res : resultados) {
+    /*for (const auto& res : resultados) {
         cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
         cv::putText(displayImg, std::to_string(res.id),
             cv::Point(res.boundingBox.x, res.boundingBox.y - 10),
             cv::FONT_HERSHEY_SIMPLEX, 0.9, cv::Scalar(0, 255, 0), 2);
-    }
+    }*/
     DisplayMat(ui.lblOfflineMain, displayImg);
 
     // Miniaturas (sin texto de clasificación; se actualizarán al pulsar Clasificar)
@@ -747,17 +748,48 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 // Nuevo slot: clasifica las piezas guardadas en lastResultados_ y actualiza miniaturas y vista principal
 void ProyectoPSM::ProcesarClasificacionOffline()
 {
+    // 1. Validación básica: ¿Hay piezas segmentadas?
     if (lastResultados_.empty()) {
         QMessageBox::information(this, "Clasificar", "No hay resultados de segmentación para clasificar.");
         return;
     }
 
-    // Asegurar que las plantillas están cargadas
+    // ---------------------------------------------------------
+    // 2. CARGA DEL SVM (MODELO MATLAB)
+    // ---------------------------------------------------------
+    if (!svmClf_->IsLoaded()) {
+        // Rutas relativas apuntando a tu carpeta de Matlab antigua
+        // Nota: Asegúrate de que las barras son '/' o '\\'
+        std::string pathModel = "../../Matlab/Clasificador/Clasificador C/modelM.yml";
+
+        // El scaler suele llamarse igual con _scaler.yml
+        std::string pathScaler = "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml";
+
+        // Intentar cargar
+        bool ok = svmClf_->Load(pathModel, pathScaler);
+
+        if (!ok) {
+            // Si falla, avisamos pero no paramos (funcionará solo con plantillas, aunque lento)
+            qDebug() << "AVISO: No se pudo cargar el modelo SVM de Matlab en: " << QString::fromStdString(pathModel);
+            QMessageBox::warning(this, "Aviso SVM",
+                "No se encontró el modelo 'modelM.yml' en la carpeta de Matlab.\n"
+                "El sistema funcionará, pero usando búsqueda lenta (fuerza bruta).");
+        }
+        else {
+            qDebug() << "SVM Cargado correctamente desde Matlab.";
+        }
+    }
+
+    // ---------------------------------------------------------
+    // 3. CARGA DE PLANTILLAS (Para Orientación)
+    // ---------------------------------------------------------
     if (!orientTemplatesLoaded_) {
+        // Verificación de seguridad de la carpeta
         if (!QFileInfo::exists(orientTemplatesDir_) || !QFileInfo(orientTemplatesDir_).isDir()) {
             QMessageBox::critical(this, "Error", "No existe la carpeta de templates:\n" + orientTemplatesDir_);
             return;
         }
+        // Carga masiva de todos los .yml de templates
         if (!orientClf_ || !orientClf_->loadAllTemplates()) {
             QMessageBox::critical(this, "Error", "No se pudieron cargar las plantillas .yml/.yaml.");
             return;
@@ -765,86 +797,116 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         orientTemplatesLoaded_ = true;
     }
 
-    // Clasificar cada pieza y actualizar miniaturas
+    // ---------------------------------------------------------
+    // 4. BUCLE DE CLASIFICACIÓN (SVM + Plantillas)
+    // ---------------------------------------------------------
+
+    // Punteros a las 3 etiquetas de miniaturas de la UI
     QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
-    for (size_t i = 0; i < lastResultados_.size() && i < 3; ++i) {
+
+    // Clonamos la imagen original para pintar resultados finales sobre ella
+    cv::Mat displayImg;
+    if (!CapturedImage.empty()) displayImg = CapturedImage.clone();
+
+    for (size_t i = 0; i < lastResultados_.size(); ++i) {
         ResultadoPieza& res = lastResultados_[i];
+
+        // Si el recorte falló, saltamos
         if (res.imagenRecortada.empty()) continue;
 
+        std::string codigoFiltro = ""; // String para filtrar plantillas (ej: "02")
+        int clasePredicha = -1;
+
+        // --- PASO A: SVM (Predecir QUÉ es) ---
+        if (svmClf_->IsLoaded()) {
+            clasePredicha = svmClf_->Predict(res.imagenRecortada);
+
+            if (clasePredicha > 0) {
+                // Convertir número a string con formato (ej: 2 -> "02", 12 -> "12")
+                codigoFiltro = std::to_string(clasePredicha);
+                if (clasePredicha < 10) codigoFiltro = "0" + codigoFiltro;
+
+                // Guardamos el ID en el resultado
+                res.id = clasePredicha;
+                qDebug() << "Pieza" << i << "SVM dice:" << clasePredicha;
+            }
+        }
+
+        // --- PASO B: PLANTILLAS (Predecir ÁNGULO) ---
+        // Pasamos 'codigoFiltro'. 
+        // Si el SVM funcionó, buscará SOLO en esa carpeta. Si falló, buscará en TODAS.
         OrientationResult orr;
         try {
-            orr = orientClf_->predict(res.imagenRecortada);
+            orr = orientClf_->predict(res.imagenRecortada, codigoFiltro);
         }
-        catch (...) {
-            orr.ok = false;
-        }
+        catch (...) { orr.ok = false; }
 
-        // Preparar label de texto
-        std::string label;
+
+        // --- PASO C: PREPARAR TEXTO PARA VISUALIZAR ---
+        std::string labelInfo;
+
         if (orr.ok) {
-            label = "code=" + orr.matchedCode +
-                " yaw=" + std::to_string(orr.yaw) +
-                " pitch=" + std::to_string(orr.pitch);
+            // Caso ideal: Tenemos match de plantilla
+            labelInfo = "ID:" + orr.matchedCode + " Yaw:" + std::to_string(orr.yaw);
+
+            // Si el SVM no estaba cargado o falló, confiamos en la plantilla para el ID
+            if (res.id <= 0) {
+                try { res.id = std::stoi(orr.matchedCode); }
+                catch (...) {}
+            }
         }
         else {
-            label = "id=" + std::to_string(res.id);
+            // Caso fallo plantilla: Mostramos solo lo que dijo el SVM
+            if (res.id > 0) labelInfo = "ID:" + codigoFiltro + " (SVM)";
+            else labelInfo = "Desconocido";
         }
 
-        // Pintar texto sobre la miniatura (trabajar en BGR para putText)
-        cv::Mat thumb = res.imagenRecortada.clone();
-        if (thumb.channels() == 1) cv::cvtColor(thumb, thumb, cv::COLOR_GRAY2BGR);
+        // -----------------------------------------------------
+        // 5. VISUALIZACIÓN (Miniaturas y Principal)
+        // -----------------------------------------------------
 
-        int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-        double fontScale = max(0.4, thumb.cols / 200.0);
-        int thickness = max(1, thumb.cols / 200);
-        int baseline = 0;
-        cv::Size textSize = cv::getTextSize(label, fontFace, fontScale, thickness, &baseline);
+        // A) Actualizar Miniatura (Thumbnail) en la derecha
+        if (i < 3) {
+            cv::Mat thumb = res.imagenRecortada.clone();
+            if (thumb.channels() == 1) cv::cvtColor(thumb, thumb, cv::COLOR_GRAY2BGR);
 
-        // Fondo semitransparente detrás del texto
-        cv::rectangle(thumb, cv::Point(0, thumb.rows - textSize.height - 10),
-            cv::Point(textSize.width + 10, thumb.rows), cv::Scalar(0, 0, 0), cv::FILLED);
-        cv::putText(thumb, label, cv::Point(5, thumb.rows - 8), fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
+            // Pintar texto sobre la miniatura
+            int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+            double fontScale = std::max<double>(0.4, thumb.cols / 200.0);
+            int thickness = std::max<double>(1, thumb.cols / 200);
 
-        // Mostrar miniatura actualizada
-        DisplayMat(thumbs[i], thumb);
-    }
+            cv::putText(thumb, labelInfo, cv::Point(5, thumb.rows - 8),
+                fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
 
-    // También actualizar la imagen principal: pintar etiquetas de clasificación sobre cada bounding box
-    if (!CapturedImage.empty()) {
-        cv::Mat displayImg = CapturedImage.clone();
-        for (const auto& res : lastResultados_) {
-            std::string label = std::to_string(res.id);
-            // Intentar recomputar clasificación si no lo hicimos antes (no obligatorio)
-            OrientationResult orr;
-            bool haveClass = false;
-            if (!res.imagenRecortada.empty() && orientClf_) {
-                try {
-                    orr = orientClf_->predict(res.imagenRecortada);
-                    haveClass = orr.ok;
-                }
-                catch (...) { haveClass = false; }
-            }
-            if (haveClass) {
-                label = "code=" + orr.matchedCode +
-                    " yaw=" + std::to_string(orr.yaw); 
-            }
+            DisplayMat(thumbs[i], thumb);
+        }
 
+        // B) Actualizar Imagen Principal (Bounding Box + Texto)
+        if (!displayImg.empty()) {
             cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
 
+            // Calcular posición del texto
             int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-            double fontScale = max(0.4, displayImg.cols / 1000.0);
-            int thickness = max(1, displayImg.cols / 500);
+            double fontScale = std::max<double>(0.5, displayImg.cols / 1000.0);
+            int thickness = std::max<double>(1, displayImg.cols / 500);
             int baseline = 0;
-            cv::Size textSize = cv::getTextSize(label, fontFace, fontScale, thickness, &baseline);
+            cv::Size textSize = cv::getTextSize(labelInfo, fontFace, fontScale, thickness, &baseline);
 
             int tx = res.boundingBox.x;
-            int ty = res.boundingBox.y - 8;
-            if (ty < textSize.height) ty = res.boundingBox.y + textSize.height + 8;
+            int ty = res.boundingBox.y - 10;
+            if (ty < textSize.height) ty = res.boundingBox.y + textSize.height + 10;
 
-            // Fondo para legibilidad
-            cv::rectangle(displayImg, cv::Point(tx, ty - textSize.height - 4), cv::Point(tx + textSize.width + 6, ty + 4), cv::Scalar(0, 0, 0), cv::FILLED);
-            cv::putText(displayImg, label, cv::Point(tx + 2, ty), fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
+            // Fondo negro para leer mejor
+            cv::rectangle(displayImg, cv::Point(tx, ty - textSize.height - 5),
+                cv::Point(tx + textSize.width, ty + 5), cv::Scalar(0, 0, 0), cv::FILLED);
+
+            cv::putText(displayImg, labelInfo, cv::Point(tx, ty),
+                fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
         }
+    }
+
+    // Finalmente mostramos la imagen principal pintada
+    if (!displayImg.empty()) {
         DisplayMat(ui.lblOfflineMain, displayImg);
     }
 }

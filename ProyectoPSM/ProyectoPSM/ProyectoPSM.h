@@ -17,6 +17,7 @@
 
 #include <memory>
 #include "ClasificadorOrientacion.h"
+#include "ClasificadorSVM.h"
 #include "Segmentacion.h"
 
 class SegmentationWorker : public QObject
@@ -72,6 +73,7 @@ private:
     QString fileName;
 
     std::unique_ptr<ClasificadorOrientacion> orientClf_;
+    std::unique_ptr<ClasificadorSVM> svmClf_;
     bool orientTemplatesLoaded_ = false;
     QString orientTemplatesDir_;
 
