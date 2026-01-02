@@ -22,6 +22,8 @@
 #include <map>
 
 #include "ExtractCaracteristicas.h"
+#include "ExtractCaracteristicas24Refinador.h"
+
 
 namespace fs = std::filesystem;
 using namespace cv;
@@ -493,7 +495,7 @@ int test_evaluacionClasificador(int argc, char** argv) {
         if (useRefiner && predBase >= 0 && (predBase == 9 || predBase == 12)) {
             nRef912++;
             vector<double> featShape; vector<string> shapeNames;
-            FeatureExtractor::ExtractShapeFeatures(Ipiece, featShape, shapeNames); // 14 features
+            FeatureExtractor24::ExtractShapeFeatures24(Ipiece, featShape, shapeNames); // 24 features
             int predRef = predictWithSVM(svm912, mean912, std912, hasScaler912, featShape);
             string predRefStr;
             if (predRef < 0) predRefStr = "---";
