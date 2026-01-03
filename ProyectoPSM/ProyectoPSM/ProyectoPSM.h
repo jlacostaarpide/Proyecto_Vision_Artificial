@@ -29,7 +29,9 @@ public:
 public slots:
     void process(std::shared_ptr<cv::Mat> snapshot);
 signals:
-    void finishedResult(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails);
+    void finishedResult(const std::vector<QRectF>& boxes,
+        const std::vector<QImage>& thumbnails,
+        const std::vector<cv::Mat>& crops);
 };
 
 class ClasificationWorker : public QObject {
@@ -40,8 +42,7 @@ public:
     }
 
 public slots:
-    void process(std::shared_ptr<cv::Mat> snapshotPtr);
-
+    void process(std::vector<cv::Mat> crops, std::vector<QRectF> boxes);
 signals:
     void finishedResult(std::vector<QRectF> boxes, std::vector<QString> labels);
 private:
@@ -59,7 +60,7 @@ public:
 
 signals:
     void requestSegmentation(std::shared_ptr<cv::Mat> snapshot);
-    void requestClassification(std::shared_ptr<cv::Mat> img);
+    void requestClassification(std::vector<cv::Mat> crops, std::vector<QRectF> boxes);
 
 private:
     Ui::ProyectoPSMClass ui;
@@ -78,10 +79,8 @@ private:
     std::atomic<bool> SegProcessing{ false };
     std::atomic<int> segInFlight{ 0 }; // Control de saturación
 
-    // --- NUEVOS MIEMBROS PARA CLASIFICACIÓN EN VIVO ---
     ClasificationWorker* classWorker;
     QThread* classThread;
-    QTimer* classTimer;
     std::atomic<bool> LiveClassificationEnabled;
     std::atomic<bool> ClassProcessing; // Para evitar saturación
 
@@ -126,14 +125,15 @@ private slots:
 
     // control de segmentación
     void EnableLiveSegmentation(bool enabled);
-    void UpdateSegmentationResults(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails);
+    void UpdateSegmentationResults(const std::vector<QRectF>& boxes,
+        const std::vector<QImage>& thumbnails,
+        const std::vector<cv::Mat>& crops);
 
     // timer slot que pide un frame para segmentar (no bloqueante)
     void onSegmentationTimer();
 
     // Clasificación
     void onCheckLiveClass(bool checked);
-    void onClassificationTimer();
     void UpdateClassificationResults(std::vector<QRectF> boxes, std::vector<QString> labels);
 
     // selección/procesado de imagen desde fichero (offline)

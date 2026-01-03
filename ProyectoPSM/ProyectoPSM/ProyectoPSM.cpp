@@ -22,6 +22,7 @@ namespace fs = std::filesystem;
 Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
 Q_DECLARE_METATYPE(std::vector<QRectF>)
 Q_DECLARE_METATYPE(std::vector<QImage>)
+Q_DECLARE_METATYPE(std::vector<cv::Mat>)
 
 // Función auxiliar para convertir cv::Mat a QPixmap y ponerlo en un Label
 void DisplayMat(QLabel* lbl, const cv::Mat& mat, bool isBinary = false) {
@@ -99,10 +100,11 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
 {
     std::vector<QRectF> outBoxes;
     std::vector<QImage> outThumbs;
+    std::vector<cv::Mat> outCrops;
 
     try {
         if (!snapshotPtr || snapshotPtr->empty()) {
-            emit finishedResult(outBoxes, outThumbs);
+            emit finishedResult(outBoxes, outThumbs, outCrops);
             return;
         }
 
@@ -118,6 +120,14 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
         for (size_t i = 0; i < resultados.size(); i++) {
             const ResultadoPieza& pieza = resultados[i];
 
+            // Si el recorte es válido lo guardamos, si no, guardamos uno vacío para mantener índices
+            if (!pieza.imagenRecortada.empty()) {
+                outCrops.push_back(pieza.imagenRecortada);
+            }
+            else {
+                outCrops.push_back(cv::Mat());
+            }
+
             // A. Guardar Caja Normalizada para pintar recuadro
             if (iw > 0 && ih > 0) {
                 outBoxes.push_back(QRectF(
@@ -132,7 +142,6 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
             if (outThumbs.size() < max_thumbs) {
                 cv::Mat crop = pieza.imagenRecortada;
                 if (!crop.empty()) {
-                    // Escalamos a 200px para la nueva UI
                     const int thumbW = 200;
                     int srcW = crop.cols;
                     int srcH = crop.rows;
@@ -158,50 +167,34 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
         qDebug() << "Excepcion en SegmentationWorker";
     }
 
-    emit finishedResult(outBoxes, outThumbs);
+    emit finishedResult(outBoxes, outThumbs, outCrops);
 }
 
 // Clasificación en Segundo Plano
-void ClasificationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
+void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF> boxes) 
 {
-    std::vector<QRectF> outBoxes;
     std::vector<QString> outLabels;
 
     try {
-        if (!snapshotPtr || snapshotPtr->empty()) {
-            emit finishedResult(outBoxes, outLabels);
+        if (crops.empty()) {
+            emit finishedResult(boxes, outLabels);
             return;
         }
 
-        // 1. Segmentar (Reutilizamos la lógica de segmentación, pero sin guardar debug)
-        // Nota: Segmentacion::Segmentar es estática, así que podemos llamarla.
-        std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(*snapshotPtr);
+        for (const auto& crop : crops) {
+            if (crop.empty()) {
+                outLabels.push_back("Error");
+                continue;
+            }
 
-        double iw = static_cast<double>(snapshotPtr->cols);
-        double ih = static_cast<double>(snapshotPtr->rows);
-
-        if (iw == 0 || ih == 0) return;
-
-        // 2. Clasificar cada pieza detectada
-        for (const auto& res : resultados) {
-            if (res.imagenRecortada.empty()) continue;
-
-            // Guardar Bounding Box Normalizado
-            outBoxes.push_back(QRectF(
-                static_cast<double>(res.boundingBox.x) / iw,
-                static_cast<double>(res.boundingBox.y) / ih,
-                static_cast<double>(res.boundingBox.width) / iw,
-                static_cast<double>(res.boundingBox.height) / ih
-            ));
-
-            // Clasificación (Lógica similar a ProcesarClasificacionOffline)
+            // Clasificación
             QString labelText = "Desc.";
             std::string codigoPieza = "";
             bool svmExito = false;
 
             // A. SVM
             if (svmClf && svmClf->IsLoaded()) {
-                int id = svmClf->Predict(res.imagenRecortada);
+                int id = svmClf->Predict(crop);
                 if (id > 0) {
                     codigoPieza = std::to_string(id);
                     if (id < 10) codigoPieza = "0" + codigoPieza;
@@ -209,39 +202,28 @@ void ClasificationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
                 }
             }
 
-            // B. Orientación (Solo si SVM ok)
+            // B. Orientación
             if (svmExito) {
                 bool orientExito = false;
                 int yaw = 0;
                 if (orientClf) {
                     try {
-                        // Importante: orientClf no es thread-safe si carga templates, 
-                        // pero asumimos que ya están cargados en el hilo principal o son solo lectura.
-                        OrientationResult orr = orientClf->predict(res.imagenRecortada, codigoPieza);
-                        if (orr.ok) {
-                            yaw = orr.yaw;
-                            orientExito = true;
-                        }
+                        OrientationResult orr = orientClf->predict(crop, codigoPieza);
+                        if (orr.ok) { yaw = orr.yaw; orientExito = true; }
                     }
                     catch (...) {}
                 }
 
-                if (orientExito) {
-                    labelText = QString("ID:%1 Yaw:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
-                }
-                else {
-                    labelText = QString("ID:%1").arg(QString::fromStdString(codigoPieza));
-                }
+                if (orientExito) labelText = QString("ID:%1 Yaw:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
+                else labelText = QString("ID:%1").arg(QString::fromStdString(codigoPieza));
             }
-
             outLabels.push_back(labelText);
         }
     }
     catch (...) {
         qDebug() << "Excepcion en ClasificationWorker";
     }
-
-    emit finishedResult(outBoxes, outLabels);
+    emit finishedResult(boxes, outLabels);
 }
 
 // Clase Principal
@@ -264,6 +246,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
     qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
+    qRegisterMetaType<std::vector<cv::Mat>>("std::vector<cv::Mat>");
 
     if (!filesystem::exists("Database")) filesystem::create_directory("Database");
 
@@ -313,11 +296,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     segTimer->setInterval(SegmentationIntervalMs);
     connect(segTimer, &QTimer::timeout, this, &ProyectoPSM::onSegmentationTimer);
     segTimer->start();
-
-    classTimer = new QTimer(this);
-    classTimer->setInterval(ClasificationIntervalMs);
-    connect(classTimer, &QTimer::timeout, this, &ProyectoPSM::onClassificationTimer);
-    classTimer->start();
 
     // Watchdog Timer
     statusTimer = new QTimer(this);
@@ -718,7 +696,9 @@ void ProyectoPSM::EnableLiveSegmentation(bool enabled)
     }
 }
 
-void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails)
+void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes,
+    const std::vector<QImage>& thumbnails,
+    const std::vector<cv::Mat>& crops)
 {
     lastBoxesNormalized = boxes;
     // NewImage se encarga de llamar a ShowImage para pintar las cajas
@@ -739,6 +719,12 @@ void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes, co
 
     SegProcessing = false;
     segInFlight.fetch_sub(1);
+
+    // Si la clasificación está activa y el worker está libre, le pasamos los datos
+    if (LiveClassificationEnabled && !ClassProcessing.load()) {
+        ClassProcessing = true;
+        emit requestClassification(crops, boxes);
+    }
 }
 
 void ProyectoPSM::onCheckLiveClass(bool checked)
@@ -763,14 +749,6 @@ void ProyectoPSM::onCheckLiveClass(bool checked)
     }
 }
 
-void ProyectoPSM::onClassificationTimer()
-{
-    if (!LiveClassificationEnabled || ClassProcessing.load() || LastImage.empty()) return;
-
-    ClassProcessing = true;
-    auto snapshotPtr = std::make_shared<cv::Mat>(LastImage.clone());
-    emit requestClassification(snapshotPtr);
-}
 
 void ProyectoPSM::UpdateClassificationResults(std::vector<QRectF> boxes, std::vector<QString> labels)
 {
