@@ -632,9 +632,9 @@ void ProyectoPSM::ShowImage()
             p.drawRect(x, y, w, h);
         }
     }
-    // DIBUJAR CLASIFICACIÓN (Cajas Azules + Texto)
+    // DIBUJAR CLASIFICACIÓN
     if (LiveClassificationEnabled && !lastClassBoxes.empty()) {
-        QPen pen(Qt::cyan);
+        QPen pen(Qt::green);
         pen.setWidth(2);
         p.setPen(pen);
 
@@ -653,7 +653,7 @@ void ProyectoPSM::ShowImage()
             int h = static_cast<int>(boxNorm.height() * scaled.height());
 
             // Dibujar caja
-            p.drawRect(x, y, w, h);
+            //p.drawRect(x, y, w, h);
 
             // Dibujar texto con fondo
             QString text = lastClassLabels[i];
@@ -661,7 +661,7 @@ void ProyectoPSM::ShowImage()
             int tw = fm.horizontalAdvance(text);
             int th = fm.height();
 
-            p.fillRect(x, y - th - 4, tw + 4, th + 4, QColor(0, 0, 0, 150)); // Fondo semi-transparente
+            p.fillRect(x, y - th - 4, tw + 4, th + 4, QColor(0, 0, 0, 150));
             p.drawText(x + 2, y - 4, text);
         }
     }
