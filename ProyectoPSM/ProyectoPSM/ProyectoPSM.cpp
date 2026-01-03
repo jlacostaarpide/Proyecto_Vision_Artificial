@@ -214,8 +214,8 @@ void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF
                     catch (...) {}
                 }
 
-                if (orientExito) labelText = QString("Código:%1 Orientación:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
-                else labelText = QString("Código:%1").arg(QString::fromStdString(codigoPieza));
+                if (orientExito) labelText = QString("Cód:%1 Orientación:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
+                else labelText = QString("Cód:%1").arg(QString::fromStdString(codigoPieza));
             }
             outLabels.push_back(labelText);
         }
@@ -938,44 +938,47 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 
     // Si no se ha segmentado aún, forzamos la segmentación primero
     if (lastResultados_.empty()) {
-        RecalcularSegmentacion(); // Esto llenará lastResultados_
+        RecalcularSegmentacion();
         if (lastResultados_.empty()) {
             QMessageBox::information(this, "Clasificar", "No se detectaron piezas en la imagen.");
             return;
         }
     }
 
-    // ---------------------------------------------------------
     // 2. CARGA DEL SVM
-    // ---------------------------------------------------------
     if (!svmClf_->IsLoaded()) {
         std::string pathModel = "../../Matlab/Clasificador/Clasificador C/modelM.yml";
         std::string pathScaler = "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml";
         bool ok = svmClf_->Load(pathModel, pathScaler);
         if (!ok) {
-            QMessageBox::warning(this, "Error Crítico",
-                "No se pudo cargar el modelo SVM.\nNo se puede realizar la clasificación.");
-            return; // Abortar si no hay cerebro
+            QMessageBox::warning(this, "Error Crítico", "No se pudo cargar el modelo SVM.");
+            return;
         }
     }
 
-    // ---------------------------------------------------------
-    // 3. CARGA DE PLANTILLAS
-    // ---------------------------------------------------------
-    
-    // Se han cargado al iniciar el programa
+    // 1. Convertir Mat (BGR) a formato compatible con Qt (RGB)
+    cv::Mat rgbMat;
+    cv::cvtColor(CapturedImage, rgbMat, cv::COLOR_BGR2RGB);
 
-    // ---------------------------------------------------------
-    // 4. BUCLE DE CLASIFICACIÓN
-    // ---------------------------------------------------------
+    // 2. Crear una QImage sobre la que pintaremos
+    // Hacemos .copy() para tener una copia profunda y poder modificarla sin tocar la original
+    QImage displayImg = QImage(rgbMat.data, rgbMat.cols, rgbMat.rows,
+        static_cast<int>(rgbMat.step), QImage::Format_RGB888).copy();
 
-    // Clonamos imagen limpia para pintar resultados nuevos
-    cv::Mat displayImg = CapturedImage.clone();
+    // 3. Iniciar el pintor
+    QPainter p(&displayImg);
 
-    // Limpiamos miniaturas visualmente (se repintan limpias abajo)
+    // Configurar fuente dinámica según tamaño de imagen
+    QFont font = p.font();
+    int pixelSize = std::max<double>(12, displayImg.width() / 40); // Ajusta el divisor para cambiar tamaño
+    font.setPixelSize(pixelSize);
+    font.setBold(true);
+    p.setFont(font);
+
+    // Limpiamos miniaturas
     QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
     for (int k = 0; k < 3; ++k) thumbs[k]->clear();
-
+    
     for (size_t i = 0; i < lastResultados_.size(); ++i) {
         ResultadoPieza& res = lastResultados_[i];
         if (res.imagenRecortada.empty()) continue;
@@ -995,14 +998,13 @@ void ProyectoPSM::ProcesarClasificacionOffline()
             }
         }
 
-        // --- PASO B: ORIENTACIÓN (Solo si SVM tuvo éxito) ---
-        std::string labelInfo = "Desc.";
+        // --- PASO B: ORIENTACIÓN ---
+        QString labelInfo = "Desc."; // Ahora usamos QString directamente
 
         if (svmExito) {
             OrientationResult orr;
             bool orientExito = false;
 
-            // Intentamos predecir orientación SOLO de esa pieza
             if (orientTemplatesLoaded_) {
                 try {
                     orr = orientClf_->predict(res.imagenRecortada, codigoPieza);
@@ -1011,49 +1013,66 @@ void ProyectoPSM::ProcesarClasificacionOffline()
                 catch (...) {}
             }
 
+            // Usamos QString::arg para formatear
             if (orientExito) {
-                labelInfo = "Código:" + codigoPieza + " Orientacion:" + std::to_string(orr.yaw);
+                labelInfo = QString("Cód: %1 Orientación: %2º")
+                    .arg(QString::fromStdString(codigoPieza))
+                    .arg(orr.yaw);
             }
             else {
-                labelInfo = "Código:" + codigoPieza;
+                labelInfo = QString("Cód: %1")
+                    .arg(QString::fromStdString(codigoPieza));
             }
         }
         else {
-            // Si SVM falló, no intentamos adivinar orientación con plantillas.
             labelInfo = "Desconocido";
         }
 
         // --- VISUALIZACIÓN ---
 
-        // 1. Miniatura LIMPIA (sin texto)
+        // 1. Miniatura (se mantiene igual usando DisplayMat)
         if (i < 3) {
             DisplayMat(thumbs[i], res.imagenRecortada);
         }
 
-        // 2. Imagen Principal (Con Caja y Texto)
-        cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
+        // 2. Dibujar sobre la imagen principal usando QPainter
 
-        int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-        double fontScale = std::max<double>(0.5, displayImg.cols / 1000.0);
-        int thickness = std::max<double>(1, displayImg.cols / 500);
-        int baseline = 0;
-        cv::Size textSize = cv::getTextSize(labelInfo, fontFace, fontScale, thickness, &baseline);
+        // Convertir coordenadas de OpenCV a Qt
+        int x = res.boundingBox.x;
+        int y = res.boundingBox.y;
+        int w = res.boundingBox.width;
+        int h = res.boundingBox.height;
 
-        int tx = res.boundingBox.x;
-        int ty = res.boundingBox.y - 10;
-        if (ty < textSize.height) ty = res.boundingBox.y + textSize.height + 10;
+        // A. Dibujar rectángulo verde
+        QPen pen(Qt::green);
+        pen.setWidth(3);
+        p.setPen(pen);
+        p.drawRect(x, y, w, h);
 
-        // Fondo negro
-        cv::rectangle(displayImg, cv::Point(tx, ty - textSize.height - 5),
-            cv::Point(tx + textSize.width, ty + 5), cv::Scalar(0, 0, 0), cv::FILLED);
+        // B. Calcular tamaño del texto para el fondo negro
+        QFontMetrics fm(font);
+        int textWidth = fm.horizontalAdvance(labelInfo);
+        int textHeight = fm.height();
+        int padding = 4;
 
-        // Texto verde
-        cv::putText(displayImg, labelInfo, cv::Point(tx, ty),
-            fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
+        // Posición del texto (arriba de la caja, o abajo si se sale)
+        int textX = x;
+        int textY = y - padding;
+        if (textY < textHeight) textY = y + h + textHeight + padding;
+
+        // C. Dibujar fondo negro semi-transparente
+        p.fillRect(textX, textY - textHeight, textWidth + (padding * 2), textHeight + padding, QColor(0, 0, 0, 180));
+
+        // D. Dibujar texto
+        p.setPen(Qt::green);
+        p.drawText(textX + padding, textY, labelInfo);
     }
 
-    // Mostrar resultado final
-    DisplayMat(ui.lblOfflineMain, displayImg);
+    p.end(); // Finalizar pintura
+
+    // Mostrar resultado final en el Label
+    ui.lblOfflineMain->setPixmap(QPixmap::fromImage(displayImg)
+        .scaled(ui.lblOfflineMain->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
 void ProyectoPSM::UpdateFileNameLabel()
