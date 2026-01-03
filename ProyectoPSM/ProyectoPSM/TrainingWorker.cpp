@@ -278,8 +278,6 @@ void TrainingWorker::runStepExtraction()
     emit logMessage("Guardando archivo de caracteristicas: " + cfg.featuresFile);
 
     try {
-        // --- CAMBIO CLAVE AQUÍ: .toLocal8Bit().constData() ---
-        // Esto convierte "Iñaki" a la codificación de Windows que espera fopen()
         cv::FileStorage fs(cfg.featuresFile.toLocal8Bit().constData(), cv::FileStorage::WRITE);
 
         if (fs.isOpened()) {
@@ -304,6 +302,7 @@ void TrainingWorker::runStepTemplates()
         return;
     }
 
+    emit logMessage("");
     emit logMessage("--- INICIANDO GENERACION DE PLANTILLAS DE ORIENTACION ---");
 
     TemplateConfig tplCfg;
@@ -316,6 +315,7 @@ void TrainingWorker::runStepTemplates()
         [this](QString msg) { emit logMessage(msg); },
         [this](int p) { /* Podrias emitir una señal progressTemplates(p) si la creas */ }
     );
+    emit progressTemplates(100);
 }
 
 void TrainingWorker::runStepTraining()
