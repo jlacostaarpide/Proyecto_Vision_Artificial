@@ -322,6 +322,11 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
 
     ui.pbtnGuardar->setEnabled(false);
 
+    ui.chkLiveSeg->setEnabled(false);
+    ui.chkLiveClass->setEnabled(false);
+    ui.chkLiveSeg->setChecked(false);
+    ui.chkLiveClass->setChecked(false);
+
     // 5. Configurar estado inicial Cámara
     bool camOk = (Camera && Camera->CameraOK);
     SetCameraStatusUI(camOk);
@@ -569,11 +574,20 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
         ui.lblStatusCamara->setText("Estado: Capturando");
         ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: blue;");
         ui.btnReconectar->setEnabled(false);
+
+        ui.chkLiveSeg->setEnabled(true);
     }
     else {
         // Se ha apagado
         ui.pbtnEncender->setText("Encender Cámara");
         ui.btnCapturarAnalizar->setEnabled(false);
+
+        // 1. Apagar Segmentación
+        if (ui.chkLiveSeg->isChecked()) {
+            ui.chkLiveSeg->setChecked(false);
+        }
+        // 2. Deshabilitar el control
+        ui.chkLiveSeg->setEnabled(false);
 
         if (Camera && Camera->CameraOK) {
             ui.lblStatusCamara->setText("Estado: Listo");
@@ -586,6 +600,7 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
 
         ui.lblVideoLive->clear();
         ui.lblVideoLive->setText("Cámara Pausada");
+        ui.lblVideoLive->setAlignment(Qt::AlignCenter);
     }
 }
 
@@ -685,11 +700,18 @@ void ProyectoPSM::onSegmentationTimer()
 void ProyectoPSM::EnableLiveSegmentation(bool enabled)
 {
     LiveSegmentationEnabled = enabled;
-    if (!enabled) {
+    if (enabled) {
+        ui.chkLiveClass->setEnabled(true);
+    }
+    else {
+        if (ui.chkLiveClass->isChecked()) {
+            ui.chkLiveClass->setChecked(false);
+        }
+        ui.chkLiveClass->setEnabled(false);
         SegProcessing = false;
         lastBoxesNormalized.clear();
         segInFlight.store(0);
-        // Limpiar thumbnails en vivo
+        // Limpiar thumbnails
         if (ui.lblLiveThumb1) ui.lblLiveThumb1->clear();
         if (ui.lblLiveThumb2) ui.lblLiveThumb2->clear();
         if (ui.lblLiveThumb3) ui.lblLiveThumb3->clear();
@@ -769,6 +791,11 @@ void ProyectoPSM::CapturarYAnalizar()
 
     // 2. Congelar imagen actual
     CapturedImage = LastImage.clone();
+
+    // APAGADO AUTOMÁTICO
+        if (ui.pbtnEncender->isChecked()) {
+            ui.pbtnEncender->setChecked(false);
+        }
 
     // 3. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
