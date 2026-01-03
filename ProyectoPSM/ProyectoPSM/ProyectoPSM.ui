@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1280</width>
-    <height>844</height>
+    <height>970</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,7 +18,7 @@
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="tabLive">
        <attribute name="title">
@@ -242,7 +242,7 @@
         <item>
          <widget class="QTabWidget" name="tabWidgetAnalysis">
           <property name="currentIndex">
-           <number>2</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="subTabResultados">
            <attribute name="title">
@@ -382,7 +382,7 @@
             <item>
              <widget class="QTabWidget" name="tabWidgetDebug">
               <property name="currentIndex">
-               <number>2</number>
+               <number>0</number>
               </property>
               <widget class="QWidget" name="tabHSV">
                <attribute name="title">
@@ -841,7 +841,7 @@
         <item>
          <widget class="QGroupBox" name="groupTrainSeg">
           <property name="title">
-           <string>1. Generación del Dataset (Segmentación)</string>
+           <string>Generación del Dataset (Segmentación)</string>
           </property>
           <layout class="QGridLayout" name="gridTrainSeg">
            <item row="0" column="0" colspan="3">
@@ -899,7 +899,7 @@
         <item>
          <widget class="QGroupBox" name="groupTrainExtract">
           <property name="title">
-           <string>2. Extracción de Características</string>
+           <string>Extracción de Características</string>
           </property>
           <layout class="QGridLayout" name="gridTrainExtract">
            <item row="0" column="0" colspan="3">
@@ -934,9 +934,46 @@
          </widget>
         </item>
         <item>
+         <widget class="QGroupBox" name="groupTrainTemplates">
+          <property name="title">
+           <string>Generación de Templates</string>
+          </property>
+          <layout class="QGridLayout" name="gridTrainTemplates">
+           <item row="0" column="0" colspan="3">
+            <widget class="QCheckBox" name="chkSkipTemplates">
+             <property name="text">
+              <string>Saltar Generación de Templates</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_Templates">
+             <property name="text">
+              <string>Carpeta Plantillas:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="txtPathTemplates">
+             <property name="placeholderText">
+              <string>Carpeta donde se guardarán los archivos .yml de orientación...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QPushButton" name="btnBrowseTemplates">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <widget class="QGroupBox" name="groupTrainModel">
           <property name="title">
-           <string>3. Entrenamiento del Modelo</string>
+           <string>Entrenamiento del Modelo</string>
           </property>
           <layout class="QGridLayout" name="gridTrainModel">
            <item row="0" column="0" colspan="3">
@@ -973,13 +1010,13 @@
         <item>
          <widget class="QGroupBox" name="groupTrainEval">
           <property name="title">
-           <string>4. Evaluación del Modelo</string>
+           <string>Evaluación del Modelo</string>
           </property>
           <layout class="QGridLayout" name="gridTrainEval">
            <item row="0" column="0" colspan="3">
             <widget class="QCheckBox" name="chkSkipEval">
              <property name="text">
-              <string>Saltar (No evaluar, solo cargar)</string>
+              <string>Saltar Evaluación</string>
              </property>
             </widget>
            </item>
@@ -1060,6 +1097,23 @@
               </widget>
              </item>
              <item row="2" column="0">
+              <widget class="QLabel" name="lblProgTpl">
+               <property name="text">
+                <string>Plantillas:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QProgressBar" name="progressBarTemplates">
+               <property name="value">
+                <number>0</number>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
               <widget class="QLabel" name="lblProgTrain">
                <property name="text">
                 <string>Entrenamiento:</string>
@@ -1069,14 +1123,14 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="1">
+             <item row="3" column="1">
               <widget class="QProgressBar" name="progressBarTrain">
                <property name="value">
                 <number>0</number>
                </property>
               </widget>
              </item>
-             <item row="3" column="0">
+             <item row="4" column="0">
               <widget class="QLabel" name="lblProgEval">
                <property name="text">
                 <string>Evaluación:</string>
@@ -1086,7 +1140,7 @@
                </property>
               </widget>
              </item>
-             <item row="3" column="1">
+             <item row="4" column="1">
               <widget class="QProgressBar" name="progressBarEval">
                <property name="value">
                 <number>0</number>
@@ -1127,7 +1181,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>33</height>
+     <height>21</height>
     </rect>
    </property>
   </widget>
