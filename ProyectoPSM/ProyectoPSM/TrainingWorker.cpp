@@ -1,6 +1,5 @@
 #include "TrainingWorker.h"
 #include "Segmentacion.h"
-#include "FeatureCache.h"
 #include "ExtractCaracteristicas.h"
 #include <opencv2/opencv.hpp>
 #include <QDebug>

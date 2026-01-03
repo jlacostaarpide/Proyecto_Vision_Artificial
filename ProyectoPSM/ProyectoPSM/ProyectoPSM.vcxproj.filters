@@ -67,9 +67,6 @@
     <ClCompile Include="EvaluacionClasificador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="FeatureCache.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="TrainingWorker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -123,9 +120,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="EvaluacionClasificador.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="FeatureCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ExtractShapeFeatures10.h">
