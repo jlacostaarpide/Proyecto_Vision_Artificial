@@ -130,10 +130,10 @@ def main(
 if __name__ == "__main__":
     # AJUSTA AQUÍ TUS RUTAS
     main(
-        in_dir=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_AMARILLAS",
-        out_train=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_TRAIN_AMARILLAS",
-        out_test=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_TEST_AMARILLAS",
-        test_ratio=0.3,
+        in_dir=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_C",
+        out_train=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_TRAIN_C",
+        out_test=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_TEST_C",
+        test_ratio=0.2,
         seed=1234,
         min_test_per_class=1,
         copy=True

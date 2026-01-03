@@ -301,13 +301,19 @@ Mat Segmentacion::ImFillHoles(const Mat& mask)
 {
     Mat mask_padded;
     copyMakeBorder(mask, mask_padded, 1, 1, 1, 1, BORDER_CONSTANT, Scalar(0));
+
     Mat flood = mask_padded.clone();
     floodFill(flood, Point(0, 0), Scalar(255));
+
     Mat invertido;
     bitwise_not(flood, invertido);
-    Mat filled;
-    bitwise_or(mask_padded, invertido, filled);
-    return filled;
+
+    Mat filled_padded;
+    bitwise_or(mask_padded, invertido, filled_padded);
+
+    // Volver al tamaño original
+    Rect roi(1, 1, mask.cols, mask.rows);
+    return filled_padded(roi).clone();
 }
 
 Mat Segmentacion::ImClearBorder(const Mat& mask)
