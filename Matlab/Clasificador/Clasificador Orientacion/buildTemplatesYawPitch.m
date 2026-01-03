@@ -150,7 +150,7 @@ function [J, ok] = normalizeMaskedPatch(I, outSize)
     try
         mask = extractMaskLego(I);
 
-        % Limpieza mínima (te evitará máscaras “churras” como la que enseñaste)
+        % Limpieza mínima
         mask = bwareafilt(mask, 1);
         mask = imfill(mask, 'holes');
         mask = imclose(mask, strel('disk', 3));

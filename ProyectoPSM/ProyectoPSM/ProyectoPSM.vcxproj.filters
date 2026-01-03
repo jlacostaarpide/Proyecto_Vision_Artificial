@@ -67,9 +67,6 @@
     <ClCompile Include="EvaluacionClasificador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="FeatureCache.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="TrainingWorker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -83,6 +80,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SegmentarGuardar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TemplateGenerator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -125,9 +125,6 @@
     <ClInclude Include="EvaluacionClasificador.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="FeatureCache.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ExtractShapeFeatures10.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -138,6 +135,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SegmentarGuardar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TemplateGenerator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

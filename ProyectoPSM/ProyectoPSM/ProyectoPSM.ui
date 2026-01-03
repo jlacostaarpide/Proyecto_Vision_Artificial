@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1280</width>
-    <height>844</height>
+    <height>980</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,7 +18,7 @@
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="tabLive">
        <attribute name="title">
@@ -242,7 +242,7 @@
         <item>
          <widget class="QTabWidget" name="tabWidgetAnalysis">
           <property name="currentIndex">
-           <number>2</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="subTabResultados">
            <attribute name="title">
@@ -382,7 +382,7 @@
             <item>
              <widget class="QTabWidget" name="tabWidgetDebug">
               <property name="currentIndex">
-               <number>2</number>
+               <number>0</number>
               </property>
               <widget class="QWidget" name="tabHSV">
                <attribute name="title">
@@ -934,15 +934,52 @@
          </widget>
         </item>
         <item>
+         <widget class="QGroupBox" name="groupTrainTemplates">
+          <property name="title">
+           <string>3. Generación de Templates</string>
+          </property>
+          <layout class="QGridLayout" name="gridTrainTemplates">
+           <item row="0" column="0" colspan="3">
+            <widget class="QCheckBox" name="chkSkipTemplates">
+             <property name="text">
+              <string>Saltar Generación de Templates</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_Templates">
+             <property name="text">
+              <string>Carpeta Templates:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="txtPathTemplates">
+             <property name="placeholderText">
+              <string>Carpeta donde se guardarán los archivos .yml de orientación...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QPushButton" name="btnBrowseTemplates">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <widget class="QGroupBox" name="groupTrainModel">
           <property name="title">
-           <string>3. Entrenamiento del Modelo</string>
+           <string>4. Entrenamiento del Modelo</string>
           </property>
           <layout class="QGridLayout" name="gridTrainModel">
            <item row="0" column="0" colspan="3">
             <widget class="QCheckBox" name="chkSkipTrain">
              <property name="text">
-              <string>Saltar (Sólo cargar modelo para usar)</string>
+              <string>Saltar Evaluación</string>
              </property>
             </widget>
            </item>
@@ -973,7 +1010,7 @@
         <item>
          <widget class="QGroupBox" name="groupTrainEval">
           <property name="title">
-           <string>4. Evaluación del Modelo</string>
+           <string>5. Evaluación del Modelo</string>
           </property>
           <layout class="QGridLayout" name="gridTrainEval">
            <item row="0" column="0" colspan="3">
@@ -1060,6 +1097,23 @@
               </widget>
              </item>
              <item row="2" column="0">
+              <widget class="QLabel" name="lblProgTpl">
+               <property name="text">
+                <string>Plantillas:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QProgressBar" name="progressBarTemplates">
+               <property name="value">
+                <number>0</number>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
               <widget class="QLabel" name="lblProgTrain">
                <property name="text">
                 <string>Entrenamiento:</string>
@@ -1069,14 +1123,14 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="1">
+             <item row="3" column="1">
               <widget class="QProgressBar" name="progressBarTrain">
                <property name="value">
                 <number>0</number>
                </property>
               </widget>
              </item>
-             <item row="3" column="0">
+             <item row="4" column="0">
               <widget class="QLabel" name="lblProgEval">
                <property name="text">
                 <string>Evaluación:</string>
@@ -1086,7 +1140,7 @@
                </property>
               </widget>
              </item>
-             <item row="3" column="1">
+             <item row="4" column="1">
               <widget class="QProgressBar" name="progressBarEval">
                <property name="value">
                 <number>0</number>
@@ -1117,6 +1171,111 @@ li.checked::marker { content: &quot;\2612&quot;; }
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tabSettings">
+       <attribute name="title">
+        <string>Ajustes</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_Settings">
+        <item>
+         <widget class="QGroupBox" name="groupRuntimeConfig">
+          <property name="title">
+           <string>Configuración de Modelos</string>
+          </property>
+          <layout class="QGridLayout" name="gridSettings">
+           <item row="0" column="0">
+            <widget class="QLabel" name="lblSetTemplates">
+             <property name="text">
+              <string>Carpeta Templates:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="txtSetTemplates">
+             <property name="placeholderText">
+              <string>Ruta a la carpeta con los .yml de plantillas...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QPushButton" name="btnSetTemplates">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="lblSetModel">
+             <property name="text">
+              <string>Modelo SVM (.yml):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="txtSetModel">
+             <property name="placeholderText">
+              <string>Ruta del archivo modelM.yml...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QPushButton" name="btnSetModel">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="lblSetScaler">
+             <property name="text">
+              <string>Scaler (.yml):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QLineEdit" name="txtSetScaler">
+             <property name="placeholderText">
+              <string>Ruta del archivo scaler (normalmente junto al modelo)...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2">
+            <widget class="QPushButton" name="btnSetScaler">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lblInfoSettings">
+          <property name="styleSheet">
+           <string>color: #666; font-style: italic;</string>
+          </property>
+          <property name="text">
+           <string>Nota: Estos ajustes se usan para la clasificación en vivo y el análisis offline. Si cambias las rutas, los clasificadores se recargarán automáticamente al activarlos.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="verticalSpacer_Settings">
+          <property name="orientation">
+           <enum>Qt::Orientation::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
    </layout>
@@ -1127,7 +1286,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>33</height>
+     <height>21</height>
     </rect>
    </property>
   </widget>

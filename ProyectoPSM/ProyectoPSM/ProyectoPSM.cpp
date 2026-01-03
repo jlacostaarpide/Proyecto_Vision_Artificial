@@ -269,7 +269,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     orientTemplatesLoaded_ = false;
     EnsureOrientTemplatesLoaded();
 
-
     // 1. Inicializar Cámara
     Camera = new CVideoAcquisition();
 
@@ -344,6 +343,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnBrowseRaw, &QPushButton::clicked, this, &ProyectoPSM::onBrowseRaw);
     connect(ui.btnBrowseSeg, &QPushButton::clicked, this, &ProyectoPSM::onBrowseSeg);
     connect(ui.btnBrowseFeatures, &QPushButton::clicked, this, &ProyectoPSM::onBrowseFeatures);
+    connect(ui.btnBrowseTemplates, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTemplates);
     connect(ui.btnBrowseModel, &QPushButton::clicked, this, &ProyectoPSM::onBrowseModel);
     connect(ui.btnBrowseTest, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTest);
 
@@ -361,6 +361,13 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     SavedImageIndex = 1;
     ui.boxImageNumber->setValue(SavedImageIndex);
     UpdateFileNameLabel();
+
+    // 8. PESTAÑA AJUSTES
+    LoadDefaultSettings(); // Cargar rutas iniciales en los textbox
+
+    connect(ui.btnSetTemplates, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseTemplates);
+    connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
+    connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
 }
 
 ProyectoPSM::~ProyectoPSM()
@@ -379,30 +386,119 @@ ProyectoPSM::~ProyectoPSM()
 }
 
 // Funciones de la pestaña de entrenamiento
+QString getSmartStartDir(const QString& currentText, const QString& rutaPorDefecto) {
+    if (!currentText.isEmpty()) {
+        QFileInfo info(currentText);
+        if (info.exists()) return currentText;
 
+        if (info.absoluteDir().exists()) return info.absolutePath();
+    }
+
+    if (!rutaPorDefecto.isEmpty() && QDir(rutaPorDefecto).exists()) {
+        return rutaPorDefecto;
+    }
+
+    if (QDir("Database").exists()) return "Database";
+    return QDir::currentPath();
+}
 void ProyectoPSM::onBrowseRaw() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Imágenes Raw", "Database");
+    QString defaultDir = "../../Database/RAW";
+
+    QString startPath = getSmartStartDir(ui.txtPathRaw->text(), defaultDir);
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta RAW", startPath);
+
     if (!dir.isEmpty()) ui.txtPathRaw->setText(dir);
 }
 
 void ProyectoPSM::onBrowseSeg() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Destino/Origen Segmentadas", "Database");
+    QString defaultDir = "../../Database/SEGMENTED";
+
+    QString title = ui.chkSkipSeg->isChecked() ? "Seleccionar Carpeta Segmentadas (Origen)"
+        : "Seleccionar Carpeta Segmentadas (Destino)";
+
+    QString startPath = getSmartStartDir(ui.txtPathSeg->text(), defaultDir);
+    QString dir = QFileDialog::getExistingDirectory(this, title, startPath);
+
     if (!dir.isEmpty()) ui.txtPathSeg->setText(dir);
 }
 
+void ProyectoPSM::onBrowseTest() {
+    QString defaultDir = "../../Database";
+
+    QString startPath = getSmartStartDir(ui.txtPathTest->text(), defaultDir);
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta Test", startPath);
+
+    if (!dir.isEmpty()) ui.txtPathTest->setText(dir);
+}
+
 void ProyectoPSM::onBrowseFeatures() {
-    QString file = QFileDialog::getSaveFileName(this, "Archivo de Características", "Database/features.xml", "XML Files (*.xml)");
+    QString defaultFile = "../../Database/Models/features.yml";
+
+    QString startFile = getSmartStartDir(ui.txtPathFeatures->text(), "Database");
+
+    // Si getSmartStartDir devolvió un directorio genérico, le pegamos el nombre de archivo por defecto
+    if (QFileInfo(startFile).isDir()) {
+        // Si no hay nada escrito, sugerimos la ruta completa por defecto
+        if (ui.txtPathFeatures->text().isEmpty()) startFile = defaultFile;
+    }
+
+    QString file;
+    if (ui.chkSkipExtract->isChecked()) {
+        file = QFileDialog::getOpenFileName(this, "Cargar Features Existentes",
+            startFile,
+            "YAML/XML Files (*.yml *.yaml *.xml)");
+    }
+    else {
+        file = QFileDialog::getSaveFileName(this, "Guardar Nuevas Features",
+            startFile,
+            "YAML Files (*.yml *.yaml);;XML Files (*.xml)");
+    }
     if (!file.isEmpty()) ui.txtPathFeatures->setText(file);
 }
 
-void ProyectoPSM::onBrowseModel() {
-    QString file = QFileDialog::getOpenFileName(this, "Archivo de Modelo SVM", "Database/modelM.yml", "YAML Files (*.yml *.yaml)");
-    if (!file.isEmpty()) ui.txtPathModel->setText(file);
+void ProyectoPSM::onBrowseTemplates() {
+    QString defaultDir = "../../Database/Templates";
+    QString startPath = getSmartStartDir(ui.txtPathTemplates->text(), defaultDir);
+
+    // Lógica dinámica: Cambiamos el TÍTULO según el checkbox
+    QString title;
+    if (ui.chkSkipTemplates->isChecked()) {
+        // Caso INPUT: El usuario busca plantillas ya existentes para cargar
+        title = "Seleccionar Carpeta de Plantillas (Origen)";
+    }
+    else {
+        // Caso OUTPUT: El usuario busca dónde guardar las nuevas plantillas
+        title = "Seleccionar Carpeta de Plantillas (Destino)";
+    }
+
+    // Nota: En ambos casos usamos getExistingDirectory porque las templates 
+    // son un conjunto de archivos dentro de una carpeta, no un archivo único.
+    QString dir = QFileDialog::getExistingDirectory(this, title, startPath);
+
+    if (!dir.isEmpty()) ui.txtPathTemplates->setText(dir);
 }
 
-void ProyectoPSM::onBrowseTest() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Test", "Database");
-    if (!dir.isEmpty()) ui.txtPathTest->setText(dir);
+void ProyectoPSM::onBrowseModel() {
+    QString defaultFile = "../../Database/Models/modelM.yml";
+
+    QString startFile = getSmartStartDir(ui.txtPathModel->text(), "Database");
+
+    if (QFileInfo(startFile).isDir()) {
+        if (ui.txtPathModel->text().isEmpty()) startFile = defaultFile;
+    }
+
+    QString file;
+    if (ui.chkSkipTrain->isChecked()) {
+        file = QFileDialog::getOpenFileName(this, "Cargar Modelo Existente",
+            startFile,
+            "YAML Files (*.yml *.yaml)");
+    }
+    else {
+        file = QFileDialog::getSaveFileName(this, "Guardar Nuevo Modelo",
+            startFile,
+            "YAML Files (*.yml *.yaml)");
+    }
+    if (!file.isEmpty()) ui.txtPathModel->setText(file);
 }
 
 // Lógica visual de los Checkboxes
@@ -437,13 +533,25 @@ void ProyectoPSM::onStartTrainingClicked() {
     TrainingConfig config;
     config.rawFolder = ui.txtPathRaw->text();
     config.segFolder = ui.txtPathSeg->text();
-    config.skipExtraction = ui.chkSkipExtract->isChecked();
     config.featuresFile = ui.txtPathFeatures->text();
+    config.templatesFolder = ui.txtPathTemplates->text();
+    config.modelFile = ui.txtPathModel->text();
+	config.evaluationFolder = ui.txtPathTest->text();
+
+    config.skipSegmentation= ui.chkSkipSeg->isChecked();
+    config.skipExtraction = ui.chkSkipExtract->isChecked();
+    config.skipTemplates = ui.chkSkipTemplates->isChecked();
+	config.skipTraining = ui.chkSkipTrain->isChecked();
+	config.skipEvaluation = ui.chkSkipEval->isChecked();
 
     // Resetear UI
     ui.txtLogTrain->clear();
     ui.progressBarSeg->setValue(0);
-    ui.btnStartTraining->setEnabled(false); // Deshabilitar botón para evitar doble click
+    ui.progressBarExtract->setValue(0);
+    ui.progressBarTemplates->setValue(0);
+    ui.progressBarTrain->setValue(0);
+    ui.progressBarEval->setValue(0);
+    ui.btnStartTraining->setEnabled(false); // Bloquear botón
 
     // 2. Crear Worker y Thread
     // Nota: QThread gestiona la memoria si lo configuramos bien
@@ -459,6 +567,9 @@ void ProyectoPSM::onStartTrainingClicked() {
     // Actualizar barra de progreso
     connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
     connect(worker, &TrainingWorker::progressExtract, ui.progressBarExtract, &QProgressBar::setValue);
+    connect(worker, &TrainingWorker::progressTemplates, ui.progressBarTemplates, &QProgressBar::setValue);
+    connect(worker, &TrainingWorker::progressTrain, ui.progressBarTrain, &QProgressBar::setValue);
+	connect(worker, &TrainingWorker::progressEval, ui.progressBarEval, &QProgressBar::setValue);
 
     // Logs al cuadro de texto
     connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {
@@ -474,6 +585,19 @@ void ProyectoPSM::onStartTrainingClicked() {
     connect(thread, &QThread::finished, this, [this]() {
         ui.btnStartTraining->setEnabled(true);
         ui.txtLogTrain->append("<b>Proceso finalizado.</b>");
+        // Actualizar pestañas de ajustes automáticamente para comodidad
+        if (!ui.txtPathModel->text().isEmpty()) {
+            ui.txtSetModel->setText(ui.txtPathModel->text());
+
+            // Inferir el scaler
+            QFileInfo info(ui.txtPathModel->text());
+            QString scalerPath = info.absolutePath() + "/" + info.baseName() + "_scaler.yml";
+            ui.txtSetScaler->setText(scalerPath);
+        }
+
+        /*if (!ui.txtPathTemplates->text().isEmpty()) {
+            ui.txtSetTemplates->setText(ui.txtPathTemplates->text());
+        }*/
         });
 
     // 4. Iniciar
@@ -758,15 +882,30 @@ void ProyectoPSM::onCheckLiveClass(bool checked)
         ClassProcessing = false;
     }
     else {
-        // Asegurar que los modelos estén cargados
-		// Ojo, ahora hay una nueva funcion: EnsureOrientTemplatesLoaded
+        QString modelPath = ui.txtSetModel->text();
+        QString scalerPath = ui.txtSetScaler->text();
+        QString tplPath = ui.txtSetTemplates->text();
+
+        // 1. Cargar SVM
         if (!svmClf_->IsLoaded()) {
-            // Cargar SVM (mismas rutas que offline)
-            svmClf_->Load("../../Matlab/Clasificador/Clasificador C/modelM.yml",
-                "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml");
+            if (!QFile::exists(modelPath)) {
+                QMessageBox::warning(this, "Error Configuración", "El archivo de modelo especificado en Ajustes no existe:\n" + modelPath);
+                ui.chkLiveClass->setChecked(false);
+                return;
+            }
+            // Convertir QString a std::string para tu clase Clasificador
+            svmClf_->Load(modelPath.toStdString(), scalerPath.toStdString());
+        }
+
+        // 2. Cargar Templates (Si cambiaron la ruta, reinicializamos el objeto)
+        if (orientTemplatesDir_ != tplPath) {
+            orientTemplatesDir_ = tplPath; // Guardamos la nueva ruta
+            // Re-creamos el clasificador con la nueva ruta
+            orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
+            orientTemplatesLoaded_ = false;
         }
         if (!orientTemplatesLoaded_) {
-            if (orientClf_->loadAllTemplates()) orientTemplatesLoaded_ = true;
+            EnsureOrientTemplatesLoaded();
         }
     }
 }
@@ -947,11 +1086,17 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 
     // 2. CARGA DEL SVM
     if (!svmClf_->IsLoaded()) {
-        std::string pathModel = "../../Matlab/Clasificador/Clasificador C/modelM.yml";
-        std::string pathScaler = "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml";
+        std::string pathModel = ui.txtSetModel->text().toStdString();
+        std::string pathScaler = ui.txtSetScaler->text().toStdString();
+
+        if (!QFile::exists(QString::fromStdString(pathModel))) {
+            QMessageBox::warning(this, "Error", "Configura la ruta del modelo en la pestaña Ajustes.");
+            return;
+        }
+
         bool ok = svmClf_->Load(pathModel, pathScaler);
         if (!ok) {
-            QMessageBox::warning(this, "Error Crítico", "No se pudo cargar el modelo SVM.");
+            QMessageBox::warning(this, "Error Crítico", "No se pudo cargar el modelo SVM.\nVerifica las rutas en Ajustes.");
             return;
         }
     }
@@ -1159,6 +1304,55 @@ void ProyectoPSM::SaveImage()
     }
 }
 
+void ProyectoPSM::LoadDefaultSettings()
+{
+    // Rutas por defecto (ajusta esto a tu estructura real)
+    // Usamos rutas relativas a Database si es posible
+    if (ui.txtSetTemplates->text().isEmpty())
+        ui.txtSetTemplates->setText("Templates");
+
+    if (ui.txtSetModel->text().isEmpty())
+        ui.txtSetModel->setText("../../Matlab/Clasificador/Clasificador C/modelM.yml");
+
+    if (ui.txtSetScaler->text().isEmpty())
+        ui.txtSetScaler->setText("../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml");
+}
+
+void ProyectoPSM::onSetBrowseTemplates() {
+    QString dir = QFileDialog::getExistingDirectory(this, "Carpeta de Templates",
+        getSmartStartDir(ui.txtSetTemplates->text(), "Database"));
+    if (!dir.isEmpty()) {
+        ui.txtSetTemplates->setText(dir);
+        // Forzamos recarga del clasificador de orientación la próxima vez que se use
+        orientTemplatesLoaded_ = false;
+    }
+}
+
+void ProyectoPSM::onSetBrowseModel() {
+    QString file = QFileDialog::getOpenFileName(this, "Seleccionar Modelo SVM",
+        getSmartStartDir(ui.txtSetModel->text(), "Database"),
+        "YAML Files (*.yml *.yaml)");
+    if (!file.isEmpty()) {
+        ui.txtSetModel->setText(file);
+
+        // AUTO-DETECTAR SCALER: Si seleccionan "model.yml", buscamos "model_scaler.yml"
+        QFileInfo info(file);
+        QString scalerName = info.absolutePath() + "/" + info.baseName() + "_scaler.yml";
+        if (QFile::exists(scalerName)) {
+            ui.txtSetScaler->setText(scalerName);
+        }
+
+		EnsureOrientTemplatesLoaded();
+    }
+}
+
+void ProyectoPSM::onSetBrowseScaler() {
+    QString file = QFileDialog::getOpenFileName(this, "Seleccionar Scaler",
+        getSmartStartDir(ui.txtSetScaler->text(), "Database"),
+        "YAML Files (*.yml *.yaml)");
+    if (!file.isEmpty()) ui.txtSetScaler->setText(file);
+}
+
 
 // helper: extrae code del nombre "02_045_090_001" -> "02"
 static std::string ExtractCodeFromFilename(const QString& baseName)
@@ -1327,6 +1521,13 @@ void ProyectoPSM::maybeTrain() {
 bool ProyectoPSM::EnsureOrientTemplatesLoaded()
 {
     if (orientTemplatesLoaded_) return true;
+
+    // Actualizar ruta desde UI antes de cargar
+    QString currentUiPath = ui.txtSetTemplates->text();
+    if (!currentUiPath.isEmpty() && orientTemplatesDir_ != currentUiPath) {
+        orientTemplatesDir_ = currentUiPath;
+        orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
+    }
 
     if (!orientClf_) {
         QMessageBox::warning(this, "Error", "orientClf_ no está inicializado.");
