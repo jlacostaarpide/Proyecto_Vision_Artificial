@@ -123,6 +123,7 @@
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
     <ClCompile Include="SegmentarGuardar.cpp" />
+    <ClCompile Include="TemplateGenerator.cpp" />
     <ClCompile Include="TrainingWorker.cpp" />
     <ClCompile Include="VideoAcquisition.cpp" />
     <QtRcc Include="ProyectoPSM.qrc" />
@@ -154,6 +155,7 @@
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />
     <ClInclude Include="SegmentarGuardar.h" />
+    <ClInclude Include="TemplateGenerator.h" />
     <QtMoc Include="TrainingWorker.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
