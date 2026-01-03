@@ -1179,7 +1179,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <item>
          <widget class="QGroupBox" name="groupRuntimeConfig">
           <property name="title">
-           <string>Configuración de Modelos (Tiempo de Ejecución)</string>
+           <string>Configuración de Modelos</string>
           </property>
           <layout class="QGridLayout" name="gridSettings">
            <item row="0" column="0">

@@ -151,6 +151,7 @@ private slots:
     void onBrowseRaw();
     void onBrowseSeg();
     void onBrowseFeatures();
+    void onBrowseTemplates();
     void onBrowseModel();
     void onBrowseTest();
 

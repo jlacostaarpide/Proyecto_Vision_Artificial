@@ -269,7 +269,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     orientTemplatesLoaded_ = false;
     EnsureOrientTemplatesLoaded();
 
-
     // 1. Inicializar Cámara
     Camera = new CVideoAcquisition();
 
@@ -344,6 +343,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnBrowseRaw, &QPushButton::clicked, this, &ProyectoPSM::onBrowseRaw);
     connect(ui.btnBrowseSeg, &QPushButton::clicked, this, &ProyectoPSM::onBrowseSeg);
     connect(ui.btnBrowseFeatures, &QPushButton::clicked, this, &ProyectoPSM::onBrowseFeatures);
+    connect(ui.btnBrowseTemplates, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTemplates);
     connect(ui.btnBrowseModel, &QPushButton::clicked, this, &ProyectoPSM::onBrowseModel);
     connect(ui.btnBrowseTest, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTest);
 
@@ -456,6 +456,28 @@ void ProyectoPSM::onBrowseFeatures() {
     if (!file.isEmpty()) ui.txtPathFeatures->setText(file);
 }
 
+void ProyectoPSM::onBrowseTemplates() {
+    QString defaultDir = "Database/Templates";
+    QString startPath = getSmartStartDir(ui.txtPathTemplates->text(), defaultDir);
+
+    // Lógica dinámica: Cambiamos el TÍTULO según el checkbox
+    QString title;
+    if (ui.chkSkipTemplates->isChecked()) {
+        // Caso INPUT: El usuario busca plantillas ya existentes para cargar
+        title = "Seleccionar Carpeta de Plantillas (Origen)";
+    }
+    else {
+        // Caso OUTPUT: El usuario busca dónde guardar las nuevas plantillas
+        title = "Seleccionar Carpeta de Plantillas (Destino)";
+    }
+
+    // Nota: En ambos casos usamos getExistingDirectory porque las templates 
+    // son un conjunto de archivos dentro de una carpeta, no un archivo único.
+    QString dir = QFileDialog::getExistingDirectory(this, title, startPath);
+
+    if (!dir.isEmpty()) ui.txtPathTemplates->setText(dir);
+}
+
 void ProyectoPSM::onBrowseModel() {
     QString defaultFile = "../../Database/Models/modelM.yml";
 
@@ -512,18 +534,24 @@ void ProyectoPSM::onStartTrainingClicked() {
     config.rawFolder = ui.txtPathRaw->text();
     config.segFolder = ui.txtPathSeg->text();
     config.featuresFile = ui.txtPathFeatures->text();
+    config.templatesFolder = ui.txtPathTemplates->text();
     config.modelFile = ui.txtPathModel->text();
 	config.evaluationFolder = ui.txtPathTest->text();
 
     config.skipSegmentation= ui.chkSkipSeg->isChecked();
     config.skipExtraction = ui.chkSkipExtract->isChecked();
+    config.skipTemplates = ui.chkSkipTemplates->isChecked();
 	config.skipTraining = ui.chkSkipTrain->isChecked();
 	config.skipEvaluation = ui.chkSkipEval->isChecked();
 
     // Resetear UI
     ui.txtLogTrain->clear();
     ui.progressBarSeg->setValue(0);
-    ui.btnStartTraining->setEnabled(false); // Deshabilitar botón para evitar doble click
+    ui.progressBarExtract->setValue(0);
+    ui.progressBarTemplates->setValue(0);
+    ui.progressBarTrain->setValue(0);
+    ui.progressBarEval->setValue(0);
+    ui.btnStartTraining->setEnabled(false); // Bloquear botón
 
     // 2. Crear Worker y Thread
     // Nota: QThread gestiona la memoria si lo configuramos bien
@@ -539,6 +567,7 @@ void ProyectoPSM::onStartTrainingClicked() {
     // Actualizar barra de progreso
     connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
     connect(worker, &TrainingWorker::progressExtract, ui.progressBarExtract, &QProgressBar::setValue);
+    connect(worker, &TrainingWorker::progressTemplates, ui.progressBarTemplates, &QProgressBar::setValue);
     connect(worker, &TrainingWorker::progressTrain, ui.progressBarTrain, &QProgressBar::setValue);
 	connect(worker, &TrainingWorker::progressEval, ui.progressBarEval, &QProgressBar::setValue);
 
@@ -556,6 +585,19 @@ void ProyectoPSM::onStartTrainingClicked() {
     connect(thread, &QThread::finished, this, [this]() {
         ui.btnStartTraining->setEnabled(true);
         ui.txtLogTrain->append("<b>Proceso finalizado.</b>");
+        // Actualizar pestañas de ajustes automáticamente para comodidad
+        if (!ui.txtPathModel->text().isEmpty()) {
+            ui.txtSetModel->setText(ui.txtPathModel->text());
+
+            // Inferir el scaler
+            QFileInfo info(ui.txtPathModel->text());
+            QString scalerPath = info.absolutePath() + "/" + info.baseName() + "_scaler.yml";
+            ui.txtSetScaler->setText(scalerPath);
+        }
+
+        /*if (!ui.txtPathTemplates->text().isEmpty()) {
+            ui.txtSetTemplates->setText(ui.txtPathTemplates->text());
+        }*/
         });
 
     // 4. Iniciar
@@ -1301,7 +1343,6 @@ void ProyectoPSM::onSetBrowseModel() {
         }
 
 		EnsureOrientTemplatesLoaded();
-		// Faltaría recargar el SVM la próxima vez que se use
     }
 }
 
