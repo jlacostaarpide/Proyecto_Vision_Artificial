@@ -82,7 +82,7 @@ int Clasificador::Predict(const cv::Mat& img) {
     std::vector<std::string> dummyNames;
     FeatureExtractor::ExtractColorShapeFeatures(img, feats, dummyNames);
 
-    if (feats.empty()) return -1; // Imagen no v�lida
+    if (feats.empty()) return -1; // Imagen no válida
 
     // 2. Preparar matriz de fila para OpenCV
     cv::Mat rowD(1, static_cast<int>(feats.size()), CV_64F);

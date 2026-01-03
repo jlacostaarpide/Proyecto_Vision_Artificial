@@ -5,6 +5,7 @@
 #include <opencv2/opencv.hpp>
 #include <QDebug>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 void TrainingWorker::process()
 {
@@ -16,7 +17,7 @@ void TrainingWorker::process()
         emit logMessage("Proceso cancelado por el usuario.");
     }
     else {
-        emit logMessage("Proceso de segmentación finalizado.");
+        emit logMessage("Proceso de entrenamiento finalizado.");
     }
 
     emit finished();
@@ -126,7 +127,7 @@ void TrainingWorker::runStepSegmentation()
             }
         }
         else {
-            emit logMessage("No se detectó ningún objeto en: " + fileName);
+            emit logMessage("No se detectan objetos en: " + fileName);
         }
 
         // D. Actualizar barra de progreso
@@ -138,72 +139,147 @@ void TrainingWorker::runStepSegmentation()
 
 void TrainingWorker::runStepExtraction()
 {
-    // 1. Comprobación de checkbox "Saltar"
+    // 1. Verificar si el usuario quiere saltar este paso
     if (cfg.skipExtraction) {
-        emit logMessage("Saltando extracción (Usando features existentes)...");
+        emit logMessage("Saltando paso de extracción (Feature Extraction)...");
         emit progressExtract(100);
         return;
     }
 
     emit logMessage("--- INICIANDO EXTRACCIÓN DE CARACTERÍSTICAS ---");
-    emit logMessage("Leyendo carpeta: " + cfg.segFolder);
 
-    FeatureCacheData data;
-    int skippedNoGT = 0;
-    int skippedBad = 0;
-
-    // -----------------------------------------------------------------------
-    // 2. DEFINICIÓN DEL ADAPTADOR (LAMBDA)
-    // Aquí es donde "conectamos" el sistema genérico con tu función concreta
-    // -----------------------------------------------------------------------
-    auto myExtractor = [](const cv::Mat& img, std::vector<double>& feats, std::vector<std::string>& names) -> bool {
-
-        // Llamamos a tu función estática existente.
-        // Asumo que tu función se llama así y devuelve void.
-        // Si devuelve algo, ajusta la lógica.
-        FeatureExtractor::ExtractColorShapeFeatures(img, feats, names);
-        
-
-        // Si el vector se ha llenado, es que ha ido bien
-        return !feats.empty();
-        };
-
-    // 3. Ejecutar el procesamiento masivo
-    // Le pasamos la carpeta y nuestra función 'myExtractor'
-    bool ok = FeatureCache::BuildFromFolder(
-        cfg.segFolder.toStdString(),
-        myExtractor,  // <--- ¡Aquí pasamos la lógica!
-        data,
-        &skippedNoGT,
-        &skippedBad
-    );
-
-    /*if (!ok) {
-        emit logMessage("ERROR CRÍTICO: No se pudieron extraer características. ¿Carpeta vacía?");
-        return;
-    }*/
-
-    // 4. Reporte de resultados
-    emit logMessage(QString("Procesadas correctamente: %1 imágenes.").arg(data.filenames.size()));
-    if (skippedNoGT > 0) emit logMessage(QString("Saltadas (Nombre sin número de clase): %1").arg(skippedNoGT));
-    if (skippedBad > 0) emit logMessage(QString("Saltadas (Error de lectura/cálculo): %1").arg(skippedBad));
-
-    // 5. Guardar a disco (XML/YML)
-    if (cfg.featuresFile.isEmpty()) {
-        emit logMessage("ERROR: No has definido una ruta para guardar el archivo features.xml");
+    QDir inputDir(cfg.segFolder);
+    if (!inputDir.exists()) {
+        emit logMessage("ERROR: La carpeta de imágenes segmentadas no existe: " + cfg.segFolder);
         return;
     }
 
-    emit logMessage("Guardando dataset en: " + cfg.featuresFile);
+    // 2. Listar imágenes
+    QStringList filters;
+    filters << "*.jpg" << "*.jpeg" << "*.png" << "*.bmp";
+    inputDir.setNameFilters(filters);
 
-    bool saved = FeatureCache::SaveYml(cfg.featuresFile.toStdString(), data);
+    // Ordenar por nombre para consistencia
+    QFileInfoList files = inputDir.entryInfoList(QDir::Files, QDir::Name);
+    int totalFiles = files.size();
 
-    if (saved) {
-        emit logMessage("¡ÉXITO! Archivo de características generado.");
+    if (totalFiles == 0) {
+        emit logMessage("ERROR: No hay imágenes en la carpeta segmentada.");
+        return;
     }
-    else {
-        emit logMessage("ERROR al escribir el archivo en disco (Permisos o ruta inválida).");
+
+    // Matrices para acumular datos (Formato OpenCV ML)
+    cv::Mat trainingSamples;   // Matriz de features (N x D) tipo CV_32F
+    cv::Mat trainingResponses; // Matriz de etiquetas (N x 1) tipo CV_32S
+
+    int processed = 0;
+    int skipped = 0;
+
+    emit logMessage(QString("Extrayendo características de %1 imágenes...").arg(totalFiles));
+
+    // 3. Bucle de procesamiento
+    for (int i = 0; i < totalFiles; ++i) {
+        if (stopRequested.load()) {
+            emit logMessage("Extracción cancelada por el usuario.");
+            return;
+        }
+
+        QFileInfo fileInfo = files[i];
+        QString fileName = fileInfo.fileName();
+
+        // A. Obtener etiqueta del nombre del archivo (Ej: "02_005.jpg" -> 2)
+        // Usamos una expresión regular para buscar el número al principio
+        QRegularExpression re("^(\\d+)");
+        QRegularExpressionMatch match = re.match(fileName);
+
+        int label = -1;
+        if (match.hasMatch()) {
+            label = match.captured(1).toInt();
+        }
+        else {
+            skipped++;
+            continue;
+        }
+
+        // B. Cargar Imagen (Usando QFile para robustez en rutas con tildes/ñ)
+        cv::Mat img;
+        QFile f(fileInfo.absoluteFilePath());
+        if (f.open(QIODevice::ReadOnly)) {
+            QByteArray fileData = f.readAll();
+            f.close();
+            std::vector<uchar> buf(fileData.begin(), fileData.end());
+            img = cv::imdecode(buf, cv::IMREAD_COLOR);
+        }
+
+        if (img.empty()) {
+            skipped++;
+            continue;
+        }
+
+        // C. Extraer Características
+        std::vector<double> feat;
+        std::vector<std::string> names;
+
+        FeatureExtractor::ExtractColorShapeFeatures(img, feat, names);
+
+        if (feat.empty()) {
+            skipped++;
+            continue;
+        }
+
+        // D. Convertir a fila de Matriz
+        cv::Mat row(1, static_cast<int>(feat.size()), CV_32F);
+        for (size_t k = 0; k < feat.size(); ++k) {
+            row.at<float>(0, static_cast<int>(k)) = static_cast<float>(feat[k]);
+        }
+
+        trainingSamples.push_back(row);
+        trainingResponses.push_back(label);
+
+        processed++;
+
+        if (i % 10 == 0) {
+            int percent = static_cast<int>((static_cast<float>(i + 1) / totalFiles) * 100.0f);
+            emit progressExtract(percent);
+        }
     }
 
     emit progressExtract(100);
+
+    if (trainingSamples.empty()) {
+        emit logMessage("ERROR: No se pudieron extraer características válidas.");
+        return;
+    }
+
+    emit logMessage(QString("Extracción completada. Muestras: %1. Saltadas: %2").arg(processed).arg(skipped));
+
+    // 4. Guardar a Archivo
+    // IMPORTANTE: Convertimos la ruta a Local8Bit para que Windows acepte la "ñ" en OpenCV
+    // Si la ruta del archivo features tiene directorios que no existen, hay que crearlos antes.
+    QFileInfo featureFileInfo(cfg.featuresFile);
+    QDir featureDir = featureFileInfo.absoluteDir();
+    if (!featureDir.exists()) {
+        featureDir.mkpath(".");
+    }
+
+    emit logMessage("Guardando archivo de características: " + cfg.featuresFile);
+
+    try {
+        // --- CAMBIO CLAVE AQUÍ: .toLocal8Bit().constData() ---
+        // Esto convierte "Iñaki" a la codificación de Windows que espera fopen()
+        cv::FileStorage fs(cfg.featuresFile.toLocal8Bit().constData(), cv::FileStorage::WRITE);
+
+        if (fs.isOpened()) {
+            fs << "samples" << trainingSamples;
+            fs << "responses" << trainingResponses;
+            fs.release();
+            emit logMessage("Archivo guardado correctamente.");
+        }
+        else {
+            emit logMessage("ERROR: No se pudo abrir el archivo para escritura (¿Ruta o permisos?).");
+        }
+    }
+    catch (const cv::Exception& e) {
+        emit logMessage("Excepción OpenCV al guardar: " + QString::fromStdString(e.what()));
+    }
 }

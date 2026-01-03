@@ -391,7 +391,7 @@ void ProyectoPSM::onBrowseSeg() {
 }
 
 void ProyectoPSM::onBrowseFeatures() {
-    QString file = QFileDialog::getSaveFileName(this, "Archivo de Características", "Database/features.xml", "XML Files (*.xml)");
+    QString file = QFileDialog::getSaveFileName(this, "Archivo de Características", "Database/features.yml", "YAML Files (*.yml *.yaml);;XML Files (*.xml)");
     if (!file.isEmpty()) ui.txtPathFeatures->setText(file);
 }
 
