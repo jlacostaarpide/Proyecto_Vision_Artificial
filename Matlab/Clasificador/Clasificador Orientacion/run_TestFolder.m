@@ -2,7 +2,7 @@
 clear; clc;
 
 % ===== CONFIG =====
-code = "01";
+code = "03";
 tplFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Orientacion\Templates";
 resultsFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Orientacion\Results";
 anglesStr = ["000","045","090","135","180","225","270","315"];
