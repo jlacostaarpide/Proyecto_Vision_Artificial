@@ -3,7 +3,7 @@ clear; clc;
 
 % ===== CONFIG =====
 codes     = ["01","02","03","04","05","06","07","08","09","10","11","12"];
-segFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_local";
+segFolder = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_C";
 tplOut    = "C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador Orientacion\Templates";
 
 anglesStr = ["000","045","090","135","180","225","270","315"]; % yaw
@@ -77,9 +77,9 @@ for c = 1:numel(codes)
 
             % ===== Split según regla =====
             if N >= 4
-                nTest = 2;
+                nTest = 0;
             elseif N == 3
-                nTest = 1;
+                nTest = 0;
             else
                 % N=1 o 2: no hay base para test + plantilla robusta
                 fprintf("  -> AVISO: N=%d (muy pocas). Salto plantilla.\n", N);
