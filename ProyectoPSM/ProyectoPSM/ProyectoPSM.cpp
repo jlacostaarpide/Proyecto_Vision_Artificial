@@ -22,6 +22,7 @@ namespace fs = std::filesystem;
 Q_DECLARE_METATYPE(std::shared_ptr<cv::Mat>)
 Q_DECLARE_METATYPE(std::vector<QRectF>)
 Q_DECLARE_METATYPE(std::vector<QImage>)
+Q_DECLARE_METATYPE(std::vector<cv::Mat>)
 
 // Función auxiliar para convertir cv::Mat a QPixmap y ponerlo en un Label
 void DisplayMat(QLabel* lbl, const cv::Mat& mat, bool isBinary = false) {
@@ -99,10 +100,11 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
 {
     std::vector<QRectF> outBoxes;
     std::vector<QImage> outThumbs;
+    std::vector<cv::Mat> outCrops;
 
     try {
         if (!snapshotPtr || snapshotPtr->empty()) {
-            emit finishedResult(outBoxes, outThumbs);
+            emit finishedResult(outBoxes, outThumbs, outCrops);
             return;
         }
 
@@ -118,6 +120,14 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
         for (size_t i = 0; i < resultados.size(); i++) {
             const ResultadoPieza& pieza = resultados[i];
 
+            // Si el recorte es válido lo guardamos, si no, guardamos uno vacío para mantener índices
+            if (!pieza.imagenRecortada.empty()) {
+                outCrops.push_back(pieza.imagenRecortada);
+            }
+            else {
+                outCrops.push_back(cv::Mat());
+            }
+
             // A. Guardar Caja Normalizada para pintar recuadro
             if (iw > 0 && ih > 0) {
                 outBoxes.push_back(QRectF(
@@ -132,7 +142,6 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
             if (outThumbs.size() < max_thumbs) {
                 cv::Mat crop = pieza.imagenRecortada;
                 if (!crop.empty()) {
-                    // Escalamos a 200px para la nueva UI
                     const int thumbW = 200;
                     int srcW = crop.cols;
                     int srcH = crop.rows;
@@ -158,9 +167,64 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
         qDebug() << "Excepcion en SegmentationWorker";
     }
 
-    emit finishedResult(outBoxes, outThumbs);
+    emit finishedResult(outBoxes, outThumbs, outCrops);
 }
 
+// Clasificación en Segundo Plano
+void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF> boxes) 
+{
+    std::vector<QString> outLabels;
+
+    try {
+        if (crops.empty()) {
+            emit finishedResult(boxes, outLabels);
+            return;
+        }
+
+        for (const auto& crop : crops) {
+            if (crop.empty()) {
+                outLabels.push_back("Error");
+                continue;
+            }
+
+            // Clasificación
+            QString labelText = "Desc.";
+            std::string codigoPieza = "";
+            bool svmExito = false;
+
+            // A. SVM
+            if (svmClf && svmClf->IsLoaded()) {
+                int id = svmClf->Predict(crop);
+                if (id > 0) {
+                    codigoPieza = std::to_string(id);
+                    if (id < 10) codigoPieza = "0" + codigoPieza;
+                    svmExito = true;
+                }
+            }
+
+            // B. Orientación
+            if (svmExito) {
+                bool orientExito = false;
+                int yaw = 0;
+                if (orientClf) {
+                    try {
+                        OrientationResult orr = orientClf->predict(crop, codigoPieza);
+                        if (orr.ok) { yaw = orr.yaw; orientExito = true; }
+                    }
+                    catch (...) {}
+                }
+
+                if (orientExito) labelText = QString("Cód:%1 Orientación:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
+                else labelText = QString("Cód:%1").arg(QString::fromStdString(codigoPieza));
+            }
+            outLabels.push_back(labelText);
+        }
+    }
+    catch (...) {
+        qDebug() << "Excepcion en ClasificationWorker";
+    }
+    emit finishedResult(boxes, outLabels);
+}
 
 // Clase Principal
 ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
@@ -182,14 +246,18 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
     qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
+    qRegisterMetaType<std::vector<cv::Mat>>("std::vector<cv::Mat>");
 
     if (!filesystem::exists("Database")) filesystem::create_directory("Database");
 
     NameList = NameHelper::GenerarNombres();
     LiveSegmentationEnabled = false;
     SegProcessing = false;
+    LiveClassificationEnabled = false;
+    ClassProcessing = false;
     segInFlight = 0;
     SegmentationIntervalMs = 40;
+    ClasificationIntervalMs = 150;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
 
 
@@ -205,7 +273,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     // 1. Inicializar Cámara
     Camera = new CVideoAcquisition();
 
-    // 2. Configurar Worker
+    // 2. Configurar Segmentation Worker
     segWorker = new SegmentationWorker();
     segThread = new QThread(this);
     segWorker->moveToThread(segThread);
@@ -213,6 +281,15 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(segWorker, &SegmentationWorker::finishedResult, this, &ProyectoPSM::UpdateSegmentationResults, Qt::QueuedConnection);
     connect(this, &ProyectoPSM::requestSegmentation, segWorker, &SegmentationWorker::process, Qt::QueuedConnection);
     segThread->start();
+
+	// Configurar Clasification Worker
+    classWorker = new ClasificationWorker(svmClf_.get(), orientClf_.get());
+    classThread = new QThread(this);
+    classWorker->moveToThread(classThread);
+    connect(classThread, &QThread::finished, classWorker, &QObject::deleteLater);
+    connect(this, &ProyectoPSM::requestClassification, classWorker, &ClasificationWorker::process);
+    connect(classWorker, &ClasificationWorker::finishedResult, this, &ProyectoPSM::UpdateClassificationResults);
+    classThread->start();
 
     // 3. Timers
     segTimer = new QTimer(this);
@@ -229,6 +306,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     // 4. Conexiones UI Principales
     connect(ui.pbtnEncender, SIGNAL(toggled(bool)), this, SLOT(EnableButtons(bool)));
     connect(ui.chkLiveSeg, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
+    connect(ui.chkLiveClass, &QCheckBox::toggled, this, &ProyectoPSM::onCheckLiveClass);
     connect(ui.btnCapturarAnalizar, SIGNAL(clicked()), this, SLOT(CapturarYAnalizar()));
 
     // Botón Reconectar
@@ -243,6 +321,11 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnDB, SIGNAL(clicked()), this, SLOT(OnBatchSegmentar()));
 
     ui.pbtnGuardar->setEnabled(false);
+
+    ui.chkLiveSeg->setEnabled(false);
+    ui.chkLiveClass->setEnabled(false);
+    ui.chkLiveSeg->setChecked(false);
+    ui.chkLiveClass->setChecked(false);
 
     // 5. Configurar estado inicial Cámara
     bool camOk = (Camera && Camera->CameraOK);
@@ -285,6 +368,10 @@ ProyectoPSM::~ProyectoPSM()
     if (segThread) {
         segThread->quit();
         segThread->wait();
+    }
+    if (classThread) {
+        classThread->quit();
+        classThread->wait();
     }
     if (Camera) {
         delete Camera;
@@ -487,11 +574,20 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
         ui.lblStatusCamara->setText("Estado: Capturando");
         ui.lblStatusCamara->setStyleSheet("font-weight: bold; color: blue;");
         ui.btnReconectar->setEnabled(false);
+
+        ui.chkLiveSeg->setEnabled(true);
     }
     else {
         // Se ha apagado
         ui.pbtnEncender->setText("Encender Cámara");
         ui.btnCapturarAnalizar->setEnabled(false);
+
+        // 1. Apagar Segmentación
+        if (ui.chkLiveSeg->isChecked()) {
+            ui.chkLiveSeg->setChecked(false);
+        }
+        // 2. Deshabilitar el control
+        ui.chkLiveSeg->setEnabled(false);
 
         if (Camera && Camera->CameraOK) {
             ui.lblStatusCamara->setText("Estado: Listo");
@@ -504,6 +600,7 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
 
         ui.lblVideoLive->clear();
         ui.lblVideoLive->setText("Cámara Pausada");
+        ui.lblVideoLive->setAlignment(Qt::AlignCenter);
     }
 }
 
@@ -532,10 +629,10 @@ void ProyectoPSM::ShowImage()
     if (labelSize.width() < 10) labelSize = QSize(640, 480); // Protección inicio
 
     QPixmap scaled = pix.scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QPainter p(&scaled);
 
     // DIBUJAR CAJAS VERDES (Segmentación en vivo)
     if (LiveSegmentationEnabled && !lastBoxesNormalized.empty()) {
-        QPainter p(&scaled);
         QPen pen(Qt::green);
         pen.setWidth(3);
         p.setPen(pen);
@@ -550,7 +647,39 @@ void ProyectoPSM::ShowImage()
             p.drawRect(x, y, w, h);
         }
     }
+    // DIBUJAR CLASIFICACIÓN
+    if (LiveClassificationEnabled && !lastClassBoxes.empty()) {
+        QPen pen(Qt::green);
+        pen.setWidth(2);
+        p.setPen(pen);
 
+        QFont font = p.font();
+        font.setPixelSize(std::max<double>(14, scaled.height() / 20));
+        font.setBold(true);
+        p.setFont(font);
+
+        for (size_t i = 0; i < lastClassBoxes.size(); ++i) {
+            if (i >= lastClassLabels.size()) break;
+
+            const auto& boxNorm = lastClassBoxes[i];
+            int x = static_cast<int>(boxNorm.x() * scaled.width());
+            int y = static_cast<int>(boxNorm.y() * scaled.height());
+            int w = static_cast<int>(boxNorm.width() * scaled.width());
+            int h = static_cast<int>(boxNorm.height() * scaled.height());
+
+            // Dibujar caja
+            //p.drawRect(x, y, w, h);
+
+            // Dibujar texto con fondo
+            QString text = lastClassLabels[i];
+            QFontMetrics fm(font);
+            int tw = fm.horizontalAdvance(text);
+            int th = fm.height();
+
+            p.fillRect(x, y - th - 4, tw + 4, th + 4, QColor(0, 0, 0, 150));
+            p.drawText(x + 2, y - 4, text);
+        }
+    }
     ui.lblVideoLive->setPixmap(scaled);
 }
 
@@ -571,18 +700,27 @@ void ProyectoPSM::onSegmentationTimer()
 void ProyectoPSM::EnableLiveSegmentation(bool enabled)
 {
     LiveSegmentationEnabled = enabled;
-    if (!enabled) {
+    if (enabled) {
+        ui.chkLiveClass->setEnabled(true);
+    }
+    else {
+        if (ui.chkLiveClass->isChecked()) {
+            ui.chkLiveClass->setChecked(false);
+        }
+        ui.chkLiveClass->setEnabled(false);
         SegProcessing = false;
         lastBoxesNormalized.clear();
         segInFlight.store(0);
-        // Limpiar thumbnails en vivo
+        // Limpiar thumbnails
         if (ui.lblLiveThumb1) ui.lblLiveThumb1->clear();
         if (ui.lblLiveThumb2) ui.lblLiveThumb2->clear();
         if (ui.lblLiveThumb3) ui.lblLiveThumb3->clear();
     }
 }
 
-void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails)
+void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes,
+    const std::vector<QImage>& thumbnails,
+    const std::vector<cv::Mat>& crops)
 {
     lastBoxesNormalized = boxes;
     // NewImage se encarga de llamar a ShowImage para pintar las cajas
@@ -603,8 +741,44 @@ void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes, co
 
     SegProcessing = false;
     segInFlight.fetch_sub(1);
+
+    // Si la clasificación está activa y el worker está libre, le pasamos los datos
+    if (LiveClassificationEnabled && !ClassProcessing.load()) {
+        ClassProcessing = true;
+        emit requestClassification(crops, boxes);
+    }
 }
 
+void ProyectoPSM::onCheckLiveClass(bool checked)
+{
+    LiveClassificationEnabled = checked;
+    if (!checked) {
+        lastClassBoxes.clear();
+        lastClassLabels.clear();
+        ClassProcessing = false;
+    }
+    else {
+        // Asegurar que los modelos estén cargados
+		// Ojo, ahora hay una nueva funcion: EnsureOrientTemplatesLoaded
+        if (!svmClf_->IsLoaded()) {
+            // Cargar SVM (mismas rutas que offline)
+            svmClf_->Load("../../Matlab/Clasificador/Clasificador C/modelM.yml",
+                "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml");
+        }
+        if (!orientTemplatesLoaded_) {
+            if (orientClf_->loadAllTemplates()) orientTemplatesLoaded_ = true;
+        }
+    }
+}
+
+
+void ProyectoPSM::UpdateClassificationResults(std::vector<QRectF> boxes, std::vector<QString> labels)
+{
+    lastClassBoxes = boxes;
+    lastClassLabels = labels;
+    ClassProcessing = false;
+    // ShowImage se actualizará automáticamente en el siguiente frame de video (NewImage)
+}
 
 // CAPTURA Y ANÁLISIS OFFLINE
 void ProyectoPSM::CapturarYAnalizar()
@@ -617,6 +791,11 @@ void ProyectoPSM::CapturarYAnalizar()
 
     // 2. Congelar imagen actual
     CapturedImage = LastImage.clone();
+
+    // APAGADO AUTOMÁTICO
+        if (ui.pbtnEncender->isChecked()) {
+            ui.pbtnEncender->setChecked(false);
+        }
 
     // 3. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
@@ -759,44 +938,47 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 
     // Si no se ha segmentado aún, forzamos la segmentación primero
     if (lastResultados_.empty()) {
-        RecalcularSegmentacion(); // Esto llenará lastResultados_
+        RecalcularSegmentacion();
         if (lastResultados_.empty()) {
             QMessageBox::information(this, "Clasificar", "No se detectaron piezas en la imagen.");
             return;
         }
     }
 
-    // ---------------------------------------------------------
     // 2. CARGA DEL SVM
-    // ---------------------------------------------------------
     if (!svmClf_->IsLoaded()) {
         std::string pathModel = "../../Matlab/Clasificador/Clasificador C/modelM.yml";
         std::string pathScaler = "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml";
         bool ok = svmClf_->Load(pathModel, pathScaler);
         if (!ok) {
-            QMessageBox::warning(this, "Error Crítico",
-                "No se pudo cargar el modelo SVM.\nNo se puede realizar la clasificación.");
-            return; // Abortar si no hay cerebro
+            QMessageBox::warning(this, "Error Crítico", "No se pudo cargar el modelo SVM.");
+            return;
         }
     }
 
-    // ---------------------------------------------------------
-    // 3. CARGA DE PLANTILLAS
-    // ---------------------------------------------------------
-    
-    // Se han cargado al iniciar el programa
+    // 1. Convertir Mat (BGR) a formato compatible con Qt (RGB)
+    cv::Mat rgbMat;
+    cv::cvtColor(CapturedImage, rgbMat, cv::COLOR_BGR2RGB);
 
-    // ---------------------------------------------------------
-    // 4. BUCLE DE CLASIFICACIÓN
-    // ---------------------------------------------------------
+    // 2. Crear una QImage sobre la que pintaremos
+    // Hacemos .copy() para tener una copia profunda y poder modificarla sin tocar la original
+    QImage displayImg = QImage(rgbMat.data, rgbMat.cols, rgbMat.rows,
+        static_cast<int>(rgbMat.step), QImage::Format_RGB888).copy();
 
-    // Clonamos imagen limpia para pintar resultados nuevos
-    cv::Mat displayImg = CapturedImage.clone();
+    // 3. Iniciar el pintor
+    QPainter p(&displayImg);
 
-    // Limpiamos miniaturas visualmente (se repintan limpias abajo)
+    // Configurar fuente dinámica según tamaño de imagen
+    QFont font = p.font();
+    int pixelSize = std::max<double>(12, displayImg.width() / 40); // Ajusta el divisor para cambiar tamaño
+    font.setPixelSize(pixelSize);
+    font.setBold(true);
+    p.setFont(font);
+
+    // Limpiamos miniaturas
     QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
     for (int k = 0; k < 3; ++k) thumbs[k]->clear();
-
+    
     for (size_t i = 0; i < lastResultados_.size(); ++i) {
         ResultadoPieza& res = lastResultados_[i];
         if (res.imagenRecortada.empty()) continue;
@@ -816,14 +998,13 @@ void ProyectoPSM::ProcesarClasificacionOffline()
             }
         }
 
-        // --- PASO B: ORIENTACIÓN (Solo si SVM tuvo éxito) ---
-        std::string labelInfo = "Desc.";
+        // --- PASO B: ORIENTACIÓN ---
+        QString labelInfo = "Desc."; // Ahora usamos QString directamente
 
         if (svmExito) {
             OrientationResult orr;
             bool orientExito = false;
 
-            // Intentamos predecir orientación SOLO de esa pieza
             if (orientTemplatesLoaded_) {
                 try {
                     orr = orientClf_->predict(res.imagenRecortada, codigoPieza);
@@ -832,49 +1013,66 @@ void ProyectoPSM::ProcesarClasificacionOffline()
                 catch (...) {}
             }
 
+            // Usamos QString::arg para formatear
             if (orientExito) {
-                labelInfo = "Codigo:" + codigoPieza + " Orientacion:" + std::to_string(orr.yaw);
+                labelInfo = QString("Cód: %1 Orientación: %2º")
+                    .arg(QString::fromStdString(codigoPieza))
+                    .arg(orr.yaw);
             }
             else {
-                labelInfo = "Codigo:" + codigoPieza + " (Ori?)"; // Sabemos la pieza, no el ángulo
+                labelInfo = QString("Cód: %1")
+                    .arg(QString::fromStdString(codigoPieza));
             }
         }
         else {
-            // Si SVM falló, no intentamos adivinar orientación con plantillas.
             labelInfo = "Desconocido";
         }
 
         // --- VISUALIZACIÓN ---
 
-        // 1. Miniatura LIMPIA (sin texto)
+        // 1. Miniatura (se mantiene igual usando DisplayMat)
         if (i < 3) {
             DisplayMat(thumbs[i], res.imagenRecortada);
         }
 
-        // 2. Imagen Principal (Con Caja y Texto)
-        cv::rectangle(displayImg, res.boundingBox, cv::Scalar(0, 255, 0), 3);
+        // 2. Dibujar sobre la imagen principal usando QPainter
 
-        int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-        double fontScale = std::max<double>(0.5, displayImg.cols / 1000.0);
-        int thickness = std::max<double>(1, displayImg.cols / 500);
-        int baseline = 0;
-        cv::Size textSize = cv::getTextSize(labelInfo, fontFace, fontScale, thickness, &baseline);
+        // Convertir coordenadas de OpenCV a Qt
+        int x = res.boundingBox.x;
+        int y = res.boundingBox.y;
+        int w = res.boundingBox.width;
+        int h = res.boundingBox.height;
 
-        int tx = res.boundingBox.x;
-        int ty = res.boundingBox.y - 10;
-        if (ty < textSize.height) ty = res.boundingBox.y + textSize.height + 10;
+        // A. Dibujar rectángulo verde
+        QPen pen(Qt::green);
+        pen.setWidth(3);
+        p.setPen(pen);
+        p.drawRect(x, y, w, h);
 
-        // Fondo negro
-        cv::rectangle(displayImg, cv::Point(tx, ty - textSize.height - 5),
-            cv::Point(tx + textSize.width, ty + 5), cv::Scalar(0, 0, 0), cv::FILLED);
+        // B. Calcular tamaño del texto para el fondo negro
+        QFontMetrics fm(font);
+        int textWidth = fm.horizontalAdvance(labelInfo);
+        int textHeight = fm.height();
+        int padding = 4;
 
-        // Texto verde
-        cv::putText(displayImg, labelInfo, cv::Point(tx, ty),
-            fontFace, fontScale, cv::Scalar(0, 255, 0), thickness, cv::LINE_AA);
+        // Posición del texto (arriba de la caja, o abajo si se sale)
+        int textX = x;
+        int textY = y - padding;
+        if (textY < textHeight) textY = y + h + textHeight + padding;
+
+        // C. Dibujar fondo negro semi-transparente
+        p.fillRect(textX, textY - textHeight, textWidth + (padding * 2), textHeight + padding, QColor(0, 0, 0, 180));
+
+        // D. Dibujar texto
+        p.setPen(Qt::green);
+        p.drawText(textX + padding, textY, labelInfo);
     }
 
-    // Mostrar resultado final
-    DisplayMat(ui.lblOfflineMain, displayImg);
+    p.end(); // Finalizar pintura
+
+    // Mostrar resultado final en el Label
+    ui.lblOfflineMain->setPixmap(QPixmap::fromImage(displayImg)
+        .scaled(ui.lblOfflineMain->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
 void ProyectoPSM::UpdateFileNameLabel()

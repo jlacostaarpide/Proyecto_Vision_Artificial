@@ -29,7 +29,25 @@ public:
 public slots:
     void process(std::shared_ptr<cv::Mat> snapshot);
 signals:
-    void finishedResult(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails);
+    void finishedResult(const std::vector<QRectF>& boxes,
+        const std::vector<QImage>& thumbnails,
+        const std::vector<cv::Mat>& crops);
+};
+
+class ClasificationWorker : public QObject {
+    Q_OBJECT
+public:
+    ClasificationWorker(Clasificador* svm, ClasificadorOrientacion* orient)
+        : svmClf(svm), orientClf(orient) {
+    }
+
+public slots:
+    void process(std::vector<cv::Mat> crops, std::vector<QRectF> boxes);
+signals:
+    void finishedResult(std::vector<QRectF> boxes, std::vector<QString> labels);
+private:
+    Clasificador* svmClf;
+    ClasificadorOrientacion* orientClf;
 };
 
 class ProyectoPSM : public QMainWindow
@@ -42,6 +60,7 @@ public:
 
 signals:
     void requestSegmentation(std::shared_ptr<cv::Mat> snapshot);
+    void requestClassification(std::vector<cv::Mat> crops, std::vector<QRectF> boxes);
 
 private:
     Ui::ProyectoPSMClass ui;
@@ -60,8 +79,18 @@ private:
     std::atomic<bool> SegProcessing{ false };
     std::atomic<int> segInFlight{ 0 }; // Control de saturación
 
+    ClasificationWorker* classWorker;
+    QThread* classThread;
+    std::atomic<bool> LiveClassificationEnabled;
+    std::atomic<bool> ClassProcessing; // Para evitar saturación
+
+    // Resultados para pintar en vivo
+    std::vector<QRectF> lastClassBoxes;
+    std::vector<QString> lastClassLabels;
+
     QTimer* segTimer = nullptr;
     int SegmentationIntervalMs = 40;
+    int ClasificationIntervalMs = 150;
     std::chrono::steady_clock::time_point LastSegmentationTime;
 
     // Worker threads
@@ -96,10 +125,16 @@ private slots:
 
     // control de segmentación
     void EnableLiveSegmentation(bool enabled);
-    void UpdateSegmentationResults(const std::vector<QRectF>& boxes, const std::vector<QImage>& thumbnails);
+    void UpdateSegmentationResults(const std::vector<QRectF>& boxes,
+        const std::vector<QImage>& thumbnails,
+        const std::vector<cv::Mat>& crops);
 
     // timer slot que pide un frame para segmentar (no bloqueante)
     void onSegmentationTimer();
+
+    // Clasificación
+    void onCheckLiveClass(bool checked);
+    void UpdateClassificationResults(std::vector<QRectF> boxes, std::vector<QString> labels);
 
     // selección/procesado de imagen desde fichero (offline)
     void CapturarYAnalizar();
