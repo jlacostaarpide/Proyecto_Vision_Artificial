@@ -379,56 +379,97 @@ ProyectoPSM::~ProyectoPSM()
 }
 
 // Funciones de la pestaña de entrenamiento
+QString getSmartStartDir(const QString& currentText, const QString& rutaPorDefecto) {
+    if (!currentText.isEmpty()) {
+        QFileInfo info(currentText);
+        if (info.exists()) return currentText;
+
+        if (info.absoluteDir().exists()) return info.absolutePath();
+    }
+
+    if (!rutaPorDefecto.isEmpty() && QDir(rutaPorDefecto).exists()) {
+        return rutaPorDefecto;
+    }
+
+    if (QDir("Database").exists()) return "Database";
+    return QDir::currentPath();
+}
 void ProyectoPSM::onBrowseRaw() {
-    // RAW siempre es lectura (source)
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta RAW", "Database");
+    QString defaultDir = "../../Database/RAW";
+
+    QString startPath = getSmartStartDir(ui.txtPathRaw->text(), defaultDir);
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta RAW", startPath);
+
     if (!dir.isEmpty()) ui.txtPathRaw->setText(dir);
 }
 
 void ProyectoPSM::onBrowseSeg() {
-    // Seg Folder: Si salto el paso, es para LEER. Si no, es para ESCRIBIR (aunque es un dir, da igual)
-    // Pero el título del diálogo ayuda al usuario
+    QString defaultDir = "../../Database/SEGMENTED";
+
     QString title = ui.chkSkipSeg->isChecked() ? "Seleccionar Carpeta Segmentadas (Origen)"
         : "Seleccionar Carpeta Segmentadas (Destino)";
-    QString dir = QFileDialog::getExistingDirectory(this, title, "Database");
+
+    QString startPath = getSmartStartDir(ui.txtPathSeg->text(), defaultDir);
+    QString dir = QFileDialog::getExistingDirectory(this, title, startPath);
+
     if (!dir.isEmpty()) ui.txtPathSeg->setText(dir);
 }
 
+void ProyectoPSM::onBrowseTest() {
+    QString defaultDir = "../../Database";
+
+    QString startPath = getSmartStartDir(ui.txtPathTest->text(), defaultDir);
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta Test", startPath);
+
+    if (!dir.isEmpty()) ui.txtPathTest->setText(dir);
+}
+
 void ProyectoPSM::onBrowseFeatures() {
-    // Features: Si salto extracción -> LEER (Open). Si no -> ESCRIBIR (Save).
+    QString defaultFile = "../../Database/Models/features.yml";
+
+    QString startFile = getSmartStartDir(ui.txtPathFeatures->text(), "Database");
+
+    // Si getSmartStartDir devolvió un directorio genérico, le pegamos el nombre de archivo por defecto
+    if (QFileInfo(startFile).isDir()) {
+        // Si no hay nada escrito, sugerimos la ruta completa por defecto
+        if (ui.txtPathFeatures->text().isEmpty()) startFile = defaultFile;
+    }
+
     QString file;
     if (ui.chkSkipExtract->isChecked()) {
         file = QFileDialog::getOpenFileName(this, "Cargar Features Existentes",
-            "Database/features.yml",
+            startFile,
             "YAML/XML Files (*.yml *.yaml *.xml)");
     }
     else {
         file = QFileDialog::getSaveFileName(this, "Guardar Nuevas Features",
-            "Database/features.yml",
+            startFile,
             "YAML Files (*.yml *.yaml);;XML Files (*.xml)");
     }
     if (!file.isEmpty()) ui.txtPathFeatures->setText(file);
 }
 
 void ProyectoPSM::onBrowseModel() {
-    // Model: Si salto entrenamiento -> LEER (Open). Si no -> ESCRIBIR (Save).
+    QString defaultFile = "../../Database/Models/modelM.yml";
+
+    QString startFile = getSmartStartDir(ui.txtPathModel->text(), "Database");
+
+    if (QFileInfo(startFile).isDir()) {
+        if (ui.txtPathModel->text().isEmpty()) startFile = defaultFile;
+    }
+
     QString file;
     if (ui.chkSkipTrain->isChecked()) {
         file = QFileDialog::getOpenFileName(this, "Cargar Modelo Existente",
-            "Database/modelM.yml",
+            startFile,
             "YAML Files (*.yml *.yaml)");
     }
     else {
         file = QFileDialog::getSaveFileName(this, "Guardar Nuevo Modelo",
-            "Database/modelM.yml",
+            startFile,
             "YAML Files (*.yml *.yaml)");
     }
     if (!file.isEmpty()) ui.txtPathModel->setText(file);
-}
-
-void ProyectoPSM::onBrowseTest() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta Test", "Database");
-    if (!dir.isEmpty()) ui.txtPathTest->setText(dir);
 }
 
 // Lógica visual de los Checkboxes
@@ -491,7 +532,7 @@ void ProyectoPSM::onStartTrainingClicked() {
     // Actualizar barra de progreso
     connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
     connect(worker, &TrainingWorker::progressExtract, ui.progressBarExtract, &QProgressBar::setValue);
-    connect(worker, &TrainingWorker::progressTrain, ui.progressBarExtract, &QProgressBar::setValue);
+    connect(worker, &TrainingWorker::progressTrain, ui.progressBarTrain, &QProgressBar::setValue);
 
     // Logs al cuadro de texto
     connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {

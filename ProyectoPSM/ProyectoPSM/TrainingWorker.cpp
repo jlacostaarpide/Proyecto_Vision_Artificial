@@ -18,10 +18,7 @@ void TrainingWorker::process()
     runStepTraining();
 
     if (stopRequested.load()) {
-        emit logMessage("Proceso cancelado por el usuario.");
-    }
-    else {
-        emit logMessage("Proceso de entrenamiento finalizado.");
+        emit logMessage("Proceso detenido.");
     }
 
     emit finished();
@@ -35,6 +32,7 @@ void TrainingWorker::runStepSegmentation()
         return;
     }
 
+    emit logMessage("");
     emit logMessage("--- INICIANDO SEGMENTACION POR LOTES ---");
 
     QDir sourceDir(cfg.rawFolder);
@@ -156,7 +154,8 @@ void TrainingWorker::runStepExtraction()
         return;
     }
 
-    emit logMessage("--- INICIANDO EXTRACCIÓN DE CARACTERÍSTICAS ---");
+    emit logMessage("");
+    emit logMessage("--- INICIANDO EXTRACCION DE CARACTERISTICAS ---");
 
     QDir inputDir(cfg.segFolder);
     if (!inputDir.exists()) {
@@ -185,7 +184,7 @@ void TrainingWorker::runStepExtraction()
     int processed = 0;
     int skipped = 0;
 
-    emit logMessage(QString("Extrayendo características de %1 imágenes...").arg(totalFiles));
+    emit logMessage(QString("Extrayendo caracteristicas de %1 imagenes...").arg(totalFiles));
 
     // 3. Bucle de procesamiento
     for (int i = 0; i < totalFiles; ++i) {
@@ -261,7 +260,7 @@ void TrainingWorker::runStepExtraction()
         return;
     }
 
-    emit logMessage(QString("Extracción completada. Muestras: %1. Saltadas: %2").arg(processed).arg(skipped));
+    emit logMessage(QString("Extraccion completada. Muestras: %1. Saltadas: %2").arg(processed).arg(skipped));
 
     // 4. Guardar a Archivo
     // IMPORTANTE: Convertimos la ruta a Local8Bit para que Windows acepte la "ñ" en OpenCV
@@ -272,7 +271,7 @@ void TrainingWorker::runStepExtraction()
         featureDir.mkpath(".");
     }
 
-    emit logMessage("Guardando archivo de características: " + cfg.featuresFile);
+    emit logMessage("Guardando archivo de caracteristicas: " + cfg.featuresFile);
 
     try {
         // --- CAMBIO CLAVE AQUÍ: .toLocal8Bit().constData() ---
@@ -322,6 +321,7 @@ void TrainingWorker::runStepTraining()
         }
     }
 
+    emit logMessage("");
     emit logMessage("--- INICIANDO ENTRENAMIENTO SVM (K-Fold Grid Search) ---");
 
     // 2. Cargar Datos
@@ -388,7 +388,7 @@ void TrainingWorker::runStepTraining()
         emit logMessage("ERROR al guardar scaler.");
     }
 
-    // 4. Grid Search con K-Fold (LÓGICA RUNTRAIN REPLICADA)
+    // 4. Grid Search con K-Fold
 
     // Parámetros a probar
     std::vector<double> C_vals = { 0.1, 1, 10, 100 };
@@ -486,7 +486,7 @@ void TrainingWorker::runStepTraining()
         }
     }
 
-    emit logMessage(QString("MEJORES PARÁMETROS: C=%1 Gamma=%2 (Precisión CV: %3%)")
+    emit logMessage(QString("MEJORES PARAMETROS: C=%1 Gamma=%2 (Precision CV: %3%)")
         .arg(bestC).arg(bestGamma).arg(bestAcc, 0, 'f', 2));
 
     // 5. Entrenamiento Final
