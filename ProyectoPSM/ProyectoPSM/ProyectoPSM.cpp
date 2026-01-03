@@ -533,6 +533,7 @@ void ProyectoPSM::onStartTrainingClicked() {
     connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
     connect(worker, &TrainingWorker::progressExtract, ui.progressBarExtract, &QProgressBar::setValue);
     connect(worker, &TrainingWorker::progressTrain, ui.progressBarTrain, &QProgressBar::setValue);
+	connect(worker, &TrainingWorker::progressEval, ui.progressBarEval, &QProgressBar::setValue);
 
     // Logs al cuadro de texto
     connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {

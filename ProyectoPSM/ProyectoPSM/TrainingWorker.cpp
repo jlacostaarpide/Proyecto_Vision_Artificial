@@ -8,19 +8,20 @@
 #include <opencv2/ml.hpp>
 #include <random>
 #include <numeric>
+#include <iomanip>
+#include <fstream>
 
 
 void TrainingWorker::process()
 {
     // Solo ejecutamos segmentación
-    runStepSegmentation();
+	runStepSegmentation();
+    if (stopRequested.load()) { emit finished(); return; }
     runStepExtraction();
+    if (stopRequested.load()) { emit finished(); return; }
     runStepTraining();
-
-    if (stopRequested.load()) {
-        emit logMessage("Proceso detenido.");
-    }
-
+    if (stopRequested.load()) { emit finished(); return; }
+	runStepEvaluation();
     emit finished();
 }
 
@@ -149,7 +150,7 @@ void TrainingWorker::runStepExtraction()
 {
     // 1. Verificar si el usuario quiere saltar este paso
     if (cfg.skipExtraction) {
-        emit logMessage("Saltando paso de extracción (Feature Extraction)...");
+        emit logMessage("Saltando paso de extraccion...");
         emit progressExtract(100);
         return;
     }
@@ -517,4 +518,204 @@ void TrainingWorker::runStepTraining()
     }
 
     emit progressTrain(100);
+}
+
+void TrainingWorker::runStepEvaluation()
+{
+    // 1. Verificar si saltamos el paso
+    if (cfg.skipEvaluation) {
+        emit logMessage("Saltando paso de evaluacion...");
+        emit progressEval(100);
+        return;
+    }
+
+    emit logMessage("--- INICIANDO EVALUACION DEL MODELO ---");
+
+    // 2. Validaciones de carpetas
+    if (!QFileInfo::exists(cfg.evaluationFolder)) {
+        emit logMessage("ERROR: La carpeta de Test no existe: " + cfg.evaluationFolder);
+        return;
+    }
+    if (!QFileInfo::exists(cfg.modelFile)) {
+        emit logMessage("ERROR: No existe el modelo para evaluar: " + cfg.modelFile);
+        return;
+    }
+
+    // 3. Cargar Modelo
+    cv::Ptr<cv::ml::SVM> svm;
+    try {
+        svm = cv::Algorithm::load<cv::ml::SVM>(cfg.modelFile.toLocal8Bit().constData());
+        if (!svm) throw std::runtime_error("Puntero nulo tras carga");
+    }
+    catch (const cv::Exception& e) {
+        emit logMessage("ERROR CRITICO: Fallo al cargar SVM: " + QString(e.what()));
+        return;
+    }
+
+    int expectedFeatures = svm->getVarCount(); // CRUCIAL: ¿Cuántas features espera el modelo?
+
+    // 4. Cargar Scaler
+    QFileInfo modelInfo(cfg.modelFile);
+    QString scalerPath = modelInfo.absolutePath() + "/" + modelInfo.baseName() + "_scaler.yml";
+
+    cv::Mat meanVec, stdVec;
+    bool hasScaler = false;
+
+    if (QFile::exists(scalerPath)) {
+        try {
+            cv::FileStorage fs(scalerPath.toLocal8Bit().constData(), cv::FileStorage::READ);
+            fs["mean"] >> meanVec;
+            fs["std"] >> stdVec;
+            fs.release();
+
+            // Verificar integridad
+            if (!meanVec.empty() && !stdVec.empty() && meanVec.cols == stdVec.cols) {
+                hasScaler = true;
+                emit logMessage("Scaler cargado. (Esperando " + QString::number(expectedFeatures) + " features)");
+            }
+            else {
+                emit logMessage("AVISO: Scaler corrupto o vacio.");
+            }
+        }
+        catch (...) {
+            emit logMessage("AVISO: Excepcion leyendo scaler.");
+        }
+    }
+    else {
+        emit logMessage("AVISO: No se encontro scaler. La precision puede ser baja.");
+    }
+
+    // 5. Preparar Reporte
+    QString reportPath = modelInfo.absolutePath() + "/eval_report.txt";
+    std::ofstream out(reportPath.toLocal8Bit().constData());
+    if (!out.is_open()) {
+        emit logMessage("ERROR: No se pudo crear el archivo de reporte.");
+        return;
+    }
+    out << "filename,gt,pred\n";
+
+    // 6. Bucle de Evaluacion
+    QDir testDir(cfg.evaluationFolder);
+    QStringList filters; filters << "*.jpg" << "*.png" << "*.bmp";
+    testDir.setNameFilters(filters);
+    QFileInfoList files = testDir.entryInfoList(QDir::Files, QDir::Name);
+
+    int total = 0;
+    int correct = 0;
+    int skipped = 0;
+    int nFiles = files.size();
+
+    emit logMessage(QString("Evaluando %1 imagenes de: %2").arg(nFiles).arg(cfg.evaluationFolder));
+
+    for (int i = 0; i < nFiles; ++i) {
+        if (stopRequested.load()) {
+            emit logMessage("Evaluacion cancelada.");
+            out.close();
+            return;
+        }
+
+        QString fileName = files[i].fileName();
+
+        // Extraer GT (Ground Truth) del nombre
+        QRegularExpression re("^(\\d+)");
+        QRegularExpressionMatch match = re.match(fileName);
+        int gt = -1;
+        if (match.hasMatch()) {
+            gt = match.captured(1).toInt();
+        }
+        else {
+            skipped++;
+            continue;
+        }
+
+        // Cargar Imagen (Robusto con QFile)
+        cv::Mat img;
+        QFile f(files[i].absoluteFilePath());
+        if (f.open(QIODevice::ReadOnly)) {
+            // Leemos todo en un QByteArray y lo pasamos a vector
+            QByteArray bytes = f.readAll();
+            std::vector<uchar> buf(bytes.begin(), bytes.end());
+            // Decodificamos forzando COLOR para evitar errores en extractor
+            img = cv::imdecode(buf, cv::IMREAD_COLOR);
+            f.close();
+        }
+
+        if (img.empty()) { skipped++; continue; }
+
+        // Extraer caracteristicas
+        std::vector<double> feat;
+        std::vector<std::string> dummy;
+        try {
+            FeatureExtractor::ExtractColorShapeFeatures(img, feat, dummy);
+        }
+        catch (...) {
+            skipped++; continue;
+        }
+
+        if (feat.empty()) { skipped++; continue; }
+
+        // --- PROTECCION ANTI-CRASH (Validacion de dimensiones) ---
+        // Si la imagen da 24 features pero el modelo entreno con 12, CRASHEA aqui.
+        if ((int)feat.size() != expectedFeatures) {
+            // Solo logueamos el primer error para no saturar
+            if (skipped == 0) {
+                emit logMessage(QString("ERROR DIMENSIONES: Imagen da %1 features, Modelo pide %2.")
+                    .arg(feat.size()).arg(expectedFeatures));
+            }
+            skipped++;
+            continue;
+        }
+        // ---------------------------------------------------------
+
+        // Normalizar
+        cv::Mat sample(1, (int)feat.size(), CV_32F);
+        for (size_t k = 0; k < feat.size(); ++k) {
+            float val = (float)feat[k];
+            if (hasScaler) {
+                double m = meanVec.at<double>(0, k);
+                double s = stdVec.at<double>(0, k);
+                val = (float)((val - m) / s);
+            }
+            sample.at<float>(0, k) = val;
+        }
+
+        // Predecir
+        int pred = -1;
+        try {
+            float predFloat = svm->predict(sample);
+            pred = static_cast<int>(predFloat);
+        }
+        catch (const cv::Exception& e) {
+            // Si falla aqui, es un problema interno de OpenCV (matriz corrupta)
+            // Logueamos y seguimos
+            // emit logMessage("Error predict: " + QString(e.what())); 
+            skipped++;
+            continue;
+        }
+
+        out << fileName.toStdString() << "," << gt << "," << pred << "\n";
+
+        if (pred == gt) correct++;
+        total++;
+
+        // Actualizar barra de progreso (porcentaje)
+        int percent = static_cast<int>((static_cast<float>(i + 1) / nFiles) * 100.0f);
+        emit progressEval(percent);
+    }
+
+    double accuracy = (total > 0) ? (100.0 * correct / total) : 0.0;
+
+    out << "\n# RESUMEN\n";
+    out << "Total: " << total << "\n";
+    out << "Correctos: " << correct << "\n";
+    out << "Precision: " << std::fixed << std::setprecision(2) << accuracy << "%\n";
+    out.close();
+
+    emit logMessage("--- FIN EVALUACION ---");
+    emit logMessage(QString("Procesados: %1 | Aciertos: %2").arg(total).arg(correct));
+    emit logMessage(QString("PRECISION: %1%").arg(accuracy, 0, 'f', 2));
+    emit logMessage("Reporte guardado en: " + reportPath);
+
+    // Asegurar barra al 100% al terminar
+    emit progressEval(100);
 }

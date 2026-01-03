@@ -11,7 +11,7 @@ struct TrainingConfig {
     QString segFolder;       // Salida: Imágenes Recortadas
     QString featuresFile;
     QString modelFile;
-    QString evaluationFolder;      // Carpeta de Test (si aplica)
+    QString evaluationFolder;
 	bool skipSegmentation;
     bool skipExtraction;
     bool skipTraining;
@@ -36,6 +36,7 @@ signals:
     void progressSeg(int percent);
     void progressExtract(int percent);
     void progressTrain(int percent);
+	void progressEval(int percent);
 
     // Mensajes para el log (texto negro)
     void logMessage(QString msg);
@@ -51,4 +52,5 @@ private:
     void runStepSegmentation();
     void runStepExtraction();
     void runStepTraining();
+    void runStepEvaluation();
 };
