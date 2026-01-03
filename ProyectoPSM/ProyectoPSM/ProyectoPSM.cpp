@@ -214,8 +214,8 @@ void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF
                     catch (...) {}
                 }
 
-                if (orientExito) labelText = QString("ID:%1 Yaw:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
-                else labelText = QString("ID:%1").arg(QString::fromStdString(codigoPieza));
+                if (orientExito) labelText = QString("Código:%1 Orientación:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
+                else labelText = QString("Código:%1").arg(QString::fromStdString(codigoPieza));
             }
             outLabels.push_back(labelText);
         }
@@ -985,10 +985,10 @@ void ProyectoPSM::ProcesarClasificacionOffline()
             }
 
             if (orientExito) {
-                labelInfo = "Codigo:" + codigoPieza + " Orientacion:" + std::to_string(orr.yaw);
+                labelInfo = "Código:" + codigoPieza + " Orientacion:" + std::to_string(orr.yaw);
             }
             else {
-                labelInfo = "Codigo:" + codigoPieza + " (Ori?)"; // Sabemos la pieza, no el ángulo
+                labelInfo = "Código:" + codigoPieza;
             }
         }
         else {
