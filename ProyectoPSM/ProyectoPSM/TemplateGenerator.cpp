@@ -2,6 +2,7 @@
 #include <QRegularExpression>
 #include <QFileInfo>
 #include <QDebug>
+#include <QFile>
 
 // Función equivalente a 'normalizeMaskedPatch' de Matlab
 bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, int size) {
@@ -13,28 +14,21 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
     else gray = input.clone();
 
     // --- 2. Umbral Fijo (MATLAB: t = 0.03; mask = Ig > t) ---
-    // En MATLAB 0.03 es sobre 1.0. En OpenCV (0-255): 0.03 * 255 ≈ 7.65 -> Usamos 8.
-    // Esto asume fondo muy oscuro/negro.
     cv::Mat mask;
     cv::threshold(gray, mask, 8, 255, cv::THRESH_BINARY);
 
     // --- 3. Limpieza Morfológica ---
 
     // A. MATLAB: imclose(mask, strel('disk', 2));
-    // Disk radio 2 = diametro 5x5 (aprox)
     cv::Mat kernelClose = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
     cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernelClose);
 
     // B. MATLAB: imopen(mask,  strel('disk', 1));
-    // Disk radio 1 = diametro 3x3
     cv::Mat kernelOpen = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
     cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernelOpen);
 
-    // --- 4. Componente Mayor y Relleno (MATLAB: bwareaopen, imfill, max area) ---
-    // En OpenCV esto se hace con findContours y dibujando solo el más grande RELLENO.
-
+    // --- 4. Componente Mayor y Relleno ---
     std::vector<std::vector<cv::Point>> contours;
-    // RETR_EXTERNAL solo busca el contorno exterior (equivale a ignorar agujeros internos)
     cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     if (contours.empty()) return false;
@@ -45,27 +39,23 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
     for (size_t i = 0; i < contours.size(); ++i) {
         double area = cv::contourArea(contours[i]);
 
-        // MATLAB: bwareaopen(mask, 150) -> Descartar menores de 150px
+        // MATLAB: bwareaopen(mask, 150)
         if (area < 150) continue;
 
-        // MATLAB: Quedarse con el componente mayor
         if (area > maxArea) {
             maxArea = area;
             maxIdx = static_cast<int>(i);
         }
     }
 
-    if (maxIdx == -1) return false; // No se encontró nada válido
+    if (maxIdx == -1) return false;
 
     // --- 5. Generar Máscara Final Limpia ---
-    // Creamos una máscara negra nueva y pintamos SOLO el contorno ganador
-    // FILLED (-1) equivale a MATLAB: imfill(mask, 'holes') implícito al pintar el interior
     cv::Mat finalMask = cv::Mat::zeros(mask.size(), CV_8UC1);
     cv::drawContours(finalMask, contours, maxIdx, cv::Scalar(255), cv::FILLED);
 
-    // --- 6. Aplicar Máscara a la Imagen (MATLAB: Gc(~Mc) = 0) ---
+    // --- 6. Aplicar Máscara a la Imagen ---
     cv::Mat maskedGray;
-    // Pone a negro todo lo que no esté en finalMask
     cv::bitwise_and(gray, gray, maskedGray, finalMask);
 
     // --- 7. Recorte (Bounding Box) ---
@@ -88,8 +78,7 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
     // --- 9. Resize (128x128) ---
     cv::resize(padded, output, cv::Size(size, size), 0, 0, cv::INTER_LINEAR);
 
-    // --- 10. Normalización Final (Standardization) ---
-    // (Igual que en tu código anterior y Matlab)
+    // --- 10. Normalización Final ---
     output.convertTo(output, CV_32F);
     cv::Scalar meanVal = cv::mean(output);
     output -= meanVal;
@@ -110,15 +99,17 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
     if (!outDir.exists()) outDir.mkpath(".");
 
     // Filtros de imagen
-    QStringList filters; filters << "*.jpg" << "*.png" << "*.bmp";
+    QStringList filters; filters << "*.jpg" << "*.png" << "*.bmp" << "*.jpeg";
     inDir.setNameFilters(filters);
     QFileInfoList files = inDir.entryInfoList(QDir::Files);
 
-    // 1. Agrupar archivos por (Code, Yaw, Pitch)
-    // Usamos un mapa donde la clave es la combinación y el valor es la lista de rutas
-    std::map<GroupKey, std::vector<QString>> groups;
+    if (files.isEmpty()) {
+        logCallback("ERROR: No hay imágenes en la carpeta de entrada.");
+        return;
+    }
 
-    // Regex espera formato: 01_000_90_xx.jpg
+    // 1. Agrupar archivos por (Code, Yaw, Pitch)
+    std::map<GroupKey, std::vector<QString>> groups;
     QRegularExpression re("^(\\d+)_(\\d+)_(\\d+)");
 
     logCallback("Agrupando imagenes...");
@@ -137,7 +128,7 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
             groups[key].push_back(files[i].absoluteFilePath());
         }
 
-        if (i % 100 == 0) progressCallback((int)(i * 20.0 / totalFiles)); // Progreso fase 1 (0-20%)
+        if (i % 50 == 0) progressCallback((int)(i * 20.0 / totalFiles));
     }
 
     logCallback(QString("Detectados %1 grupos unicos (plantillas a generar).").arg(groups.size()));
@@ -153,12 +144,14 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
         int count = 0;
 
         for (const QString& path : filePaths) {
-            // Cargar imagen (usando QFile para rutas con caracteres especiales)
             cv::Mat img;
             QFile f(path);
             if (f.open(QIODevice::ReadOnly)) {
-                std::vector<uchar> buf(f.readAll().begin(), f.readAll().end());
-                img = cv::imdecode(buf, cv::IMREAD_GRAYSCALE);
+                QByteArray fileBytes = f.readAll();
+                std::vector<uchar> buf(fileBytes.begin(), fileBytes.end());
+
+                img = cv::imdecode(buf, cv::IMREAD_GRAYSCALE); // Leemos como gris directamente para ahorrar
+                f.close();
             }
 
             if (img.empty()) continue;
@@ -170,7 +163,7 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
             }
         }
 
-        // 3. Promediar y guardar si hay suficientes muestras
+        // 3. Promediar y guardar
         if (count > 0) {
             // Promedio
             cv::Mat templateFinal = accumulator / count;
@@ -190,10 +183,8 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
             QString outPath = outDir.filePath(outName);
 
             try {
-                // toLocal8Bit para Windows paths
                 cv::FileStorage fs(outPath.toLocal8Bit().constData(), cv::FileStorage::WRITE);
 
-                // Escribir metadatos y matriz
                 fs << "code" << QString::number(key.code).toStdString();
                 fs << "yaw" << key.yaw;
                 fs << "pitch" << key.pitch;
@@ -208,7 +199,6 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
         }
 
         groupIdx++;
-        // Progreso fase 2 (20-100%)
         int p = 20 + (int)(groupIdx * 80.0 / totalGroups);
         progressCallback(p);
     }

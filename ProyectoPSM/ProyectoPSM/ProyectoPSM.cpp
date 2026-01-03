@@ -457,7 +457,7 @@ void ProyectoPSM::onBrowseFeatures() {
 }
 
 void ProyectoPSM::onBrowseTemplates() {
-    QString defaultDir = "Database/Templates";
+    QString defaultDir = "../../Database/Templates";
     QString startPath = getSmartStartDir(ui.txtPathTemplates->text(), defaultDir);
 
     // Lógica dinámica: Cambiamos el TÍTULO según el checkbox
