@@ -1,6 +1,7 @@
 #include "TrainingWorker.h"
 #include "Segmentacion.h"
 #include "ExtractCaracteristicas.h"
+#include "TemplateGenerator.h"
 #include <opencv2/opencv.hpp>
 #include <QDebug>
 #include <QFileInfo>
@@ -18,6 +19,8 @@ void TrainingWorker::process()
 	runStepSegmentation();
     if (stopRequested.load()) { emit finished(); return; }
     runStepExtraction();
+    if (stopRequested.load()) { emit finished(); return; }
+    runStepTemplates();
     if (stopRequested.load()) { emit finished(); return; }
     runStepTraining();
     if (stopRequested.load()) { emit finished(); return; }
@@ -292,6 +295,27 @@ void TrainingWorker::runStepExtraction()
     catch (const cv::Exception& e) {
         emit logMessage("Excepción OpenCV al guardar: " + QString::fromStdString(e.what()));
     }
+}
+
+void TrainingWorker::runStepTemplates()
+{
+    if (cfg.skipTemplates) {
+        emit logMessage("Saltando generacion de plantillas...");
+        return;
+    }
+
+    emit logMessage("--- INICIANDO GENERACION DE PLANTILLAS DE ORIENTACION ---");
+
+    TemplateConfig tplCfg;
+    tplCfg.inputFolder = cfg.segFolder;       // Usa las imágenes segmentadas
+    tplCfg.outputFolder = cfg.templatesFolder; // Carpeta destino
+    tplCfg.templateSize = 128; // Tamaño estándar
+
+    // Llamada estática, pasamos lambdas para conectar los logs y progreso con las señales del worker
+    TemplateGenerator::Generate(tplCfg,
+        [this](QString msg) { emit logMessage(msg); },
+        [this](int p) { /* Podrias emitir una señal progressTemplates(p) si la creas */ }
+    );
 }
 
 void TrainingWorker::runStepTraining()
