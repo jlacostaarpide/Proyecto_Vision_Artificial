@@ -379,29 +379,55 @@ ProyectoPSM::~ProyectoPSM()
 }
 
 // Funciones de la pestaña de entrenamiento
-
 void ProyectoPSM::onBrowseRaw() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Imágenes Raw", "Database");
+    // RAW siempre es lectura (source)
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta RAW", "Database");
     if (!dir.isEmpty()) ui.txtPathRaw->setText(dir);
 }
 
 void ProyectoPSM::onBrowseSeg() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Destino/Origen Segmentadas", "Database");
+    // Seg Folder: Si salto el paso, es para LEER. Si no, es para ESCRIBIR (aunque es un dir, da igual)
+    // Pero el título del diálogo ayuda al usuario
+    QString title = ui.chkSkipSeg->isChecked() ? "Seleccionar Carpeta Segmentadas (Origen)"
+        : "Seleccionar Carpeta Segmentadas (Destino)";
+    QString dir = QFileDialog::getExistingDirectory(this, title, "Database");
     if (!dir.isEmpty()) ui.txtPathSeg->setText(dir);
 }
 
 void ProyectoPSM::onBrowseFeatures() {
-    QString file = QFileDialog::getSaveFileName(this, "Archivo de Características", "Database/features.yml", "YAML Files (*.yml *.yaml);;XML Files (*.xml)");
+    // Features: Si salto extracción -> LEER (Open). Si no -> ESCRIBIR (Save).
+    QString file;
+    if (ui.chkSkipExtract->isChecked()) {
+        file = QFileDialog::getOpenFileName(this, "Cargar Features Existentes",
+            "Database/features.yml",
+            "YAML/XML Files (*.yml *.yaml *.xml)");
+    }
+    else {
+        file = QFileDialog::getSaveFileName(this, "Guardar Nuevas Features",
+            "Database/features.yml",
+            "YAML Files (*.yml *.yaml);;XML Files (*.xml)");
+    }
     if (!file.isEmpty()) ui.txtPathFeatures->setText(file);
 }
 
 void ProyectoPSM::onBrowseModel() {
-    QString file = QFileDialog::getOpenFileName(this, "Archivo de Modelo SVM", "Database/modelM.yml", "YAML Files (*.yml *.yaml)");
+    // Model: Si salto entrenamiento -> LEER (Open). Si no -> ESCRIBIR (Save).
+    QString file;
+    if (ui.chkSkipTrain->isChecked()) {
+        file = QFileDialog::getOpenFileName(this, "Cargar Modelo Existente",
+            "Database/modelM.yml",
+            "YAML Files (*.yml *.yaml)");
+    }
+    else {
+        file = QFileDialog::getSaveFileName(this, "Guardar Nuevo Modelo",
+            "Database/modelM.yml",
+            "YAML Files (*.yml *.yaml)");
+    }
     if (!file.isEmpty()) ui.txtPathModel->setText(file);
 }
 
 void ProyectoPSM::onBrowseTest() {
-    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta de Test", "Database");
+    QString dir = QFileDialog::getExistingDirectory(this, "Seleccionar Carpeta Test", "Database");
     if (!dir.isEmpty()) ui.txtPathTest->setText(dir);
 }
 
@@ -437,8 +463,14 @@ void ProyectoPSM::onStartTrainingClicked() {
     TrainingConfig config;
     config.rawFolder = ui.txtPathRaw->text();
     config.segFolder = ui.txtPathSeg->text();
-    config.skipExtraction = ui.chkSkipExtract->isChecked();
     config.featuresFile = ui.txtPathFeatures->text();
+    config.modelFile = ui.txtPathModel->text();
+	config.evaluationFolder = ui.txtPathTest->text();
+
+    config.skipSegmentation= ui.chkSkipSeg->isChecked();
+    config.skipExtraction = ui.chkSkipExtract->isChecked();
+	config.skipTraining = ui.chkSkipTrain->isChecked();
+	config.skipEvaluation = ui.chkSkipEval->isChecked();
 
     // Resetear UI
     ui.txtLogTrain->clear();
@@ -459,6 +491,7 @@ void ProyectoPSM::onStartTrainingClicked() {
     // Actualizar barra de progreso
     connect(worker, &TrainingWorker::progressSeg, ui.progressBarSeg, &QProgressBar::setValue);
     connect(worker, &TrainingWorker::progressExtract, ui.progressBarExtract, &QProgressBar::setValue);
+    connect(worker, &TrainingWorker::progressTrain, ui.progressBarExtract, &QProgressBar::setValue);
 
     // Logs al cuadro de texto
     connect(worker, &TrainingWorker::logMessage, this, [this](QString msg) {
