@@ -194,8 +194,7 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     double umbral_area_rel = 0.15 * max_area;
     double umbral_area_abs = 1000.0;
     double umbral_ratio_max = 4.0;
-    // MODIFICADO: Bajado de 0.30 a 0.20 para ser más tolerante
-    double umbral_saturacion = 0.20;
+    double umbral_saturacion = 0.30;
 
     int id_counter = 1;
     qDebug() << "--- INICIO SEGMENTACIÓN ---";
@@ -340,51 +339,70 @@ Mat Segmentacion::ImClearBorder(const Mat& mask)
     return cleaned;
 }
 
-void Segmentacion::MejorarContrasteV(Mat& imgBGR)
+void Segmentacion::MejorarContrasteV(cv::Mat& imgBGR)
 {
     if (imgBGR.empty()) return;
-    Mat hsv;
-    cvtColor(imgBGR, hsv, COLOR_BGR2HSV);
-    vector<Mat> chans;
-    split(hsv, chans);
-    Mat V = chans[2];
 
-    vector<uchar> values;
+    // Pasar a HSV en float [0..1]
+    cv::Mat imgFloat;
+    imgBGR.convertTo(imgFloat, CV_32F, 1.0 / 255.0);
+
+    cv::Mat hsv;
+    cv::cvtColor(imgFloat, hsv, cv::COLOR_BGR2HSV);
+
+    std::vector<cv::Mat> chans;
+    cv::split(hsv, chans);
+    cv::Mat& V = chans[2]; // float [0..1]
+
+    // Recolectar TODOS los valores (incluye ceros, como MATLAB)
+    std::vector<float> values;
     values.reserve(V.total());
-    for (int i = 0; i < V.rows; ++i) {
-        uchar* p = V.ptr<uchar>(i);
-        for (int j = 0; j < V.cols; ++j) {
-            if (p[j] > 0) values.push_back(p[j]);
+    for (int r = 0; r < V.rows; ++r) {
+        const float* p = V.ptr<float>(r);
+        for (int c = 0; c < V.cols; ++c) {
+            values.push_back(p[c]);
         }
     }
 
     if (values.empty()) return;
 
-    size_t n = values.size();
-    size_t idx1 = (size_t)(0.01 * n);
-    size_t idx95 = (size_t)(0.95 * n);
+    float p1 = percentileMatlabLike(values, 1.f);
+    float p95 = percentileMatlabLike(values, 95.f);
 
-    std::nth_element(values.begin(), values.begin() + idx1, values.end());
-    uchar p1 = values[idx1];
+    float denom = p95 - p1;
+    if (std::abs(denom) < 1e-6f) denom = 1e-6f;
 
-    std::nth_element(values.begin(), values.begin() + idx95, values.end());
-    uchar p95 = values[idx95];
-
-    Mat maskValid = (V > 0);
-    float scale = (p95 > p1) ? 255.0f / (p95 - p1) : 1.0f;
-
-    for (int i = 0; i < V.rows; ++i) {
-        uchar* p = V.ptr<uchar>(i);
-        for (int j = 0; j < V.cols; ++j) {
-            if (p[j] > 0) {
-                float val = (float)p[j];
-                val = (val - p1) * scale;
-                if (val < 0) val = 0;
-                if (val > 255) val = 255;
-                p[j] = (uchar)val;
-            }
+    // Ecualización idéntica a MATLAB
+    for (int r = 0; r < V.rows; ++r) {
+        float* p = V.ptr<float>(r);
+        for (int c = 0; c < V.cols; ++c) {
+            float v = (p[c] - p1) / denom;
+            p[c] = std::min(1.f, std::max(0.f, v));
         }
     }
-    merge(chans, hsv);
-    cvtColor(hsv, imgBGR, COLOR_HSV2BGR);
+
+    // Volver a BGR uint8
+    cv::merge(chans, hsv);
+    cv::cvtColor(hsv, imgFloat, cv::COLOR_HSV2BGR);
+    imgFloat.convertTo(imgBGR, CV_8U, 255.0);
+}
+
+static float percentileMatlabLike(std::vector<float>& v, float p)
+{
+    if (v.empty()) return 0.f;
+
+    float idx = p / 100.f * (v.size() - 1);
+    size_t i0 = static_cast<size_t>(std::floor(idx));
+    size_t i1 = static_cast<size_t>(std::ceil(idx));
+    float frac = idx - i0;
+
+    std::nth_element(v.begin(), v.begin() + i0, v.end());
+    float v0 = v[i0];
+
+    if (i1 == i0) return v0;
+
+    std::nth_element(v.begin(), v.begin() + i1, v.end());
+    float v1 = v[i1];
+
+    return v0 * (1.f - frac) + v1 * frac;
 }

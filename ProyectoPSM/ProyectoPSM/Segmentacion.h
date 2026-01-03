@@ -33,10 +33,11 @@ class Segmentacion
 public:
     // Método principal: Recibe la imagen BGR (High Res) y devuelve lista de piezas
     static std::vector<ResultadoPieza> Segmentar(const cv::Mat& inputBGR, DebugInfo* debug = nullptr);
-
 private:
 	// Métodos auxiliares
     static cv::Mat ImFillHoles(const cv::Mat& mask);
     static cv::Mat ImClearBorder(const cv::Mat& mask);
     static void MejorarContrasteV(cv::Mat& imgBGR);
 };
+
+static float percentileMatlabLike(std::vector<float>& v, float p);
