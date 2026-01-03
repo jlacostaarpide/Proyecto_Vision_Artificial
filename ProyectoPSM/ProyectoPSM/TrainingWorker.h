@@ -54,7 +54,7 @@ private:
     // Pasos internos
     void runStepSegmentation();
     void runStepExtraction();
-    void runStepTemplates
+    void runStepTemplates();
     void runStepTraining();
     void runStepEvaluation();
 };

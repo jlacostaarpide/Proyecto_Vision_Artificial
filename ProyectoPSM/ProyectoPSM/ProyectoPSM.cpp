@@ -361,6 +361,13 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     SavedImageIndex = 1;
     ui.boxImageNumber->setValue(SavedImageIndex);
     UpdateFileNameLabel();
+
+    // 8. PESTAÑA AJUSTES
+    LoadDefaultSettings(); // Cargar rutas iniciales en los textbox
+
+    connect(ui.btnSetTemplates, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseTemplates);
+    connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
+    connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
 }
 
 ProyectoPSM::~ProyectoPSM()
@@ -833,15 +840,30 @@ void ProyectoPSM::onCheckLiveClass(bool checked)
         ClassProcessing = false;
     }
     else {
-        // Asegurar que los modelos estén cargados
-		// Ojo, ahora hay una nueva funcion: EnsureOrientTemplatesLoaded
+        QString modelPath = ui.txtSetModel->text();
+        QString scalerPath = ui.txtSetScaler->text();
+        QString tplPath = ui.txtSetTemplates->text();
+
+        // 1. Cargar SVM
         if (!svmClf_->IsLoaded()) {
-            // Cargar SVM (mismas rutas que offline)
-            svmClf_->Load("../../Matlab/Clasificador/Clasificador C/modelM.yml",
-                "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml");
+            if (!QFile::exists(modelPath)) {
+                QMessageBox::warning(this, "Error Configuración", "El archivo de modelo especificado en Ajustes no existe:\n" + modelPath);
+                ui.chkLiveClass->setChecked(false);
+                return;
+            }
+            // Convertir QString a std::string para tu clase Clasificador
+            svmClf_->Load(modelPath.toStdString(), scalerPath.toStdString());
+        }
+
+        // 2. Cargar Templates (Si cambiaron la ruta, reinicializamos el objeto)
+        if (orientTemplatesDir_ != tplPath) {
+            orientTemplatesDir_ = tplPath; // Guardamos la nueva ruta
+            // Re-creamos el clasificador con la nueva ruta
+            orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
+            orientTemplatesLoaded_ = false;
         }
         if (!orientTemplatesLoaded_) {
-            if (orientClf_->loadAllTemplates()) orientTemplatesLoaded_ = true;
+            EnsureOrientTemplatesLoaded();
         }
     }
 }
@@ -1022,11 +1044,17 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 
     // 2. CARGA DEL SVM
     if (!svmClf_->IsLoaded()) {
-        std::string pathModel = "../../Matlab/Clasificador/Clasificador C/modelM.yml";
-        std::string pathScaler = "../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml";
+        std::string pathModel = ui.txtSetModel->text().toStdString();
+        std::string pathScaler = ui.txtSetScaler->text().toStdString();
+
+        if (!QFile::exists(QString::fromStdString(pathModel))) {
+            QMessageBox::warning(this, "Error", "Configura la ruta del modelo en la pestaña Ajustes.");
+            return;
+        }
+
         bool ok = svmClf_->Load(pathModel, pathScaler);
         if (!ok) {
-            QMessageBox::warning(this, "Error Crítico", "No se pudo cargar el modelo SVM.");
+            QMessageBox::warning(this, "Error Crítico", "No se pudo cargar el modelo SVM.\nVerifica las rutas en Ajustes.");
             return;
         }
     }
@@ -1234,6 +1262,56 @@ void ProyectoPSM::SaveImage()
     }
 }
 
+void ProyectoPSM::LoadDefaultSettings()
+{
+    // Rutas por defecto (ajusta esto a tu estructura real)
+    // Usamos rutas relativas a Database si es posible
+    if (ui.txtSetTemplates->text().isEmpty())
+        ui.txtSetTemplates->setText("Templates");
+
+    if (ui.txtSetModel->text().isEmpty())
+        ui.txtSetModel->setText("../../Matlab/Clasificador/Clasificador C/modelM.yml");
+
+    if (ui.txtSetScaler->text().isEmpty())
+        ui.txtSetScaler->setText("../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml");
+}
+
+void ProyectoPSM::onSetBrowseTemplates() {
+    QString dir = QFileDialog::getExistingDirectory(this, "Carpeta de Templates",
+        getSmartStartDir(ui.txtSetTemplates->text(), "Database"));
+    if (!dir.isEmpty()) {
+        ui.txtSetTemplates->setText(dir);
+        // Forzamos recarga del clasificador de orientación la próxima vez que se use
+        orientTemplatesLoaded_ = false;
+    }
+}
+
+void ProyectoPSM::onSetBrowseModel() {
+    QString file = QFileDialog::getOpenFileName(this, "Seleccionar Modelo SVM",
+        getSmartStartDir(ui.txtSetModel->text(), "Database"),
+        "YAML Files (*.yml *.yaml)");
+    if (!file.isEmpty()) {
+        ui.txtSetModel->setText(file);
+
+        // AUTO-DETECTAR SCALER: Si seleccionan "model.yml", buscamos "model_scaler.yml"
+        QFileInfo info(file);
+        QString scalerName = info.absolutePath() + "/" + info.baseName() + "_scaler.yml";
+        if (QFile::exists(scalerName)) {
+            ui.txtSetScaler->setText(scalerName);
+        }
+
+		EnsureOrientTemplatesLoaded();
+		// Faltaría recargar el SVM la próxima vez que se use
+    }
+}
+
+void ProyectoPSM::onSetBrowseScaler() {
+    QString file = QFileDialog::getOpenFileName(this, "Seleccionar Scaler",
+        getSmartStartDir(ui.txtSetScaler->text(), "Database"),
+        "YAML Files (*.yml *.yaml)");
+    if (!file.isEmpty()) ui.txtSetScaler->setText(file);
+}
+
 
 // helper: extrae code del nombre "02_045_090_001" -> "02"
 static std::string ExtractCodeFromFilename(const QString& baseName)
@@ -1402,6 +1480,13 @@ void ProyectoPSM::maybeTrain() {
 bool ProyectoPSM::EnsureOrientTemplatesLoaded()
 {
     if (orientTemplatesLoaded_) return true;
+
+    // Actualizar ruta desde UI antes de cargar
+    QString currentUiPath = ui.txtSetTemplates->text();
+    if (!currentUiPath.isEmpty() && orientTemplatesDir_ != currentUiPath) {
+        orientTemplatesDir_ = currentUiPath;
+        orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
+    }
 
     if (!orientClf_) {
         QMessageBox::warning(this, "Error", "orientClf_ no está inicializado.");

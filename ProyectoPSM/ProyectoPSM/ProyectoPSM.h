@@ -110,6 +110,8 @@ private:
     // Guarda el último resultado de la segmentación offline para poder clasificarlo después
     std::vector<ResultadoPieza> lastResultados_;
 
+    void LoadDefaultSettings(); // Para poner rutas por defecto al iniciar
+
 	// función de entrenamiento si no hay modelo
     void maybeTrain();
     void runEvalGlobal();
@@ -158,6 +160,11 @@ private slots:
     void onCheckSkipEval(bool checked);
 
     void onStartTrainingClicked();
+
+    // Ajustes
+    void onSetBrowseTemplates();
+    void onSetBrowseModel();
+    void onSetBrowseScaler();
 
 
 
