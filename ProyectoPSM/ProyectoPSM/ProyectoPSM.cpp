@@ -317,9 +317,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
     connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
     connect(ui.btnRecalcClass, SIGNAL(clicked()), this, SLOT(ProcesarClasificacionOffline()));
-    connect(ui.btnDB, SIGNAL(clicked()), this, SLOT(OnBatchSegmentar()));
-
-    ui.pbtnGuardar->setEnabled(false);
 
     ui.chkLiveSeg->setEnabled(false);
     ui.chkLiveClass->setEnabled(false);
@@ -335,8 +332,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
         Camera->SetCameraAutoExposure();
     }
 
-    // 6. Conectar boton Clasificador Orientacion (Legacy):
-    connect(ui.btnClasificarOrientacion, SIGNAL(clicked()), this, SLOT(AbrirYClasificarOrientacion()));
 
     // 7. CONEXIONES NUEVA PESTAÑA ENTRENAMIENTO
     // Botones de examinar (Browse)
@@ -368,6 +363,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnSetTemplates, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseTemplates);
     connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
     connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
+    connect(ui.chkUseDbNames, &QCheckBox::toggled, this, &ProyectoPSM::UpdateFileNameLabel);
 }
 
 ProyectoPSM::~ProyectoPSM()
@@ -931,10 +927,10 @@ void ProyectoPSM::CapturarYAnalizar()
     // 2. Congelar imagen actual
     CapturedImage = LastImage.clone();
 
-    // APAGADO AUTOMÁTICO
-        if (ui.pbtnEncender->isChecked()) {
-            ui.pbtnEncender->setChecked(false);
-        }
+    //// APAGADO AUTOMÁTICO
+    //    if (ui.pbtnEncender->isChecked()) {
+    //        ui.pbtnEncender->setChecked(false);
+    //    }
 
     // 3. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
@@ -1223,13 +1219,23 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 void ProyectoPSM::UpdateFileNameLabel()
 {
     int idx = ui.boxImageNumber->value();
-    if (idx > 0 && idx <= NameList.size()) {
-        QString name = QString::fromStdString(NameList[idx - 1]);
-        ui.lblImageName->setText("Nombre: " + name + ".jpg");
+    QString fileName;
+
+    if (ui.chkUseDbNames->isChecked()) {
+        // MODO DATABASE: Usa la lista NameList
+        if (idx > 0 && idx <= NameList.size()) {
+            fileName = QString::fromStdString(NameList[idx - 1]);
+        }
+        else {
+            fileName = "[Fuera de Rango]";
+        }
     }
     else {
-        ui.lblImageName->setText("Nombre: [Fuera de Rango]");
+        // MODO GENÉRICO: Usa Imagen_XX
+        fileName = QString("Imagen_%1").arg(idx, 2, 10, QChar('0'));
     }
+
+    ui.lblImageName->setText("Nombre: " + fileName + ".jpg");
 }
 
 void ProyectoPSM::SaveImageAs()
@@ -1279,16 +1285,23 @@ void ProyectoPSM::SaveImageAs()
 void ProyectoPSM::SaveImage()
 {
     if (!CapturedImage.empty()) {
-        // Generar nombre basado en DB
         int idx = ui.boxImageNumber->value();
-        std::string Name = (idx <= NameList.size() && idx > 0) ? NameList[idx - 1] : "captura_extra_" + std::to_string(idx);
+        std::string nameStr;
 
-        // Crear ruta segura
-        std::string Path = "Database/" + Name + ".jpg";
+        // Decidir nombre según el checkbox
+        if (ui.chkUseDbNames->isChecked()) {
+            // Modo Database
+            nameStr = (idx <= NameList.size() && idx > 0) ? NameList[idx - 1] : "captura_extra_" + std::to_string(idx);
+        }
+        else {
+            // Modo Genérico
+            QString genName = QString("Imagen_%1").arg(idx, 2, 10, QChar('0'));
+            nameStr = genName.toStdString();
+        }
 
+        std::string Path = "Database/" + nameStr + ".jpg";
         cv::imwrite(Path, CapturedImage);
 
-        // Feedback visual
         ui.pbtnGuardar->setText("¡Guardado!");
         ui.pbtnGuardar->setEnabled(false);
         QTimer::singleShot(1000, [this]() {
@@ -1296,10 +1309,8 @@ void ProyectoPSM::SaveImage()
             ui.pbtnGuardar->setEnabled(true);
             });
 
-        // Avanzar índice y actualizar etiqueta
         if (idx < 9999) {
             ui.boxImageNumber->setValue(idx + 1);
-            // El setValue disparará el signal valueChanged que llamará a UpdateFileNameLabel
         }
     }
 }
@@ -1365,95 +1376,6 @@ static std::string ExtractCodeFromFilename(const QString& baseName)
     return "";
 }
 
-void ProyectoPSM::AbrirYClasificarOrientacion()
-{
-    // 1) elegir imagen
-    QString fileName = QFileDialog::getOpenFileName(
-        this,
-        tr("Abrir imagen de pieza"),
-        "",
-        tr("Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)")
-    );
-    if (fileName.isEmpty()) return;
-
-    // 2) leer con Qt -> cv::Mat (igual que tu CargarImagenDisco)
-    QFile f(fileName);
-    if (!f.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, "Error", "No se pudo abrir el archivo.");
-        return;
-    }
-    QByteArray fileData = f.readAll();
-    f.close();
-
-    std::vector<uchar> vec(fileData.begin(), fileData.end());
-    cv::Mat image = cv::imdecode(vec, cv::IMREAD_COLOR);
-    if (image.empty()) {
-        QMessageBox::warning(this, "Error", "La imagen no se pudo decodificar.");
-        return;
-    }
-
-    // 3) mostrarla en tu visor offline (reutiliza tu pipeline si quieres)
-    CapturedImage = image.clone();
-    ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
-
-    // opcional: muestra la imagen en lblOfflineMain directamente
-    {
-        cv::Mat rgb;
-        cv::cvtColor(CapturedImage, rgb, cv::COLOR_BGR2RGB);
-        QImage qimg(rgb.data, rgb.cols, rgb.rows, (int)rgb.step, QImage::Format_RGB888);
-        ui.lblOfflineMain->setPixmap(QPixmap::fromImage(qimg.copy()).scaled(
-            ui.lblOfflineMain->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    }
-
-    // 4) extraer code desde el nombre
-    QFileInfo info(fileName);
-    QString base = info.completeBaseName();            // "02_045_090_001"
-    std::string code = ExtractCodeFromFilename(base); // "02"
-
-    if (code.empty()) {
-        QMessageBox::warning(this, "Nombre inválido",
-            "No he podido extraer el code del nombre.\n"
-            "Ejemplo esperado: 02_045_090_001.jpg");
-        return;
-    }
-
-    // 5) cargar plantillas (una sola vez)
-
-    if (!QFileInfo::exists(orientTemplatesDir_) || !QFileInfo(orientTemplatesDir_).isDir()) {
-        QMessageBox::critical(this, "Error",
-            "No existe la carpeta de templates:\n" + orientTemplatesDir_);
-        return;
-    }
-    if (!orientTemplatesLoaded_) {
-        if (!orientClf_ || !orientClf_->loadAllTemplates()) {
-            QMessageBox::critical(this, "Error",
-                "No se pudieron cargar las plantillas .yml/.yaml.\n"
-                "Revisa la ruta de templatesFolder_.");
-            return;
-        }
-        orientTemplatesLoaded_ = true;
-    }
-
-    // 6) clasificar orientación
-    // aquí pasas la imagen de la pieza; si ya vienes con recorte, pásale el recorte.
-    // ahora mismo pasamos la imagen completa.
-    OrientationResult r = orientClf_->predict(CapturedImage, code);
-
-    if (!r.ok) {
-        ui.lblOrientacionResult->setText(
-            QString("No se pudo clasificar (code=%1)").arg(QString::fromStdString(code)));
-        return;
-    }
-
-    ui.lblOrientacionResult->setText(
-        QString("code=%1   yaw=%2   pitch=%3   score=%4   gap=%5")
-        .arg(QString::fromStdString(r.matchedCode))
-        .arg(r.yaw)
-        .arg(r.pitch)
-        .arg(r.bestScore, 0, 'f', 4)
-        .arg(r.gap, 0, 'f', 4)
-    );
-}
 
 //PRUEBAS DE CLASIFICACIÓN
 void ProyectoPSM::runEvalGlobal() {
@@ -1550,18 +1472,4 @@ bool ProyectoPSM::EnsureOrientTemplatesLoaded()
     orientTemplatesLoaded_ = true;
     return true;
 }
-
-void ProyectoPSM::OnBatchSegmentar()
-{
-    std::string in = R"(../../Database/RAW)";
-    std::string out = R"(../../Database/SEGMENTED_C)";
-
-    SegmentBatchStats st = SegmentFolderAndSaveCrops(
-        in, out,
-        false,   // keepSubfolders
-        0,       // maxPiecesPerImage (0 = todas)
-        true     // verbose
-    );
-}
-
 

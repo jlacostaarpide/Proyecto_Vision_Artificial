@@ -167,11 +167,6 @@ private slots:
     void onSetBrowseModel();
     void onSetBrowseScaler();
 
-
-
-    void AbrirYClasificarOrientacion();
-
     bool EnsureOrientTemplatesLoaded();
-    void OnBatchSegmentar();
 
 };
