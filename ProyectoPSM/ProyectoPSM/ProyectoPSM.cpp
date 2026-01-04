@@ -432,7 +432,7 @@ void ProyectoPSM::onBrowseTest() {
 }
 
 void ProyectoPSM::onBrowseFeatures() {
-    QString defaultFile = "../../Database/Models/features.yml";
+    QString defaultFile = "Models/features.yml";
 
     QString startFile = getSmartStartDir(ui.txtPathFeatures->text(), "Database");
 
@@ -457,7 +457,7 @@ void ProyectoPSM::onBrowseFeatures() {
 }
 
 void ProyectoPSM::onBrowseTemplates() {
-    QString defaultDir = "../../Database/Templates";
+    QString defaultDir = "Templates";
     QString startPath = getSmartStartDir(ui.txtPathTemplates->text(), defaultDir);
 
     // Lógica dinámica: Cambiamos el TÍTULO según el checkbox
@@ -479,7 +479,7 @@ void ProyectoPSM::onBrowseTemplates() {
 }
 
 void ProyectoPSM::onBrowseModel() {
-    QString defaultFile = "../../Database/Models/modelM.yml";
+    QString defaultFile = "Models/modelM.yml";
 
     QString startFile = getSmartStartDir(ui.txtPathModel->text(), "Database");
 
