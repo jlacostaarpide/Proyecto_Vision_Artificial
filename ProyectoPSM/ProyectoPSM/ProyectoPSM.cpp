@@ -260,13 +260,10 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     ClasificationIntervalMs = 150;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
 
+    // 8. PESTAÑA AJUSTES
+    LoadDefaultSettings(); // Cargar rutas iniciales en los textbox
 
-    // CLASIFICACION ORIENTACION:
-    // Ruta RELATIVA (corregida)
-    orientTemplatesDir_ = "Templates";
-    // Crea el clasificador con esa carpeta
-    orientClf_ = std::make_unique<ClasificadorOrientacion>(orientTemplatesDir_.toStdString(), 128);
-    orientTemplatesLoaded_ = false;
+	// Cargar Clasificador de Orientación
     EnsureOrientTemplatesLoaded();
 
     // 1. Inicializar Cámara
@@ -357,9 +354,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     ui.boxImageNumber->setValue(SavedImageIndex);
     UpdateFileNameLabel();
 
-    // 8. PESTAÑA AJUSTES
-    LoadDefaultSettings(); // Cargar rutas iniciales en los textbox
-
     connect(ui.btnSetTemplates, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseTemplates);
     connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
     connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
@@ -428,7 +422,7 @@ void ProyectoPSM::onBrowseTest() {
 }
 
 void ProyectoPSM::onBrowseFeatures() {
-    QString defaultFile = "Models/features.yml";
+    QString defaultFile = "Database/Models/features.yml";
 
     QString startFile = getSmartStartDir(ui.txtPathFeatures->text(), "Database");
 
@@ -453,7 +447,7 @@ void ProyectoPSM::onBrowseFeatures() {
 }
 
 void ProyectoPSM::onBrowseTemplates() {
-    QString defaultDir = "Templates";
+    QString defaultDir = "Database/Templates";
     QString startPath = getSmartStartDir(ui.txtPathTemplates->text(), defaultDir);
 
     // Lógica dinámica: Cambiamos el TÍTULO según el checkbox
@@ -475,7 +469,7 @@ void ProyectoPSM::onBrowseTemplates() {
 }
 
 void ProyectoPSM::onBrowseModel() {
-    QString defaultFile = "Models/modelM.yml";
+    QString defaultFile = "Database/Models/modelM.yml";
 
     QString startFile = getSmartStartDir(ui.txtPathModel->text(), "Database");
 
@@ -1320,18 +1314,18 @@ void ProyectoPSM::LoadDefaultSettings()
     // Rutas por defecto (ajusta esto a tu estructura real)
     // Usamos rutas relativas a Database si es posible
     if (ui.txtSetTemplates->text().isEmpty())
-        ui.txtSetTemplates->setText("Templates");
+        ui.txtSetTemplates->setText("Database/Templates");
 
     if (ui.txtSetModel->text().isEmpty())
-        ui.txtSetModel->setText("Models/modelM.yml");
+        ui.txtSetModel->setText("Database/Models/modelM.yml");
 
     if (ui.txtSetScaler->text().isEmpty())
-        ui.txtSetScaler->setText("Models/modelM_scaler.yml");
+        ui.txtSetScaler->setText("Database/Models/modelM_scaler.yml");
 }
 
 void ProyectoPSM::onSetBrowseTemplates() {
     QString dir = QFileDialog::getExistingDirectory(this, "Carpeta de Templates",
-        getSmartStartDir(ui.txtSetTemplates->text(), "Templates"));
+        getSmartStartDir(ui.txtSetTemplates->text(), "Database/Templates"));
     if (!dir.isEmpty()) {
         ui.txtSetTemplates->setText(dir);
         // Forzamos recarga del clasificador de orientación la próxima vez que se use
@@ -1341,7 +1335,7 @@ void ProyectoPSM::onSetBrowseTemplates() {
 
 void ProyectoPSM::onSetBrowseModel() {
     QString file = QFileDialog::getOpenFileName(this, "Seleccionar Modelo SVM",
-        getSmartStartDir(ui.txtSetModel->text(), "Models"),
+        getSmartStartDir(ui.txtSetModel->text(), "Database/Models"),
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) {
         ui.txtSetModel->setText(file);
@@ -1359,7 +1353,7 @@ void ProyectoPSM::onSetBrowseModel() {
 
 void ProyectoPSM::onSetBrowseScaler() {
     QString file = QFileDialog::getOpenFileName(this, "Seleccionar Scaler",
-        getSmartStartDir(ui.txtSetScaler->text(), "Models"),
+        getSmartStartDir(ui.txtSetScaler->text(), "Database/Models"),
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) ui.txtSetScaler->setText(file);
 }
