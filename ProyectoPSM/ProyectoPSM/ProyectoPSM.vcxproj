@@ -110,11 +110,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Capturar.cpp" />
     <ClCompile Include="Clasificador.cpp" />
     <ClCompile Include="ClasificadorOrientacion.cpp" />
-    <ClCompile Include="entrenarSVM.cpp" />
-    <ClCompile Include="EvaluacionClasificador.cpp" />
     <ClCompile Include="ExtractCaracteristicas.cpp" />
     <ClCompile Include="ExtractCaracteristicas24Refinador.cpp" />
     <ClCompile Include="ExtractorShapeFeatures6.cpp" />
@@ -122,7 +119,6 @@
     <ClCompile Include="ExtractShapeFeatures8.cpp" />
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
-    <ClCompile Include="SegmentarGuardar.cpp" />
     <ClCompile Include="TemplateGenerator.cpp" />
     <ClCompile Include="TrainingWorker.cpp" />
     <ClCompile Include="VideoAcquisition.cpp" />
@@ -142,11 +138,8 @@
     <QtMoc Include="VideoAcquisition.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Capturar.h" />
     <ClInclude Include="Clasificador.h" />
     <ClInclude Include="ClasificadorOrientacion.h" />
-    <ClInclude Include="entrenarSVM.h" />
-    <ClInclude Include="EvaluacionClasificador.h" />
     <ClInclude Include="ExtractCaracteristicas.h" />
     <ClInclude Include="ExtractCaracteristicas24Refinador.h" />
     <ClInclude Include="ExtractShapeFeatures10.h" />
@@ -154,7 +147,6 @@
     <ClInclude Include="ExtractShapeFeatures8.h" />
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />
-    <ClInclude Include="SegmentarGuardar.h" />
     <ClInclude Include="TemplateGenerator.h" />
     <QtMoc Include="TrainingWorker.h" />
   </ItemGroup>

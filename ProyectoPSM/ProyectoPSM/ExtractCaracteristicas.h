@@ -11,4 +11,4 @@ namespace FeatureExtractor {
     // Salida: feat (12 valores), featNames (12 strings)
     void ExtractColorShapeFeatures(const cv::Mat& I_in, std::vector<double>& feat, std::vector<std::string>& featNames);
 
-} // namespace FeatureExtractor
+}

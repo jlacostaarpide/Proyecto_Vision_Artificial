@@ -40,9 +40,6 @@
     <ClCompile Include="VideoAcquisition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Capturar.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="NameHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -61,12 +58,6 @@
     <ClCompile Include="ExtractCaracteristicas24Refinador.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="entrenarSVM.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="EvaluacionClasificador.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="TrainingWorker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -77,9 +68,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ExtractShapeFeatures8.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SegmentarGuardar.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="TemplateGenerator.cpp">
@@ -98,9 +86,6 @@
     </QtMoc>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Capturar.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="NameHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -119,12 +104,6 @@
     <ClInclude Include="ExtractCaracteristicas24Refinador.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="entrenarSVM.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="EvaluacionClasificador.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="ExtractShapeFeatures10.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -132,9 +111,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ExtractShapeFeatures8.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SegmentarGuardar.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TemplateGenerator.h">

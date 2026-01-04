@@ -90,7 +90,7 @@ bool ClasificadorOrientacion::readOneTemplateYml(const std::string& path, Templa
 }
 
 // ------------------------------------------------------------
-// MASK (parecido al MATLAB: threshold + morfología + fill + componente mayor)
+// MASK
 // ------------------------------------------------------------
 bool ClasificadorOrientacion::extractMaskLego(const cv::Mat& I, cv::Mat& maskOut) const {
     if (I.empty()) return false;

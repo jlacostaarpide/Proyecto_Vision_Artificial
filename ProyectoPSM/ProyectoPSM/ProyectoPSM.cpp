@@ -1,5 +1,4 @@
 ﻿#include "ProyectoPSM.h"
-#include "SegmentarGuardar.h"
 #include <filesystem>
 #include <QFileDialog>
 #include <QFile>
@@ -237,11 +236,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     ui.tabWidget->setCurrentIndex(0);
     ui.tabWidgetAnalysis->setCurrentIndex(0);
     ui.tabWidgetDebug->setCurrentIndex(0);
-
-    // Entrena si no hay modelo de clasificacion
-    //maybeTrain();
-    //runEvalAmarillas();
-    //runEvalGlobal();
 
     qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
     qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
@@ -589,10 +583,6 @@ void ProyectoPSM::onStartTrainingClicked() {
             QString scalerPath = info.absolutePath() + "/" + info.baseName() + "_scaler.yml";
             ui.txtSetScaler->setText(scalerPath);
         }
-
-        /*if (!ui.txtPathTemplates->text().isEmpty()) {
-            ui.txtSetTemplates->setText(ui.txtPathTemplates->text());
-        }*/
         });
 
     // 4. Iniciar

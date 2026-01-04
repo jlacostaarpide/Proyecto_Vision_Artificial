@@ -90,7 +90,6 @@ private:
 
     QTimer* segTimer = nullptr;
     int SegmentationIntervalMs = 40;
-    int ClasificationIntervalMs = 150;
     std::chrono::steady_clock::time_point LastSegmentationTime;
 
     // Worker threads
@@ -111,11 +110,6 @@ private:
     std::vector<ResultadoPieza> lastResultados_;
 
     void LoadDefaultSettings(); // Para poner rutas por defecto al iniciar
-
-	// función de entrenamiento si no hay modelo
-    void maybeTrain();
-    void runEvalGlobal();
-	void runEvalAmarillas();
 
 private slots:
     void EnableButtons(bool StartCapture);
