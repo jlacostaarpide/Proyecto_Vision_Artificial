@@ -299,6 +299,7 @@ void TrainingWorker::runStepTemplates()
 {
     if (cfg.skipTemplates) {
         emit logMessage("Saltando generacion de plantillas...");
+        emit progressTemplates(100);
         return;
     }
 
