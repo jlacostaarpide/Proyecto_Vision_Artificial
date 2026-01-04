@@ -554,6 +554,7 @@ void TrainingWorker::runStepEvaluation()
         return;
     }
 
+    emit logMessage("");
     emit logMessage("--- INICIANDO EVALUACION DEL MODELO ---");
 
     // 2. Validaciones de carpetas
@@ -731,10 +732,11 @@ void TrainingWorker::runStepEvaluation()
     out << "Precision: " << std::fixed << std::setprecision(2) << accuracy << "%\n";
     out.close();
 
-    emit logMessage("--- FIN EVALUACION ---");
+    emit logMessage("Fin de la evaluación. ");
     emit logMessage(QString("Procesados: %1 | Aciertos: %2").arg(total).arg(correct));
     emit logMessage(QString("PRECISION: %1%").arg(accuracy, 0, 'f', 2));
     emit logMessage("Reporte guardado en: " + reportPath);
+    emit logMessage("");
 
     // Asegurar barra al 100% al terminar
     emit progressEval(100);
