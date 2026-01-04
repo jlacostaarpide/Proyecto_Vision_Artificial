@@ -1312,15 +1312,15 @@ void ProyectoPSM::LoadDefaultSettings()
         ui.txtSetTemplates->setText("Templates");
 
     if (ui.txtSetModel->text().isEmpty())
-        ui.txtSetModel->setText("../../Database/Models/modelM.yml");
+        ui.txtSetModel->setText("Models/modelM.yml");
 
     if (ui.txtSetScaler->text().isEmpty())
-        ui.txtSetScaler->setText("../../Database/Models/modelM_scaler.yml");
+        ui.txtSetScaler->setText("Models/modelM_scaler.yml");
 }
 
 void ProyectoPSM::onSetBrowseTemplates() {
     QString dir = QFileDialog::getExistingDirectory(this, "Carpeta de Templates",
-        getSmartStartDir(ui.txtSetTemplates->text(), "../../Database/Templates"));
+        getSmartStartDir(ui.txtSetTemplates->text(), "Templates"));
     if (!dir.isEmpty()) {
         ui.txtSetTemplates->setText(dir);
         // Forzamos recarga del clasificador de orientación la próxima vez que se use
@@ -1330,7 +1330,7 @@ void ProyectoPSM::onSetBrowseTemplates() {
 
 void ProyectoPSM::onSetBrowseModel() {
     QString file = QFileDialog::getOpenFileName(this, "Seleccionar Modelo SVM",
-        getSmartStartDir(ui.txtSetModel->text(), "../../Database/Models"),
+        getSmartStartDir(ui.txtSetModel->text(), "Models"),
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) {
         ui.txtSetModel->setText(file);
@@ -1348,7 +1348,7 @@ void ProyectoPSM::onSetBrowseModel() {
 
 void ProyectoPSM::onSetBrowseScaler() {
     QString file = QFileDialog::getOpenFileName(this, "Seleccionar Scaler",
-        getSmartStartDir(ui.txtSetScaler->text(), "../../Database/Models"),
+        getSmartStartDir(ui.txtSetScaler->text(), "Models"),
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) ui.txtSetScaler->setText(file);
 }
