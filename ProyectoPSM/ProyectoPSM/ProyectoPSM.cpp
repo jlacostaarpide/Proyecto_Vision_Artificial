@@ -422,7 +422,7 @@ void ProyectoPSM::onBrowseTest() {
 }
 
 void ProyectoPSM::onBrowseFeatures() {
-    QString defaultFile = "Models/features.yml";
+    QString defaultFile = "Database/Models/features.yml";
 
     QString startFile = getSmartStartDir(ui.txtPathFeatures->text(), "Database");
 
