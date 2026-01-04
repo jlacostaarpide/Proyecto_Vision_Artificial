@@ -8,22 +8,19 @@
 bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, int size) {
     if (input.empty()) return false;
 
-    // --- 1. Preparación (MATLAB: im2double + rgb2gray) ---
+    // --- 1. Preparación ---
     cv::Mat gray;
     if (input.channels() == 3) cv::cvtColor(input, gray, cv::COLOR_BGR2GRAY);
     else gray = input.clone();
 
-    // --- 2. Umbral Fijo (MATLAB: t = 0.03; mask = Ig > t) ---
+    // --- 2. Umbral Fijo ---
     cv::Mat mask;
     cv::threshold(gray, mask, 8, 255, cv::THRESH_BINARY);
 
     // --- 3. Limpieza Morfológica ---
-
-    // A. MATLAB: imclose(mask, strel('disk', 2));
     cv::Mat kernelClose = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
     cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernelClose);
 
-    // B. MATLAB: imopen(mask,  strel('disk', 1));
     cv::Mat kernelOpen = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
     cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernelOpen);
 
@@ -38,9 +35,7 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
 
     for (size_t i = 0; i < contours.size(); ++i) {
         double area = cv::contourArea(contours[i]);
-
-        // MATLAB: bwareaopen(mask, 150)
-        if (area < 150) continue;
+        if (area < 150) continue; // Filtro de ruido
 
         if (area > maxArea) {
             maxArea = area;
@@ -54,15 +49,15 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
     cv::Mat finalMask = cv::Mat::zeros(mask.size(), CV_8UC1);
     cv::drawContours(finalMask, contours, maxIdx, cv::Scalar(255), cv::FILLED);
 
-    // --- 6. Aplicar Máscara a la Imagen ---
+    // --- 6. Aplicar Máscara ---
     cv::Mat maskedGray;
     cv::bitwise_and(gray, gray, maskedGray, finalMask);
 
-    // --- 7. Recorte (Bounding Box) ---
+    // --- 7. Recorte ---
     cv::Rect maxRect = cv::boundingRect(contours[maxIdx]);
     cv::Mat cropped = maskedGray(maxRect);
 
-    // --- 8. Padding (Hacer cuadrada) ---
+    // --- 8. Padding ---
     int h = cropped.rows;
     int w = cropped.cols;
     int dim = std::max(h, w);
@@ -75,10 +70,10 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
     cv::Mat padded;
     cv::copyMakeBorder(cropped, padded, top, bottom, left, right, cv::BORDER_CONSTANT, cv::Scalar(0));
 
-    // --- 9. Resize (128x128) ---
+    // --- 9. Resize ---
     cv::resize(padded, output, cv::Size(size, size), 0, 0, cv::INTER_LINEAR);
 
-    // --- 10. Normalización Final ---
+    // --- 10. Normalización ---
     output.convertTo(output, CV_32F);
     cv::Scalar meanVal = cv::mean(output);
     output -= meanVal;
@@ -98,7 +93,6 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
     QDir outDir(config.outputFolder);
     if (!outDir.exists()) outDir.mkpath(".");
 
-    // Filtros de imagen
     QStringList filters; filters << "*.jpg" << "*.png" << "*.bmp" << "*.jpeg";
     inDir.setNameFilters(filters);
     QFileInfoList files = inDir.entryInfoList(QDir::Files);
@@ -108,7 +102,7 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
         return;
     }
 
-    // 1. Agrupar archivos por (Code, Yaw, Pitch)
+    // 1. Agrupar
     std::map<GroupKey, std::vector<QString>> groups;
     QRegularExpression re("^(\\d+)_(\\d+)_(\\d+)");
 
@@ -133,7 +127,7 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
 
     logCallback(QString("Detectados %1 grupos unicos (plantillas a generar).").arg(groups.size()));
 
-    // 2. Procesar cada grupo
+    // 2. Procesar
     int groupIdx = 0;
     int totalGroups = groups.size();
 
@@ -149,8 +143,7 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
             if (f.open(QIODevice::ReadOnly)) {
                 QByteArray fileBytes = f.readAll();
                 std::vector<uchar> buf(fileBytes.begin(), fileBytes.end());
-
-                img = cv::imdecode(buf, cv::IMREAD_GRAYSCALE); // Leemos como gris directamente para ahorrar
+                img = cv::imdecode(buf, cv::IMREAD_GRAYSCALE);
                 f.close();
             }
 
@@ -165,16 +158,14 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
 
         // 3. Promediar y guardar
         if (count > 0) {
-            // Promedio
             cv::Mat templateFinal = accumulator / count;
 
-            // Normalizar de nuevo el resultado final (como en Matlab)
             cv::Scalar m = cv::mean(templateFinal);
             templateFinal -= m;
             double n = cv::norm(templateFinal);
             if (n > 1e-6) templateFinal /= n;
 
-            // Guardar YAML con OpenCV
+            // Nombre de archivo: tpl_08_000_90.yml
             QString outName = QString("tpl_%1_%2_%3.yml")
                 .arg(key.code, 2, 10, QChar('0'))
                 .arg(key.yaw, 3, 10, QChar('0'))
@@ -185,7 +176,9 @@ void TemplateGenerator::Generate(const TemplateConfig& config, std::function<voi
             try {
                 cv::FileStorage fs(outPath.toLocal8Bit().constData(), cv::FileStorage::WRITE);
 
-                fs << "code" << QString::number(key.code).toStdString();
+                QString codeStr = QString("%1").arg(key.code, 2, 10, QChar('0'));
+
+                fs << "code" << codeStr.toStdString();
                 fs << "yaw" << key.yaw;
                 fs << "pitch" << key.pitch;
                 fs << "size" << config.templateSize;

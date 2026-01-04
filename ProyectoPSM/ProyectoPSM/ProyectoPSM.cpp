@@ -432,7 +432,7 @@ void ProyectoPSM::onBrowseTest() {
 }
 
 void ProyectoPSM::onBrowseFeatures() {
-    QString defaultFile = "../../Database/Models/features.yml";
+    QString defaultFile = "Models/features.yml";
 
     QString startFile = getSmartStartDir(ui.txtPathFeatures->text(), "Database");
 
@@ -457,7 +457,7 @@ void ProyectoPSM::onBrowseFeatures() {
 }
 
 void ProyectoPSM::onBrowseTemplates() {
-    QString defaultDir = "../../Database/Templates";
+    QString defaultDir = "Templates";
     QString startPath = getSmartStartDir(ui.txtPathTemplates->text(), defaultDir);
 
     // Lógica dinámica: Cambiamos el TÍTULO según el checkbox
@@ -479,7 +479,7 @@ void ProyectoPSM::onBrowseTemplates() {
 }
 
 void ProyectoPSM::onBrowseModel() {
-    QString defaultFile = "../../Database/Models/modelM.yml";
+    QString defaultFile = "Models/modelM.yml";
 
     QString startFile = getSmartStartDir(ui.txtPathModel->text(), "Database");
 
@@ -1312,15 +1312,15 @@ void ProyectoPSM::LoadDefaultSettings()
         ui.txtSetTemplates->setText("Templates");
 
     if (ui.txtSetModel->text().isEmpty())
-        ui.txtSetModel->setText("../../Matlab/Clasificador/Clasificador C/modelM.yml");
+        ui.txtSetModel->setText("Models/modelM.yml");
 
     if (ui.txtSetScaler->text().isEmpty())
-        ui.txtSetScaler->setText("../../Matlab/Clasificador/Clasificador C/modelM_scaler.yml");
+        ui.txtSetScaler->setText("Models/modelM_scaler.yml");
 }
 
 void ProyectoPSM::onSetBrowseTemplates() {
     QString dir = QFileDialog::getExistingDirectory(this, "Carpeta de Templates",
-        getSmartStartDir(ui.txtSetTemplates->text(), "Database"));
+        getSmartStartDir(ui.txtSetTemplates->text(), "Templates"));
     if (!dir.isEmpty()) {
         ui.txtSetTemplates->setText(dir);
         // Forzamos recarga del clasificador de orientación la próxima vez que se use
@@ -1330,7 +1330,7 @@ void ProyectoPSM::onSetBrowseTemplates() {
 
 void ProyectoPSM::onSetBrowseModel() {
     QString file = QFileDialog::getOpenFileName(this, "Seleccionar Modelo SVM",
-        getSmartStartDir(ui.txtSetModel->text(), "Database"),
+        getSmartStartDir(ui.txtSetModel->text(), "Models"),
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) {
         ui.txtSetModel->setText(file);
@@ -1348,7 +1348,7 @@ void ProyectoPSM::onSetBrowseModel() {
 
 void ProyectoPSM::onSetBrowseScaler() {
     QString file = QFileDialog::getOpenFileName(this, "Seleccionar Scaler",
-        getSmartStartDir(ui.txtSetScaler->text(), "Database"),
+        getSmartStartDir(ui.txtSetScaler->text(), "Models"),
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) ui.txtSetScaler->setText(file);
 }
