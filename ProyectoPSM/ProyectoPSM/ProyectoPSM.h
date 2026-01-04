@@ -168,5 +168,4 @@ private slots:
     void onSetBrowseScaler();
 
     bool EnsureOrientTemplatesLoaded();
-
 };

@@ -257,7 +257,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     ClassProcessing = false;
     segInFlight = 0;
     SegmentationIntervalMs = 40;
-    ClasificationIntervalMs = 150;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
 
 
@@ -1362,81 +1361,6 @@ void ProyectoPSM::onSetBrowseScaler() {
         getSmartStartDir(ui.txtSetScaler->text(), "Models"),
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) ui.txtSetScaler->setText(file);
-}
-
-
-// helper: extrae code del nombre "02_045_090_001" -> "02"
-static std::string ExtractCodeFromFilename(const QString& baseName)
-{
-    // baseName: sin extensión, ej "02_045_090_001"
-    // queremos los 2 primeros dígitos antes del primer '_'
-    QRegularExpression re(R"(^(\d{2})_)");
-    auto m = re.match(baseName);
-    if (m.hasMatch()) return m.captured(1).toStdString();
-    return "";
-}
-
-
-//PRUEBAS DE CLASIFICACIÓN
-void ProyectoPSM::runEvalGlobal() {
-    //const char* args[] = {
-    //    "eval",
-    //    R"(C:\Desarrollos\proyectoPSM\SEGMENTED)", // segFolder
-    //    R"(C:\Desarrollos\proyectoPSM\eval_out.txt)",      // outTxt
-    //    R"(C:\Desarrollos\proyectoPSM\models\modelM.yml)" // modelM.yml
-    //};
-
-    //const char* args[] = {
-    //    "eval",
-    //    R"(C:/Users/jlaco/OneDrive/Escritorio/1/Procesado de Señales Multimedia/Proyecto/ProyectoPSM/Database/SEGMENTED)", // segFolder
-    //    R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\eval_out.txt)",      // outTxt
-    //    R"(C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Matlab\Clasificador\Clasificador C\modelM.yml)" // modelM.yml
-    //};
-    const char* args[] = {
-        "eval",
-        R"(../../Database/SEGMENTED_TEST_C)",
-        R"(../../Matlab/Clasificador/Clasificador C/eval_out_nuevaSeg.txt)",
-        R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)"
-    };
-    qDebug() << "RunEval outTxt =" << args[2];
-    int rc = RunEval(4, const_cast<char**>(args));
-
-    if (rc == 0) {
-        qDebug() << "EVAL OK. TXT guardado en:" << args[2];
-    }
-    else {
-        qDebug() << "EVAL FAIL. rc =" << rc << " | outTxt =" << args[2];
-    }
-}
-
-void ProyectoPSM::runEvalAmarillas() {
-    RunEvalRefinerOnly(
-        R"(../../Database/SEGMENTED_TEST_AMARILLAS)",
-        R"(../../Matlab/Clasificador/Clasificador C/eval_refiner_only.txt)",
-        R"(../../Matlab/Clasificador/Clasificador C/model912.yml)"
-    );
-}
-
-void ProyectoPSM::maybeTrain() {
-    TrainSVM::Options opts;
-    opts.inputFolder = R"(../../Database/SEGMENTED_TRAIN_C)";
-    opts.outModelPath = R"(../../Matlab/Clasificador/Clasificador C/modelM.yml)";
-
-    opts.csvOut = ""; // opcional
-    opts.doScale = true;
-    opts.C = 1.0;
-    opts.gamma = 0.0;
-
-    if (!std::filesystem::exists(opts.outModelPath)) {
-        qDebug("Entrenando modelo...");
-        int r = RunTrain(opts); //Clasificador gordo
-		//int r = RunTrainRefiner(opts, true); //Clasificador amarillas
-
-        if (r != 0) std::cerr << "RunTrain fallo: " << r << "\n";
-    }
-    else {
-        std::cout << "Modelo ya existe, omitiendo entrenamiento.\n";
-    }
 }
 
 
