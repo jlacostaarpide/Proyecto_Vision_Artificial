@@ -678,8 +678,6 @@ void TrainingWorker::runStepEvaluation()
 
         if (feat.empty()) { skipped++; continue; }
 
-        // --- PROTECCION ANTI-CRASH (Validacion de dimensiones) ---
-        // Si la imagen da 24 features pero el modelo entreno con 12, CRASHEA aqui.
         if ((int)feat.size() != expectedFeatures) {
             // Solo logueamos el primer error para no saturar
             if (skipped == 0) {
@@ -689,7 +687,6 @@ void TrainingWorker::runStepEvaluation()
             skipped++;
             continue;
         }
-        // ---------------------------------------------------------
 
         // Normalizar
         cv::Mat sample(1, (int)feat.size(), CV_32F);
@@ -710,9 +707,7 @@ void TrainingWorker::runStepEvaluation()
             pred = static_cast<int>(predFloat);
         }
         catch (const cv::Exception& e) {
-            // Si falla aqui, es un problema interno de OpenCV (matriz corrupta)
-            // Logueamos y seguimos
-            // emit logMessage("Error predict: " + QString(e.what())); 
+            emit logMessage("Error predict: " + QString(e.what())); 
             skipped++;
             continue;
         }
