@@ -317,7 +317,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
     connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
     connect(ui.btnRecalcClass, SIGNAL(clicked()), this, SLOT(ProcesarClasificacionOffline()));
-    connect(ui.btnDB, SIGNAL(clicked()), this, SLOT(OnBatchSegmentar()));
 
     ui.chkLiveSeg->setEnabled(false);
     ui.chkLiveClass->setEnabled(false);
@@ -333,8 +332,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
         Camera->SetCameraAutoExposure();
     }
 
-    // 6. Conectar boton Clasificador Orientacion (Legacy):
-    connect(ui.btnClasificarOrientacion, SIGNAL(clicked()), this, SLOT(AbrirYClasificarOrientacion()));
 
     // 7. CONEXIONES NUEVA PESTAÑA ENTRENAMIENTO
     // Botones de examinar (Browse)
@@ -1379,95 +1376,6 @@ static std::string ExtractCodeFromFilename(const QString& baseName)
     return "";
 }
 
-void ProyectoPSM::AbrirYClasificarOrientacion()
-{
-    // 1) elegir imagen
-    QString fileName = QFileDialog::getOpenFileName(
-        this,
-        tr("Abrir imagen de pieza"),
-        "",
-        tr("Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)")
-    );
-    if (fileName.isEmpty()) return;
-
-    // 2) leer con Qt -> cv::Mat (igual que tu CargarImagenDisco)
-    QFile f(fileName);
-    if (!f.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, "Error", "No se pudo abrir el archivo.");
-        return;
-    }
-    QByteArray fileData = f.readAll();
-    f.close();
-
-    std::vector<uchar> vec(fileData.begin(), fileData.end());
-    cv::Mat image = cv::imdecode(vec, cv::IMREAD_COLOR);
-    if (image.empty()) {
-        QMessageBox::warning(this, "Error", "La imagen no se pudo decodificar.");
-        return;
-    }
-
-    // 3) mostrarla en tu visor offline (reutiliza tu pipeline si quieres)
-    CapturedImage = image.clone();
-    ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
-
-    // opcional: muestra la imagen en lblOfflineMain directamente
-    {
-        cv::Mat rgb;
-        cv::cvtColor(CapturedImage, rgb, cv::COLOR_BGR2RGB);
-        QImage qimg(rgb.data, rgb.cols, rgb.rows, (int)rgb.step, QImage::Format_RGB888);
-        ui.lblOfflineMain->setPixmap(QPixmap::fromImage(qimg.copy()).scaled(
-            ui.lblOfflineMain->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    }
-
-    // 4) extraer code desde el nombre
-    QFileInfo info(fileName);
-    QString base = info.completeBaseName();            // "02_045_090_001"
-    std::string code = ExtractCodeFromFilename(base); // "02"
-
-    if (code.empty()) {
-        QMessageBox::warning(this, "Nombre inválido",
-            "No he podido extraer el code del nombre.\n"
-            "Ejemplo esperado: 02_045_090_001.jpg");
-        return;
-    }
-
-    // 5) cargar plantillas (una sola vez)
-
-    if (!QFileInfo::exists(orientTemplatesDir_) || !QFileInfo(orientTemplatesDir_).isDir()) {
-        QMessageBox::critical(this, "Error",
-            "No existe la carpeta de templates:\n" + orientTemplatesDir_);
-        return;
-    }
-    if (!orientTemplatesLoaded_) {
-        if (!orientClf_ || !orientClf_->loadAllTemplates()) {
-            QMessageBox::critical(this, "Error",
-                "No se pudieron cargar las plantillas .yml/.yaml.\n"
-                "Revisa la ruta de templatesFolder_.");
-            return;
-        }
-        orientTemplatesLoaded_ = true;
-    }
-
-    // 6) clasificar orientación
-    // aquí pasas la imagen de la pieza; si ya vienes con recorte, pásale el recorte.
-    // ahora mismo pasamos la imagen completa.
-    OrientationResult r = orientClf_->predict(CapturedImage, code);
-
-    if (!r.ok) {
-        ui.lblOrientacionResult->setText(
-            QString("No se pudo clasificar (code=%1)").arg(QString::fromStdString(code)));
-        return;
-    }
-
-    ui.lblOrientacionResult->setText(
-        QString("code=%1   yaw=%2   pitch=%3   score=%4   gap=%5")
-        .arg(QString::fromStdString(r.matchedCode))
-        .arg(r.yaw)
-        .arg(r.pitch)
-        .arg(r.bestScore, 0, 'f', 4)
-        .arg(r.gap, 0, 'f', 4)
-    );
-}
 
 //PRUEBAS DE CLASIFICACIÓN
 void ProyectoPSM::runEvalGlobal() {
@@ -1564,18 +1472,4 @@ bool ProyectoPSM::EnsureOrientTemplatesLoaded()
     orientTemplatesLoaded_ = true;
     return true;
 }
-
-void ProyectoPSM::OnBatchSegmentar()
-{
-    std::string in = R"(../../Database/RAW)";
-    std::string out = R"(../../Database/SEGMENTED_C)";
-
-    SegmentBatchStats st = SegmentFolderAndSaveCrops(
-        in, out,
-        false,   // keepSubfolders
-        0,       // maxPiecesPerImage (0 = todas)
-        true     // verbose
-    );
-}
-
 
