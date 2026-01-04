@@ -319,8 +319,6 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnRecalcClass, SIGNAL(clicked()), this, SLOT(ProcesarClasificacionOffline()));
     connect(ui.btnDB, SIGNAL(clicked()), this, SLOT(OnBatchSegmentar()));
 
-    ui.pbtnGuardar->setEnabled(false);
-
     ui.chkLiveSeg->setEnabled(false);
     ui.chkLiveClass->setEnabled(false);
     ui.chkLiveSeg->setChecked(false);
@@ -368,6 +366,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnSetTemplates, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseTemplates);
     connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
     connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
+    connect(ui.chkUseDbNames, &QCheckBox::toggled, this, &ProyectoPSM::UpdateFileNameLabel);
 }
 
 ProyectoPSM::~ProyectoPSM()
@@ -931,10 +930,10 @@ void ProyectoPSM::CapturarYAnalizar()
     // 2. Congelar imagen actual
     CapturedImage = LastImage.clone();
 
-    // APAGADO AUTOMÁTICO
-        if (ui.pbtnEncender->isChecked()) {
-            ui.pbtnEncender->setChecked(false);
-        }
+    //// APAGADO AUTOMÁTICO
+    //    if (ui.pbtnEncender->isChecked()) {
+    //        ui.pbtnEncender->setChecked(false);
+    //    }
 
     // 3. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
@@ -1223,13 +1222,23 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 void ProyectoPSM::UpdateFileNameLabel()
 {
     int idx = ui.boxImageNumber->value();
-    if (idx > 0 && idx <= NameList.size()) {
-        QString name = QString::fromStdString(NameList[idx - 1]);
-        ui.lblImageName->setText("Nombre: " + name + ".jpg");
+    QString fileName;
+
+    if (ui.chkUseDbNames->isChecked()) {
+        // MODO DATABASE: Usa la lista NameList
+        if (idx > 0 && idx <= NameList.size()) {
+            fileName = QString::fromStdString(NameList[idx - 1]);
+        }
+        else {
+            fileName = "[Fuera de Rango]";
+        }
     }
     else {
-        ui.lblImageName->setText("Nombre: [Fuera de Rango]");
+        // MODO GENÉRICO: Usa Imagen_XX
+        fileName = QString("Imagen_%1").arg(idx, 2, 10, QChar('0'));
     }
+
+    ui.lblImageName->setText("Nombre: " + fileName + ".jpg");
 }
 
 void ProyectoPSM::SaveImageAs()
@@ -1279,16 +1288,23 @@ void ProyectoPSM::SaveImageAs()
 void ProyectoPSM::SaveImage()
 {
     if (!CapturedImage.empty()) {
-        // Generar nombre basado en DB
         int idx = ui.boxImageNumber->value();
-        std::string Name = (idx <= NameList.size() && idx > 0) ? NameList[idx - 1] : "captura_extra_" + std::to_string(idx);
+        std::string nameStr;
 
-        // Crear ruta segura
-        std::string Path = "Database/" + Name + ".jpg";
+        // Decidir nombre según el checkbox
+        if (ui.chkUseDbNames->isChecked()) {
+            // Modo Database
+            nameStr = (idx <= NameList.size() && idx > 0) ? NameList[idx - 1] : "captura_extra_" + std::to_string(idx);
+        }
+        else {
+            // Modo Genérico
+            QString genName = QString("Imagen_%1").arg(idx, 2, 10, QChar('0'));
+            nameStr = genName.toStdString();
+        }
 
+        std::string Path = "Database/" + nameStr + ".jpg";
         cv::imwrite(Path, CapturedImage);
 
-        // Feedback visual
         ui.pbtnGuardar->setText("¡Guardado!");
         ui.pbtnGuardar->setEnabled(false);
         QTimer::singleShot(1000, [this]() {
@@ -1296,10 +1312,8 @@ void ProyectoPSM::SaveImage()
             ui.pbtnGuardar->setEnabled(true);
             });
 
-        // Avanzar índice y actualizar etiqueta
         if (idx < 9999) {
             ui.boxImageNumber->setValue(idx + 1);
-            // El setValue disparará el signal valueChanged que llamará a UpdateFileNameLabel
         }
     }
 }

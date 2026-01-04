@@ -18,7 +18,7 @@
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>3</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tabLive">
        <attribute name="title">
@@ -793,7 +793,7 @@
            <item>
             <widget class="QLabel" name="labelDB">
              <property name="text">
-              <string>Index DB:</string>
+              <string>Index:</string>
              </property>
             </widget>
            </item>
@@ -1246,6 +1246,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
             </widget>
            </item>
           </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="chkUseDbNames">
+          <property name="text">
+           <string>Usar nombres de Base de Datos para guardar (Ej: '01_000_90_001.jpg' vs 'Imagen_01.jpg')</string>
+          </property>
          </widget>
         </item>
         <item>
