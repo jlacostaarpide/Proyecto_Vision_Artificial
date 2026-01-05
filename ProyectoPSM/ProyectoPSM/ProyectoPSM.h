@@ -20,6 +20,7 @@
 #include "Clasificador.h"
 #include "ClasificadorOrientacion.h"
 #include "TrainingWorker.h"
+#include "classificationvisualizer.h"
 
 class SegmentationWorker : public QObject
 {
@@ -162,4 +163,7 @@ private slots:
     void onSetBrowseScaler();
 
     bool EnsureOrientTemplatesLoaded();
+
+    void onLoadEvaluationFile();
+    void onSaveConfusionMatrix();
 };

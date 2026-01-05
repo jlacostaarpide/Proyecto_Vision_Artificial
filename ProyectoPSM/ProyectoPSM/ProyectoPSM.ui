@@ -687,6 +687,115 @@
             </item>
            </layout>
           </widget>
+          <widget class="QWidget" name="subTabClasificacion">
+           <attribute name="title">
+            <string>Clasificación</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="verticalLayout_Class">
+            <item>
+             <widget class="QTabWidget" name="tabWidgetClassVis">
+              <property name="currentIndex">
+               <number>0</number>
+              </property>
+              <widget class="QWidget" name="tabConfusionMatrix">
+               <attribute name="title">
+                <string>Matriz de Confusión</string>
+               </attribute>
+               <layout class="QVBoxLayout" name="verticalLayout_ConfMat">
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_ConfTop">
+                  <item>
+                   <widget class="QLabel" name="lblEvalFile">
+                    <property name="text">
+                     <string>Archivo Evaluación (.txt):</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLineEdit" name="txtPathEval">
+                    <property name="readOnly">
+                     <bool>true</bool>
+                    </property>
+                    <property name="placeholderText">
+                     <string>Selecciona el archivo generado por el entrenamiento...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="btnLoadEval">
+                    <property name="text">
+                     <string>Examinar y Cargar</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QLabel" name="lblConfusionMatrix">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="frameShape">
+                   <enum>QFrame::Shape::Box</enum>
+                  </property>
+                  <property name="text">
+                   <string>Matriz no generada</string>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_ConfBot">
+                  <item>
+                   <spacer name="horizontalSpacer_Conf">
+                    <property name="orientation">
+                     <enum>Qt::Orientation::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>40</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="btnSaveConfusion">
+                    <property name="text">
+                     <string>Guardar Imagen...</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </widget>
+              <widget class="QWidget" name="tabScatterPlot">
+               <attribute name="title">
+                <string>Diagrama de Dispersión</string>
+               </attribute>
+               <layout class="QVBoxLayout" name="verticalLayout_Scatter">
+                <item>
+                 <widget class="QLabel" name="label_ScatterPlaceholder">
+                  <property name="text">
+                   <string>Pendiente de implementación</string>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </widget>
+            </item>
+           </layout>
+          </widget>
          </widget>
         </item>
         <item>

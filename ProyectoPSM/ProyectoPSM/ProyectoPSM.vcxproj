@@ -112,6 +112,7 @@
   <ItemGroup>
     <ClCompile Include="Clasificador.cpp" />
     <ClCompile Include="ClasificadorOrientacion.cpp" />
+    <ClCompile Include="ClassificationVisualizer.cpp" />
     <ClCompile Include="ExtractCaracteristicas.cpp" />
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
@@ -136,6 +137,7 @@
   <ItemGroup>
     <ClInclude Include="Clasificador.h" />
     <ClInclude Include="ClasificadorOrientacion.h" />
+    <QtMoc Include="ClassificationVisualizer.h" />
     <ClInclude Include="ExtractCaracteristicas.h" />
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />

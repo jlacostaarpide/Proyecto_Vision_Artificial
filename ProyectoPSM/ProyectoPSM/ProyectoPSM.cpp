@@ -341,6 +341,9 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     // Botón Iniciar Proceso
     connect(ui.btnStartTraining, &QPushButton::clicked, this, &ProyectoPSM::onStartTrainingClicked);
 
+    // 8. CONEXIONES NUEVA PESTAÑA CLASIFICACIÓN (VISUALIZACIÓN)
+    connect(ui.btnLoadEval, &QPushButton::clicked, this, &ProyectoPSM::onLoadEvaluationFile);
+    connect(ui.btnSaveConfusion, &QPushButton::clicked, this, &ProyectoPSM::onSaveConfusionMatrix);
 
     ImageIndex = 0;
     SavedImageIndex = 1;
@@ -1379,3 +1382,93 @@ bool ProyectoPSM::EnsureOrientTemplatesLoaded()
     return true;
 }
 
+void ProyectoPSM::onLoadEvaluationFile()
+{
+    // 1. Abrir archivo
+    QString startDir = getSmartStartDir(ui.txtPathEval->text(), "Database/Models");
+    QString fileName = QFileDialog::getOpenFileName(this, "Abrir Archivo de Evaluación",
+        startDir, "Text Files (*.txt *.csv);;All Files (*)");
+    if (fileName.isEmpty()) return;
+
+    ui.txtPathEval->setText(fileName);
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, "Error", "No se pudo abrir el archivo.");
+        return;
+    }
+
+    // 2. PARSEAR (Ajustando índices de 1-12 a 0-11)
+    QVector<int> trueLabels;
+    QVector<int> predLabels;
+    QTextStream in(&file);
+
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith("#") || line.startsWith("filename")) continue;
+
+        QStringList parts = line.split(',');
+        if (parts.size() >= 3) {
+            bool ok1, ok2;
+            // IMPORTANTE: Restamos 1 para pasar de rango 1..12 a 0..11
+            int t = parts[1].toInt(&ok1) - 1;
+            int p = parts[2].toInt(&ok2) - 1;
+
+            if (ok1 && ok2 && t >= 0 && p >= 0) { // Ignoramos negativos si los hubiera
+                trueLabels.push_back(t);
+                predLabels.push_back(p);
+            }
+        }
+    }
+    file.close();
+
+    if (trueLabels.isEmpty()) {
+        QMessageBox::warning(this, "Error", "No se encontraron datos válidos.");
+        return;
+    }
+
+    // 3. Definir las 12 Clases Fijas ("01", "02"... "12")
+    QStringList qtClassNames;
+    for (int i = 1; i <= 12; ++i) {
+        // arg(valor, ancho, base, relleno) -> Genera 01, 02, 03...
+        qtClassNames << QString("%1").arg(i, 2, 10, QChar('0'));
+    }
+
+    // 4. Configurar Visualizador
+    ClassificationVisualizer visualizer;
+
+    // Calcular tamaño: Usamos el tamaño del Label o un mínimo de 800px para que se vea nítido
+    int w = ui.lblConfusionMatrix->width();
+    int h = ui.lblConfusionMatrix->height();
+    int imgSize = std::max<double>(800, std::min<double>(w, h)); // Forzamos alta resolución
+
+    QImage matrixImg = visualizer.generateConfusionMatrix(trueLabels, predLabels, qtClassNames, imgSize);
+
+    if (matrixImg.isNull()) return;
+
+    // 5. Mostrar (Escalado suave)
+    ui.lblConfusionMatrix->setPixmap(QPixmap::fromImage(matrixImg).scaled(
+        ui.lblConfusionMatrix->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
+void ProyectoPSM::onSaveConfusionMatrix()
+{
+    // Obtener el objeto por valor, no por puntero
+    QPixmap pix = ui.lblConfusionMatrix->pixmap();
+
+    // Comprobación de nulidad
+    if (pix.isNull()) {
+        QMessageBox::warning(this, "Aviso", "No hay ninguna matriz generada para guardar.");
+        return;
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Guardar Matriz",
+        "ConfusionMatrix.png",
+        "Images (*.png *.jpg)");
+
+    if (fileName.isEmpty()) return;
+
+    if (!pix.save(fileName)) {
+        QMessageBox::warning(this, "Error", "No se pudo guardar la imagen.");
+    }
+}
