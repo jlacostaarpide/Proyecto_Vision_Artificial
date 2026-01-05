@@ -577,7 +577,7 @@ void TrainingWorker::runStepEvaluation()
         return;
     }
 
-    int expectedFeatures = svm->getVarCount(); // CRUCIAL: ¿Cuántas features espera el modelo?
+    int expectedFeatures = svm->getVarCount();
 
     // 4. Cargar Scaler
     QFileInfo modelInfo(cfg.modelFile);
