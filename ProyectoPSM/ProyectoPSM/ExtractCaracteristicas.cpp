@@ -99,8 +99,8 @@ namespace FeatureExtractor {
         minMaxLoc(H, &hmin, &hmax);
 
         // si es float y el max parece "grados", lo normalizamos
-        if (H.depth() == CV_32F && hmax > 2.0) {
-            H = H * (1.0f / 360.0f);
+        if ((H.depth() == CV_32F || H.depth() == CV_64F) && hmax > 2.0) {
+            H = H * (1.0 / 360.0);
         }
 
         // mask = any(I > 0 in original) & (V > 0.05)
