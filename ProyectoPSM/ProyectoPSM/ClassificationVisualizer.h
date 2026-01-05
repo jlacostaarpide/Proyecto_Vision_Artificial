@@ -22,7 +22,9 @@ public:
     QImage generateScatterPlot(const cv::Mat& features,
         const std::vector<int>& labels,
         const QStringList& classNames,
-        int imageSize = 800);
+        int imageSize = 800,
+        bool usePCA = true,
+        QStringList axisLabels = QStringList());
 
 private:
     QColor m_baseColor;

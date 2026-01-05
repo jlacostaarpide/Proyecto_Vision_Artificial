@@ -145,20 +145,39 @@ QColor ClassificationVisualizer::interpolateColor(float ratio)
 QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
     const std::vector<int>& labels,
     const QStringList& classNames,
-    int imageSize)
+    int imageSize,
+    bool usePCA,
+    QStringList axisLabels)
 {
     if (features.empty() || features.rows != labels.size()) {
         qWarning() << "Visualizer: Datos vacíos o desajuste features/labels.";
         return QImage();
     }
 
-    // 1. CALCULAR PCA (Reducción a 2 dimensiones)
-    // Usamos OpenCV para proyectar los datos N-dimensionales a 2D
-    int nComponents = 2;
-    cv::PCA pca(features, cv::Mat(), cv::PCA::DATA_AS_ROW, nComponents);
-    cv::Mat projection = pca.project(features); // Matriz de Nx2
+    // 1. PREPARAR DATOS (PCA vs RAW)
+    cv::Mat projection;
 
-    // 2. BUSCAR MÍNIMOS Y MÁXIMOS (Para escalar a la imagen)
+    if (usePCA) {
+        // Calcular PCA (N-dim -> 2-dim)
+        int nComponents = 2;
+        cv::PCA pca(features, cv::Mat(), cv::PCA::DATA_AS_ROW, nComponents);
+        projection = pca.project(features);
+    }
+    else {
+        // Modo Manual: Asumimos que 'features' ya tiene solo 2 columnas (X e Y seleccionadas)
+        if (features.cols != 2) {
+            qWarning() << "Visualizer: Modo manual requiere exactamente 2 columnas.";
+            return QImage();
+        }
+        // Usamos los datos tal cual, pero convertimos a float por seguridad
+        features.convertTo(projection, CV_32F);
+    }
+
+    // Nombres de ejes por defecto si no se pasan
+    QString labelX = (axisLabels.size() > 0) ? axisLabels[0] : "Componente 1";
+    QString labelY = (axisLabels.size() > 1) ? axisLabels[1] : "Componente 2";
+
+    // 2. BUSCAR MÍNIMOS Y MÁXIMOS (Escalado)
     double minX = 1e9, maxX = -1e9;
     double minY = 1e9, maxY = -1e9;
 
@@ -171,10 +190,10 @@ QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
         if (y > maxY) maxY = y;
     }
 
-    // Añadir un margen del 10% para que los puntos no toquen el borde
+    // Margen del 10%
     double rangeX = maxX - minX;
     double rangeY = maxY - minY;
-    if (rangeX < 1e-6) rangeX = 1.0; // Evitar división por cero
+    if (rangeX < 1e-6) rangeX = 1.0;
     if (rangeY < 1e-6) rangeY = 1.0;
 
     minX -= rangeX * 0.1; maxX += rangeX * 0.1;
@@ -188,26 +207,32 @@ QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
     QPainter painter(&image);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Espacio para la leyenda a la derecha (200px)
     int legendWidth = 200;
     int plotWidth = imageSize - legendWidth;
     int plotHeight = imageSize;
+    int bottomMargin = 40; // Espacio para etiqueta X
+    int leftMargin = 40;   // Espacio para etiqueta Y
 
-    // Dibujar Ejes (Cruz central)
+    // Ajustar área de dibujo real
+    int drawW = plotWidth - leftMargin;
+    int drawH = plotHeight - bottomMargin;
+
+    // 4. DIBUJAR EJES Y PUNTOS
+    // Ejes (Cruz)
     painter.setPen(QPen(Qt::lightGray, 1, Qt::DashLine));
     // Eje X (Y=0)
     if (minY < 0 && maxY > 0) {
-        int y0 = plotHeight - (int)((0.0 - minY) / rangeY * plotHeight);
-        painter.drawLine(0, y0, plotWidth, y0);
+        int y0 = drawH - (int)((0.0 - minY) / rangeY * drawH);
+        painter.drawLine(leftMargin, y0, plotWidth, y0);
     }
     // Eje Y (X=0)
     if (minX < 0 && maxX > 0) {
-        int x0 = (int)((0.0 - minX) / rangeX * plotWidth);
-        painter.drawLine(x0, 0, x0, plotHeight);
+        int x0 = leftMargin + (int)((0.0 - minX) / rangeX * drawW);
+        painter.drawLine(x0, 0, x0, drawH);
     }
 
-    // 4. DIBUJAR PUNTOS
-    int pointRadius = 4; // Tamaño del punto
+    // Puntos
+    int pointRadius = 4;
     painter.setPen(Qt::NoPen);
 
     for (int i = 0; i < projection.rows; ++i) {
@@ -215,14 +240,11 @@ QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
         float yVal = projection.at<float>(i, 1);
         int label = labels[i];
 
-        // Mapear coordenadas al píxel
-        int px = (int)((xVal - minX) / rangeX * plotWidth);
-        int py = plotHeight - (int)((yVal - minY) / rangeY * plotHeight); // Y invertido en pantalla
+        // Mapeo
+        int px = leftMargin + (int)((xVal - minX) / rangeX * drawW);
+        int py = drawH - (int)((yVal - minY) / rangeY * drawH);
 
-        // Obtener color según la clase (0..11)
         QColor color = getClassColor(label, classNames.size());
-
-        // Hacer el punto semi-transparente para ver solapamientos
         color.setAlpha(180);
         painter.setBrush(color);
         painter.drawEllipse(QPoint(px, py), pointRadius, pointRadius);
@@ -232,37 +254,24 @@ QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
     // Fondo de la leyenda
     painter.fillRect(plotWidth, 0, legendWidth, plotHeight, QColor(245, 245, 245));
     painter.setPen(Qt::black);
-    painter.drawLine(plotWidth, 0, plotWidth, plotHeight); // Separador
+    painter.drawLine(plotWidth, 0, plotWidth, plotHeight);
 
     QFont legendFont = painter.font();
     legendFont.setPixelSize(12);
     painter.setFont(legendFont);
-
-    // Título Leyenda
     painter.drawText(QRect(plotWidth + 10, 10, legendWidth - 20, 20), Qt::AlignLeft, "Clases:");
 
-    // Lista de clases
     int itemHeight = 20;
     int startY = 40;
-
-    // Detectar qué clases están presentes para pintarlas
     std::vector<bool> present(classNames.size(), false);
     for (int l : labels) if (l >= 0 && l < (int)present.size()) present[l] = true;
 
     for (int i = 0; i < classNames.size(); ++i) {
-        // Solo pintamos en la leyenda si la clase existe en los datos (o pintamos todas si prefieres)
-        // Pintamos todas para mantener consistencia de colores
-
         QColor c = getClassColor(i, classNames.size());
-
-        // Rectangulito de color
-        QRect colorRect(plotWidth + 10, startY + i * itemHeight, 15, 10);
         painter.setBrush(c);
         painter.setPen(Qt::black);
-        painter.drawRect(colorRect);
+        painter.drawRect(QRect(plotWidth + 10, startY + i * itemHeight, 15, 10));
 
-        // Nombre
-        // Si no está presente, lo pintamos gris claro
         if (!present[i]) painter.setPen(Qt::gray);
         else painter.setPen(Qt::black);
 
@@ -270,13 +279,22 @@ QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
             Qt::AlignLeft | Qt::AlignVCenter, classNames[i]);
     }
 
-    // Título del Gráfico
+    // 6. ETIQUETAS DE LOS EJES (Mejorado)
+    QFont axisFont = painter.font();
+    axisFont.setBold(true);
+    axisFont.setPixelSize(12);
+    painter.setFont(axisFont);
     painter.setPen(Qt::black);
-    QFont titleFont = painter.font();
-    titleFont.setBold(true);
-    titleFont.setPixelSize(14);
-    painter.setFont(titleFont);
-    painter.drawText(QRect(0, 0, plotWidth, 30), Qt::AlignCenter, "Analisis de Componentes Principales (PCA)");
+
+    // Etiqueta Eje X (Abajo centro)
+    painter.drawText(QRect(leftMargin, drawH + 5, drawW, 30), Qt::AlignCenter, labelX);
+
+    // Etiqueta Eje Y (Izquierda rotada)
+    painter.save();
+    painter.translate(15, drawH / 2);
+    painter.rotate(-90);
+    painter.drawText(QRect(-drawH / 2, 0, drawH, 20), Qt::AlignCenter, labelY);
+    painter.restore();
 
     return image;
 }

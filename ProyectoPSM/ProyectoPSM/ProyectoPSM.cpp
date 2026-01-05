@@ -252,8 +252,11 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     segInFlight = 0;
     SegmentationIntervalMs = 40;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
+    m_featureNames = {
+        "Extent", "Solidity", "V_mean", "Eccentricity", "SkelLenNorm", "Circularity",
+        "H_mean_circ", "S_mean", "V_IQR", "S_median", "FD5", "EulerNumber"
+    };
 
-    // 8. PESTAÑA AJUSTES
     LoadDefaultSettings(); // Cargar rutas iniciales en los textbox
 
 	// Cargar Clasificador de Orientación
@@ -350,17 +353,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnSaveScatter, &QPushButton::clicked, this, &ProyectoPSM::onSaveScatter);
     connect(ui.rbPCAGlobal, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
     connect(ui.rbPCACompare, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
-
-    // Inicializar Combos
-    ui.cboClassA->setEnabled(false);
-    ui.cboClassB->setEnabled(false);
-    for (int i = 1; i <= 12; ++i) {
-        QString name = QString("%1").arg(i, 2, 10, QChar('0'));
-        ui.cboClassA->addItem(name, i - 1); // Data = indice real (0..11)
-        ui.cboClassB->addItem(name, i - 1);
-    }
-    // Seleccionar distintos por defecto
-    if (ui.cboClassB->count() > 1) ui.cboClassB->setCurrentIndex(1);
+    connect(ui.rbManualFeat, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
 
     ImageIndex = 0;
     SavedImageIndex = 1;
@@ -1559,10 +1552,58 @@ void ProyectoPSM::onLoadFeaturesPlot()
 
 void ProyectoPSM::onScatterModeChanged()
 {
-    bool compareMode = ui.rbPCACompare->isChecked();
-    ui.cboClassA->setEnabled(compareMode);
-    ui.cboClassB->setEnabled(compareMode);
-    ui.lblVs->setEnabled(compareMode);
+    // Bloquear señales para evitar recargas visuales
+    ui.cboX->blockSignals(true);
+    ui.cboY->blockSignals(true);
+    ui.cboX->clear();
+    ui.cboY->clear();
+
+    if (ui.rbPCAGlobal->isChecked()) {
+        // Global: Desactivar todo
+        ui.cboX->setEnabled(false);
+        ui.cboY->setEnabled(false);
+        ui.lblX->setText("Clase A:");
+        ui.lblY->setText("Clase B:");
+        ui.lblVs->setText("VS");
+    }
+    else if (ui.rbPCACompare->isChecked()) {
+        // Comparar Clases: Rellenar con Clases (01..12)
+        ui.cboX->setEnabled(true);
+        ui.cboY->setEnabled(true);
+        ui.lblX->setText("Clase A:");
+        ui.lblY->setText("Clase B:");
+        ui.lblVs->setText("VS");
+
+        for (int i = 1; i <= 12; ++i) {
+            QString name = QString("%1").arg(i, 2, 10, QChar('0'));
+            ui.cboX->addItem(name, i - 1); // Data = indice clase (0..11)
+            ui.cboY->addItem(name, i - 1);
+        }
+        // Seleccionar distintos por defecto
+        if (ui.cboY->count() > 1) ui.cboY->setCurrentIndex(1);
+    }
+    else if (ui.rbManualFeat->isChecked()) {
+        // Manual: Rellenar con Características
+        ui.cboX->setEnabled(true);
+        ui.cboY->setEnabled(true);
+        ui.lblX->setText("Eje X:");
+        ui.lblY->setText("Eje Y:");
+        ui.lblVs->setText("vs"); // minúscula queda mejor aquí
+
+        for (int i = 0; i < m_featureNames.size(); ++i) {
+            ui.cboX->addItem(m_featureNames[i], i); // Data = indice columna (0..11)
+            ui.cboY->addItem(m_featureNames[i], i);
+        }
+        // Seleccionar 2 características típicas por defecto (ej: Matiz vs Circularidad)
+        // H_mean_circ es index 6, Circularity es index 5
+        if (ui.cboX->count() > 6) {
+            ui.cboX->setCurrentIndex(6); // H
+            ui.cboY->setCurrentIndex(5); // Circularity
+        }
+    }
+
+    ui.cboX->blockSignals(false);
+    ui.cboY->blockSignals(false);
 }
 
 void ProyectoPSM::onGenerateScatter()
@@ -1572,30 +1613,32 @@ void ProyectoPSM::onGenerateScatter()
         return;
     }
 
-    // Preparar datos para visualizar
     cv::Mat dataToShow;
     std::vector<int> labelsToShow;
     QStringList classNames; // Para la leyenda
-
-    // Rellenar nombres base (01..12)
     for (int i = 1; i <= 12; ++i) classNames << QString("%1").arg(i, 2, 10, QChar('0'));
 
+    bool usePCA = true;
+    QStringList axisLabels;
+
+    // --- OPCIÓN 1: GLOBAL ---
     if (ui.rbPCAGlobal->isChecked()) {
-        // MODO GLOBAL: Usamos todo
         dataToShow = m_featuresLoaded;
         labelsToShow = m_labelsLoaded;
+        usePCA = true;
+        axisLabels << "Componente Principal 1" << "Componente Principal 2";
     }
-    else {
-        // MODO COMPARACIÓN: Filtramos solo Clase A y Clase B
-        int classA = ui.cboClassA->currentData().toInt(); // 0..11
-        int classB = ui.cboClassB->currentData().toInt(); // 0..11
+    // --- OPCIÓN 2: COMPARAR CLASES ---
+    else if (ui.rbPCACompare->isChecked()) {
+        int classA = ui.cboX->currentData().toInt();
+        int classB = ui.cboY->currentData().toInt();
 
         if (classA == classB) {
-            QMessageBox::warning(this, "Aviso", "Selecciona dos clases distintas para comparar.");
+            QMessageBox::warning(this, "Aviso", "Selecciona dos clases distintas.");
             return;
         }
 
-        // Filtrar filas
+        // Filtrar datos
         for (int i = 0; i < m_featuresLoaded.rows; ++i) {
             int l = m_labelsLoaded[i];
             if (l == classA || l == classB) {
@@ -1605,27 +1648,50 @@ void ProyectoPSM::onGenerateScatter()
         }
 
         if (dataToShow.empty()) {
-            QMessageBox::warning(this, "Aviso", "No hay datos para las clases seleccionadas en el archivo.");
+            QMessageBox::warning(this, "Error", "No hay datos para esas clases."); return;
+        }
+
+        usePCA = true;
+        axisLabels << "PC1 (Discriminante)" << "PC2";
+    }
+    // --- OPCIÓN 3: MANUAL (FEATURES) ---
+    else if (ui.rbManualFeat->isChecked()) {
+        int colX = ui.cboX->currentData().toInt(); // Índice de columna 0..11
+        int colY = ui.cboY->currentData().toInt(); // Índice de columna 0..11
+
+        // Validar rango
+        if (colX < 0 || colX >= m_featuresLoaded.cols || colY < 0 || colY >= m_featuresLoaded.cols) {
+            QMessageBox::warning(this, "Error", "Índice de característica inválido.");
             return;
         }
+
+        // Crear matriz de Nx2 copiando las columnas seleccionadas
+        dataToShow.create(m_featuresLoaded.rows, 2, m_featuresLoaded.type());
+
+        m_featuresLoaded.col(colX).copyTo(dataToShow.col(0));
+        m_featuresLoaded.col(colY).copyTo(dataToShow.col(1));
+
+        labelsToShow = m_labelsLoaded; // Usamos todos los puntos
+        usePCA = false; // NO hacemos PCA, pintamos directo
+
+        // Nombres para los ejes
+        axisLabels << m_featureNames.value(colX, "Eje X") << m_featureNames.value(colY, "Eje Y");
     }
 
     // Generar Gráfico
     ClassificationVisualizer visualizer;
-
-    // Tamaño del label
     int w = ui.lblScatterPlot->width();
     int h = ui.lblScatterPlot->height();
     int size = std::max<double>(600, std::min<double>(w, h));
 
-    QImage result = visualizer.generateScatterPlot(dataToShow, labelsToShow, classNames, size);
+    QImage result = visualizer.generateScatterPlot(dataToShow, labelsToShow, classNames, size, usePCA, axisLabels);
 
     if (!result.isNull()) {
         ui.lblScatterPlot->setPixmap(QPixmap::fromImage(result).scaled(
             ui.lblScatterPlot->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
     }
     else {
-        ui.lblScatterPlot->setText("Error al generar gráfico (datos insuficientes o corruptos)");
+        ui.lblScatterPlot->setText("Error al generar gráfico.");
     }
 }
 

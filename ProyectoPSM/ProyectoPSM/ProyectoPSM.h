@@ -116,6 +116,7 @@ private:
     cv::Mat m_featuresLoaded;
     std::vector<int> m_labelsLoaded;
     bool m_featuresReady = false;
+    QStringList m_featureNames;
 
 private slots:
     void EnableButtons(bool StartCapture);
