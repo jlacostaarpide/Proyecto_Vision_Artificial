@@ -5,6 +5,7 @@
 #include <numeric>
 #include <cmath>
 #include <vector>
+#include <QDebug>
 
 using namespace cv;
 
@@ -94,12 +95,13 @@ namespace FeatureExtractor {
         Mat S = hsvC[1];
         Mat V = hsvC[2];
 
-        // --- FIX: normalizar H a [0..1] si viene en grados ---
+        // Normalizar H a [0..1] si viene en grados ---
         double hmin, hmax;
         minMaxLoc(H, &hmin, &hmax);
 
         // si es float y el max parece "grados", lo normalizamos
         if ((H.depth() == CV_32F || H.depth() == CV_64F) && hmax > 2.0) {
+            qDebug() << "AVISO [ExtractCaracteristicas]: Canal H detectado en grados (Max:" << hmax << "). Normalizando a 0-1...";
             H = H * (1.0 / 360.0);
         }
 
