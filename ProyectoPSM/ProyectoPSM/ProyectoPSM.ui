@@ -935,7 +935,7 @@
            <item row="0" column="0" colspan="3">
             <widget class="QCheckBox" name="chkSkipTrain">
              <property name="text">
-              <string>Saltar Evaluación</string>
+              <string>Saltar Entrenamiento</string>
              </property>
             </widget>
            </item>
@@ -972,7 +972,7 @@
            <item row="0" column="0" colspan="3">
             <widget class="QCheckBox" name="chkSkipEval">
              <property name="text">
-              <string>Saltar (No evaluar, solo cargar)</string>
+              <string>Saltar Evaluación</string>
              </property>
             </widget>
            </item>
