@@ -19,10 +19,6 @@
 
 #include "ExtractCaracteristicas.h"
 #include "Clasificador.h"
-#include "ExtractCaracteristicas24Refinador.h"
-#include "ExtractShapeFeatures6.h"
-#include "ExtractShapeFeatures10.h"
-#include "ExtractShapeFeatures8.h"
 
 
 namespace fs = std::filesystem;

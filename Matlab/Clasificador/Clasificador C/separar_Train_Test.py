@@ -128,11 +128,10 @@ def main(
         print(f"  {lbl:02d}: {train_count[lbl]} / {test_count[lbl]} (total {train_count[lbl]+test_count[lbl]})")
 
 if __name__ == "__main__":
-    # AJUSTA AQUÍ TUS RUTAS
     main(
-        in_dir=r"C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\SEGMENTED",
-        out_train=r"C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\SEGMENTED_TRAIN_C",
-        out_test=r"C:\Users\Iñaki Janices\Documents\Github\ProyectoPSM\Database\SEGMENTED_TEST_C",
+        in_dir=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED",
+        out_train=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_TRAIN",
+        out_test=r"C:\Users\jlaco\OneDrive\Escritorio\1\Procesado de Señales Multimedia\Proyecto\ProyectoPSM\Database\SEGMENTED_TEST",
         test_ratio=0.2,
         seed=1234,
         min_test_per_class=1,

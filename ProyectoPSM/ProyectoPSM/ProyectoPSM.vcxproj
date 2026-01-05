@@ -113,10 +113,6 @@
     <ClCompile Include="Clasificador.cpp" />
     <ClCompile Include="ClasificadorOrientacion.cpp" />
     <ClCompile Include="ExtractCaracteristicas.cpp" />
-    <ClCompile Include="ExtractCaracteristicas24Refinador.cpp" />
-    <ClCompile Include="ExtractorShapeFeatures6.cpp" />
-    <ClCompile Include="ExtractShapeFeatures10.cpp" />
-    <ClCompile Include="ExtractShapeFeatures8.cpp" />
     <ClCompile Include="NameHelper.cpp" />
     <ClCompile Include="Segmentacion.cpp" />
     <ClCompile Include="TemplateGenerator.cpp" />
@@ -141,10 +137,6 @@
     <ClInclude Include="Clasificador.h" />
     <ClInclude Include="ClasificadorOrientacion.h" />
     <ClInclude Include="ExtractCaracteristicas.h" />
-    <ClInclude Include="ExtractCaracteristicas24Refinador.h" />
-    <ClInclude Include="ExtractShapeFeatures10.h" />
-    <ClInclude Include="ExtractShapeFeatures6.h" />
-    <ClInclude Include="ExtractShapeFeatures8.h" />
     <ClInclude Include="NameHelper.h" />
     <ClInclude Include="Segmentacion.h" />
     <ClInclude Include="TemplateGenerator.h" />
