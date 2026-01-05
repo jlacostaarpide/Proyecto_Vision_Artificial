@@ -101,7 +101,7 @@ namespace FeatureExtractor {
 
         // si es float y el max parece "grados", lo normalizamos
         if ((H.depth() == CV_32F || H.depth() == CV_64F) && hmax > 2.0) {
-            qDebug() << "AVISO [ExtractCaracteristicas]: Canal H detectado en grados (Max:" << hmax << "). Normalizando a 0-1...";
+            //qDebug() << "AVISO [ExtractCaracteristicas]: Canal H detectado en grados (Max:" << hmax << "). Normalizando a 0-1...";
             H = H * (1.0 / 360.0);
         }
 

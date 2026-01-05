@@ -732,7 +732,7 @@ void TrainingWorker::runStepEvaluation()
     out << "Precision: " << std::fixed << std::setprecision(2) << accuracy << "%\n";
     out.close();
 
-    emit logMessage("Fin de la evaluación. ");
+    emit logMessage("Fin de la evaluacion. ");
     emit logMessage(QString("Procesados: %1 | Aciertos: %2").arg(total).arg(correct));
     emit logMessage(QString("PRECISION: %1%").arg(accuracy, 0, 'f', 2));
     emit logMessage("Reporte guardado en: " + reportPath);
