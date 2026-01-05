@@ -932,7 +932,8 @@ void ProyectoPSM::CapturarYAnalizar()
 void ProyectoPSM::CargarImagenDisco()
 {
     // 1. Abrir diálogo
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Abrir Imagen"), "", tr("Images (*.png *.jpg *.bmp);;All (*)"));
+    static QString startDir = "../../Database";
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Abrir Imagen"), startDir, tr("Images (*.png *.jpg *.bmp);;All (*)"));
     if (fileName.isEmpty()) return;
 
     // 2. Cargar con QFile (robusto)
