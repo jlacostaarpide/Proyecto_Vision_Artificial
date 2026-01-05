@@ -781,14 +781,133 @@
                </attribute>
                <layout class="QVBoxLayout" name="verticalLayout_Scatter">
                 <item>
-                 <widget class="QLabel" name="label_ScatterPlaceholder">
+                 <layout class="QHBoxLayout" name="hLayout_ScatterFile">
+                  <item>
+                   <widget class="QLabel" name="lblFeatFile">
+                    <property name="text">
+                     <string>Archivo Features (.yml):</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLineEdit" name="txtPathFeaturesPlot">
+                    <property name="readOnly">
+                     <bool>true</bool>
+                    </property>
+                    <property name="placeholderText">
+                     <string>Selecciona features.yml...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="btnLoadFeaturesPlot">
+                    <property name="text">
+                     <string>Cargar</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QGroupBox" name="groupScatterConfig">
+                  <property name="title">
+                   <string>Configuración PCA</string>
+                  </property>
+                  <layout class="QGridLayout" name="gridLayout_Scatter">
+                   <item row="0" column="0">
+                    <widget class="QRadioButton" name="rbPCAGlobal">
+                     <property name="text">
+                      <string>Mapa Global (12 Clases)</string>
+                     </property>
+                     <property name="checked">
+                      <bool>true</bool>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="1">
+                    <widget class="QPushButton" name="btnGenerateScatter">
+                     <property name="text">
+                      <string>Generar Gráfico</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0">
+                    <widget class="QRadioButton" name="rbPCACompare">
+                     <property name="text">
+                      <string>Comparar Par de Clases</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="1">
+                    <layout class="QHBoxLayout" name="hLayout_Combos">
+                     <item>
+                      <widget class="QComboBox" name="cboClassA">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QLabel" name="lblVs">
+                       <property name="text">
+                        <string>VS</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QComboBox" name="cboClassB">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="lblScatterPlot">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="frameShape">
+                   <enum>QFrame::Shape::Box</enum>
+                  </property>
                   <property name="text">
-                   <string>Pendiente de implementación</string>
+                   <string>Gráfico no generado</string>
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                  </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="hLayout_ScatterBot">
+                  <item>
+                   <spacer name="horizontalSpacer_Scatter">
+                    <property name="orientation">
+                     <enum>Qt::Orientation::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>40</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="btnSaveScatter">
+                    <property name="text">
+                     <string>Guardar Imagen...</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
                 </item>
                </layout>
               </widget>

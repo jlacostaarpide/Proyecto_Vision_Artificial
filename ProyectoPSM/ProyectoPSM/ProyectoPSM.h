@@ -112,6 +112,11 @@ private:
 
     void LoadDefaultSettings(); // Para poner rutas por defecto al iniciar
 
+    // Datos cargados para el Scatter Plot
+    cv::Mat m_featuresLoaded;
+    std::vector<int> m_labelsLoaded;
+    bool m_featuresReady = false;
+
 private slots:
     void EnableButtons(bool StartCapture);
     void NewImage(Mat Img);
@@ -162,8 +167,14 @@ private slots:
     void onSetBrowseModel();
     void onSetBrowseScaler();
 
+    // Templates
     bool EnsureOrientTemplatesLoaded();
 
+	// Visualización de resultados de entrenamiento
     void onLoadEvaluationFile();
     void onSaveConfusionMatrix();
+    void onLoadFeaturesPlot();
+    void onGenerateScatter();
+    void onSaveScatter();
+    void onScatterModeChanged();
 };

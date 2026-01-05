@@ -6,6 +6,7 @@
 #include <QVector>
 #include <QStringList>
 #include <QColor>
+#include <opencv2/core.hpp>
 
 class ClassificationVisualizer : public QObject
 {
@@ -13,28 +14,22 @@ class ClassificationVisualizer : public QObject
 public:
     explicit ClassificationVisualizer(QObject* parent = nullptr);
 
-    /**
-     * @brief Genera una imagen de la matriz de confusión.
-     * @param trueLabels Vector con las etiquetas reales (ground truth).
-     * @param predictedLabels Vector con las etiquetas predichas por el modelo.
-     * @param classNames Lista con los nombres de las clases (en orden de índice 0, 1, 2...).
-     * @param imageSize Tamaño cuadrado de la imagen de salida (por defecto 600x600).
-     * @return QImage con el gráfico renderizado.
-     */
     QImage generateConfusionMatrix(const QVector<int>& trueLabels,
         const QVector<int>& predictedLabels,
         const QStringList& classNames,
         int imageSize = 600);
 
-    // TODO: Aquí añadiremos generateScatterPlot() en el futuro
+    QImage generateScatterPlot(const cv::Mat& features,
+        const std::vector<int>& labels,
+        const QStringList& classNames,
+        int imageSize = 800);
 
 private:
-    // Configuración de estilo
-    QColor m_baseColor;     // Color base para el heatmap (ej: azul)
-    QColor m_textColor;     // Color del texto
+    QColor m_baseColor;
+    QColor m_textColor;
 
-    // Métodos auxiliares
     QColor interpolateColor(float ratio);
+    QColor getClassColor(int classIdx, int totalClasses);
 };
 
 #endif // CLASSIFICATIONVISUALIZER_H

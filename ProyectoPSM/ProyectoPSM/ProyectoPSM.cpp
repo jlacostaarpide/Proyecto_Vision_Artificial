@@ -345,6 +345,23 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnLoadEval, &QPushButton::clicked, this, &ProyectoPSM::onLoadEvaluationFile);
     connect(ui.btnSaveConfusion, &QPushButton::clicked, this, &ProyectoPSM::onSaveConfusionMatrix);
 
+    connect(ui.btnLoadFeaturesPlot, &QPushButton::clicked, this, &ProyectoPSM::onLoadFeaturesPlot);
+    connect(ui.btnGenerateScatter, &QPushButton::clicked, this, &ProyectoPSM::onGenerateScatter);
+    connect(ui.btnSaveScatter, &QPushButton::clicked, this, &ProyectoPSM::onSaveScatter);
+    connect(ui.rbPCAGlobal, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
+    connect(ui.rbPCACompare, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
+
+    // Inicializar Combos
+    ui.cboClassA->setEnabled(false);
+    ui.cboClassB->setEnabled(false);
+    for (int i = 1; i <= 12; ++i) {
+        QString name = QString("%1").arg(i, 2, 10, QChar('0'));
+        ui.cboClassA->addItem(name, i - 1); // Data = indice real (0..11)
+        ui.cboClassB->addItem(name, i - 1);
+    }
+    // Seleccionar distintos por defecto
+    if (ui.cboClassB->count() > 1) ui.cboClassB->setCurrentIndex(1);
+
     ImageIndex = 0;
     SavedImageIndex = 1;
     ui.boxImageNumber->setValue(SavedImageIndex);
@@ -1471,4 +1488,152 @@ void ProyectoPSM::onSaveConfusionMatrix()
     if (!pix.save(fileName)) {
         QMessageBox::warning(this, "Error", "No se pudo guardar la imagen.");
     }
+}
+
+void ProyectoPSM::onLoadFeaturesPlot()
+{
+    QString startDir = getSmartStartDir(ui.txtPathFeaturesPlot->text(), "Database/Models");
+    QString fileName = QFileDialog::getOpenFileName(this, "Cargar Features para Gráfico",
+        startDir, "YAML Files (*.yml *.yaml);;All Files (*)");
+    if (fileName.isEmpty()) return;
+
+    ui.txtPathFeaturesPlot->setText(fileName);
+
+    // Cargar con OpenCV
+    try {
+        cv::FileStorage fs(fileName.toLocal8Bit().constData(), cv::FileStorage::READ);
+
+        if (!fs.isOpened()) {
+            QMessageBox::warning(this, "Error de Apertura",
+                "No se pudo abrir el archivo YAML.\n"
+                "Verifica que la ruta no tenga caracteres extraños o que el archivo exista:\n" + fileName);
+            return;
+        }
+
+        // Leer matrices
+        fs["samples"] >> m_featuresLoaded;
+        cv::Mat labelsMat;
+        fs["responses"] >> labelsMat;
+
+        if (labelsMat.empty()) fs["labels"] >> labelsMat;
+
+        fs.release();
+
+        // Validaciones
+        if (m_featuresLoaded.empty() || labelsMat.empty()) {
+            QMessageBox::warning(this, "Error Datos", "El archivo se abrió pero no contiene matrices 'samples' o 'responses' válidas.");
+            m_featuresReady = false;
+            return;
+        }
+
+        // Convertir labels a vector<int> estándar
+        m_labelsLoaded.clear();
+        if (labelsMat.rows > 0) {
+            // Asegurar que sean enteros
+            if (labelsMat.type() != CV_32S) labelsMat.convertTo(labelsMat, CV_32S);
+
+            for (int i = 0; i < labelsMat.rows; ++i) {
+                int l = labelsMat.at<int>(i, 0);
+                // Si detectamos rango 1..12, restamos 1 para que sea 0..11
+                if (l >= 1 && l <= 12) l -= 1;
+                m_labelsLoaded.push_back(l);
+            }
+        }
+
+        // Validar dimensiones
+        if (m_featuresLoaded.rows != (int)m_labelsLoaded.size()) {
+            QMessageBox::warning(this, "Error", "El número de muestras y etiquetas no coincide.");
+            m_featuresReady = false;
+            return;
+        }
+
+        m_featuresReady = true;
+        QMessageBox::information(this, "Éxito", QString("Cargadas %1 muestras correctamente.").arg(m_featuresLoaded.rows));
+
+    }
+    catch (const cv::Exception& e) {
+        QMessageBox::critical(this, "Excepción OpenCV", QString::fromStdString(e.what()));
+        m_featuresReady = false;
+    }
+}
+
+void ProyectoPSM::onScatterModeChanged()
+{
+    bool compareMode = ui.rbPCACompare->isChecked();
+    ui.cboClassA->setEnabled(compareMode);
+    ui.cboClassB->setEnabled(compareMode);
+    ui.lblVs->setEnabled(compareMode);
+}
+
+void ProyectoPSM::onGenerateScatter()
+{
+    if (!m_featuresReady) {
+        QMessageBox::warning(this, "Aviso", "Primero carga un archivo de features válido.");
+        return;
+    }
+
+    // Preparar datos para visualizar
+    cv::Mat dataToShow;
+    std::vector<int> labelsToShow;
+    QStringList classNames; // Para la leyenda
+
+    // Rellenar nombres base (01..12)
+    for (int i = 1; i <= 12; ++i) classNames << QString("%1").arg(i, 2, 10, QChar('0'));
+
+    if (ui.rbPCAGlobal->isChecked()) {
+        // MODO GLOBAL: Usamos todo
+        dataToShow = m_featuresLoaded;
+        labelsToShow = m_labelsLoaded;
+    }
+    else {
+        // MODO COMPARACIÓN: Filtramos solo Clase A y Clase B
+        int classA = ui.cboClassA->currentData().toInt(); // 0..11
+        int classB = ui.cboClassB->currentData().toInt(); // 0..11
+
+        if (classA == classB) {
+            QMessageBox::warning(this, "Aviso", "Selecciona dos clases distintas para comparar.");
+            return;
+        }
+
+        // Filtrar filas
+        for (int i = 0; i < m_featuresLoaded.rows; ++i) {
+            int l = m_labelsLoaded[i];
+            if (l == classA || l == classB) {
+                dataToShow.push_back(m_featuresLoaded.row(i));
+                labelsToShow.push_back(l);
+            }
+        }
+
+        if (dataToShow.empty()) {
+            QMessageBox::warning(this, "Aviso", "No hay datos para las clases seleccionadas en el archivo.");
+            return;
+        }
+    }
+
+    // Generar Gráfico
+    ClassificationVisualizer visualizer;
+
+    // Tamaño del label
+    int w = ui.lblScatterPlot->width();
+    int h = ui.lblScatterPlot->height();
+    int size = std::max<double>(600, std::min<double>(w, h));
+
+    QImage result = visualizer.generateScatterPlot(dataToShow, labelsToShow, classNames, size);
+
+    if (!result.isNull()) {
+        ui.lblScatterPlot->setPixmap(QPixmap::fromImage(result).scaled(
+            ui.lblScatterPlot->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+    else {
+        ui.lblScatterPlot->setText("Error al generar gráfico (datos insuficientes o corruptos)");
+    }
+}
+
+void ProyectoPSM::onSaveScatter()
+{
+    QPixmap pix = ui.lblScatterPlot->pixmap();
+    if (pix.isNull()) return;
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Guardar Gráfico", "ScatterPlot.png", "Images (*.png *.jpg)");
+    if (!fileName.isEmpty()) pix.save(fileName);
 }
