@@ -84,14 +84,24 @@ namespace FeatureExtractor {
         cv::min(I_corr, 1.0f, I_corr);
         cv::max(I_corr, 0.0f, I_corr);
 
-        // HSV (expects float 0..1)
+        // HSV (expects float 0..1, except for H)
         Mat hsv;
         cvtColor(I_corr, hsv, COLOR_BGR2HSV);
         std::vector<Mat> hsvC;
         split(hsv, hsvC);
-        Mat H = hsvC[0]; // H in [0..1]
+
+        Mat H = hsvC[0]; // en float OpenCV suele dar H en [0..360]
         Mat S = hsvC[1];
         Mat V = hsvC[2];
+
+        // --- FIX: normalizar H a [0..1] si viene en grados ---
+        double hmin, hmax;
+        minMaxLoc(H, &hmin, &hmax);
+
+        // si es float y el max parece "grados", lo normalizamos
+        if (H.depth() == CV_32F && hmax > 2.0) {
+            H = H * (1.0f / 360.0f);
+        }
 
         // mask = any(I > 0 in original) & (V > 0.05)
         Mat anyNonZero;
