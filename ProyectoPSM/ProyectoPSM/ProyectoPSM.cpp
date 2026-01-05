@@ -924,9 +924,6 @@ void ProyectoPSM::CapturarYAnalizar()
 
     // Mostrar la imagen capturada TAL CUAL (sin procesar aún)
     DisplayMat(ui.lblOfflineMain, CapturedImage);
-
-    // NO procesamos automáticamente. El usuario debe pulsar los botones.
-    // ProcesarImagenOffline(CapturedImage); 
 }
 
 void ProyectoPSM::CargarImagenDisco()
@@ -953,6 +950,9 @@ void ProyectoPSM::CargarImagenDisco()
     // 3. Guardar como imagen capturada
     CapturedImage = image.clone();
 
+	// Limpiar segmentación previa
+    lastResultados_.clear();
+
     // Asegurar que estamos en la pestaña correcta
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
 
@@ -960,9 +960,6 @@ void ProyectoPSM::CargarImagenDisco()
     ui.lblOfflineMain->clear();
     ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
     DisplayMat(ui.lblOfflineMain, CapturedImage);
-
-    // NO procesamos automáticamente
-    // ProcesarImagenOffline(CapturedImage);
 }
 
 void ProyectoPSM::RecalcularSegmentacion()
