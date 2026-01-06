@@ -77,7 +77,6 @@ Thumbs.db
 desktop.ini
 
 # Ignore large data or test files
-*.zip
 *.7z
 *.tar
 *.gz
@@ -101,4 +100,6 @@ desktop.ini
 
 # Ignorar cualquier carpeta que empiece por "temp_"
 temp_*/
+
+Proyecto Visión Artificial*/
 
