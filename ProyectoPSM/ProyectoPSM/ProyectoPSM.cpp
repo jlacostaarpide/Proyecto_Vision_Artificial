@@ -213,7 +213,7 @@ void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF
                     catch (...) {}
                 }
 
-                if (orientExito) labelText = QString("Cód:%1 Orientación:%2").arg(QString::fromStdString(codigoPieza)).arg(yaw);
+                if (orientExito) labelText = QString("Cód: %1 Orientación: %2º").arg(QString::fromStdString(codigoPieza)).arg(yaw);
                 else labelText = QString("Cód:%1").arg(QString::fromStdString(codigoPieza));
             }
             outLabels.push_back(labelText);
