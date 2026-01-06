@@ -1,3 +1,7 @@
+//------------------------------------------------------------
+// Script para clasificación de orientación LEGO
+//------------------------------------------------------------
+
 #include "ClasificadorOrientacion.h"
 #include <filesystem>
 #include <algorithm>
@@ -10,13 +14,13 @@ ClasificadorOrientacion::ClasificadorOrientacion(std::string templatesFolder, in
 }
 
 // ------------------------------------------------------------
-// LOAD ALL TEMPLATES FROM YAML
+// Carga de plantillas .yml/.yaml
 // ------------------------------------------------------------
 bool ClasificadorOrientacion::loadAllTemplates() {
     namespace fs = std::filesystem;
     templates_.clear();
 
-    // IMPORTANTE: convertir desde UTF-8 a path nativo Windows
+    // Convertir desde UTF-8 a path nativo Windows
     fs::path folder = fs::u8path(templatesFolder_);
 
     std::error_code ec;
@@ -33,7 +37,7 @@ bool ClasificadorOrientacion::loadAllTemplates() {
         if (extLower != ".yml" && extLower != ".yaml") continue;
 
         TemplateItem item;
-        const std::string path = entry.path().string(); // OK: OpenCV FileStorage lo abre
+        const std::string path = entry.path().string(); 
         if (readOneTemplateYml(path, item, outSize_)) {
             templates_.push_back(std::move(item));
         }
@@ -49,7 +53,9 @@ bool ClasificadorOrientacion::loadAllTemplates() {
     return !templates_.empty();
 }
 
-
+// ------------------------------------------------------------
+// Lectura de una plantilla .yml/.yaml
+// ------------------------------------------------------------
 bool ClasificadorOrientacion::readOneTemplateYml(const std::string& path, TemplateItem& outItem, int outSize) {
     cv::FileStorage fs(path, cv::FileStorage::READ);
     if (!fs.isOpened()) return false;
@@ -81,7 +87,7 @@ bool ClasificadorOrientacion::readOneTemplateYml(const std::string& path, Templa
     cv::Mat T32;
     T64.convertTo(T32, CV_32F);
 
-    // Normalización EXACTA estilo MATLAB (media 0 + L2 = 1)
+    // Normalización 
     zeroMeanL2Norm(T32);
 
     outItem.T = std::move(T32);
@@ -90,7 +96,7 @@ bool ClasificadorOrientacion::readOneTemplateYml(const std::string& path, Templa
 }
 
 // ------------------------------------------------------------
-// MASK
+// Extracción de máscara LEGO
 // ------------------------------------------------------------
 bool ClasificadorOrientacion::extractMaskLego(const cv::Mat& I, cv::Mat& maskOut) const {
     if (I.empty()) return false;
@@ -129,6 +135,10 @@ bool ClasificadorOrientacion::extractMaskLego(const cv::Mat& I, cv::Mat& maskOut
     return cv::countNonZero(maskOut) > 0;
 }
 
+
+// ------------------------------------------------------------
+// Componente principal
+// ------------------------------------------------------------
 bool ClasificadorOrientacion::largestComponent(cv::Mat& binMask) {
     cv::Mat labels, stats, centroids;
     int n = cv::connectedComponentsWithStats(binMask, labels, stats, centroids, 8, CV_32S);
@@ -147,7 +157,7 @@ bool ClasificadorOrientacion::largestComponent(cv::Mat& binMask) {
 }
 
 // ------------------------------------------------------------
-// NORMALIZE PATCH (crop bbox mask, apply shift, square-pad, resize, normalize)
+// Normalización de parche con máscara y shift
 // ------------------------------------------------------------
 bool ClasificadorOrientacion::normalizeMaskedPatchShift(const cv::Mat& I, int shiftX, int shiftY, cv::Mat& J) const {
     J = cv::Mat::zeros(outSize_, outSize_, CV_32F);
@@ -203,6 +213,9 @@ bool ClasificadorOrientacion::normalizeMaskedPatchShift(const cv::Mat& I, int sh
     return true;
 }
 
+// ------------------------------------------------------------
+// Normalización media
+// ------------------------------------------------------------
 void ClasificadorOrientacion::zeroMeanL2Norm(cv::Mat& M) {
     CV_Assert(M.type() == CV_32F);
     cv::Scalar mu = cv::mean(M);
@@ -214,7 +227,7 @@ void ClasificadorOrientacion::zeroMeanL2Norm(cv::Mat& M) {
 }
 
 // ------------------------------------------------------------
-// PREDICT (multi-shift + dot)
+// Predicción de orientación
 // ------------------------------------------------------------
 OrientationResult ClasificadorOrientacion::predict(const cv::Mat& Ipiece, const std::string& filterCode) const {
     OrientationResult res;
@@ -246,7 +259,7 @@ OrientationResult ClasificadorOrientacion::predict(const cv::Mat& Ipiece, const 
 
             std::vector<float> scores(K, -1e9f);
             for (int k = 0; k < K; ++k) {
-                // ambos normalizados => dot = similitud (como MATLAB)
+                // ambos normalizados => dot = similitud 
                 scores[k] = (float)J.dot(cand[k]->T);
             }
 

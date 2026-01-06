@@ -1,3 +1,7 @@
+// ----------------------------------------------------------------------------------------
+//Script para visualizar matrices de confusión y gráficos de dispersión para clasificación.
+//-----------------------------------------------------------------------------------------
+
 #include "classificationvisualizer.h"
 #include <QPainter>
 #include <QDebug>
@@ -12,7 +16,9 @@ ClassificationVisualizer::ClassificationVisualizer(QObject* parent)
     m_baseColor = QColor(41, 128, 185);
     m_textColor = Qt::black;
 }
-
+//----------------------------------------------------------------
+// Genera una imagen de la matriz de confusión
+//----------------------------------------------------------------
 QImage ClassificationVisualizer::generateConfusionMatrix(const QVector<int>& trueLabels,
     const QVector<int>& predictedLabels,
     const QStringList& classNames,
@@ -100,20 +106,20 @@ QImage ClassificationVisualizer::generateConfusionMatrix(const QVector<int>& tru
     for (int i = 0; i < numClasses; ++i) {
         QString name = classNames[i];
 
-        // EJE Y (True Labels) - Izquierda
+        // Eje Y (True Labels) - Izquierda
         // Centrado verticalmente respecto a la celda
         QRectF yRect(0, topMargin + i * cellH, leftMargin - 5, cellH);
         painter.drawText(yRect, Qt::AlignRight | Qt::AlignVCenter, name);
 
-        // EJE X (Predicted Labels) - Abajo
+        // Eje X (Predicted Labels) - Abajo
         // Centrado horizontalmente respecto a la celda
         QRectF xRect(leftMargin + i * cellW, imageSize - bottomMargin + 5, cellW, 30);
 
-        // Guardar estado para rotar texto si es necesario (opcional, aquí lo pongo recto centrado)
+        // Guardar estado para rotar texto si es necesario
         painter.drawText(xRect, Qt::AlignHCenter | Qt::AlignTop, name);
     }
 
-    // 5. Títulos de los Ejes (Grandes)
+    // 5. Títulos de los Ejes 
     QFont titleFont = painter.font();
     titleFont.setPixelSize(16);
     titleFont.setBold(true);
@@ -132,7 +138,9 @@ QImage ClassificationVisualizer::generateConfusionMatrix(const QVector<int>& tru
     return image;
 }
 
+//----------------------------------------------------------------
 // Interpola entre Blanco (0) y el Color Base (1)
+//----------------------------------------------------------------
 QColor ClassificationVisualizer::interpolateColor(float ratio)
 {
     // Empezamos en blanco (255, 255, 255) y vamos hacia m_baseColor
@@ -142,6 +150,9 @@ QColor ClassificationVisualizer::interpolateColor(float ratio)
     return QColor(r, g, b);
 }
 
+//-----------------------------------------------------------------------------
+// Genera un gráfico de dispersión 2D a partir de características y etiquetas
+//-----------------------------------------------------------------------------
 QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
     const std::vector<int>& labels,
     const QStringList& classNames,
@@ -299,7 +310,9 @@ QImage ClassificationVisualizer::generateScatterPlot(const cv::Mat& features,
     return image;
 }
 
+//----------------------------------------------------------------
 // Genera un color distinto para cada clase usando el espacio HSV
+//----------------------------------------------------------------
 QColor ClassificationVisualizer::getClassColor(int classIdx, int totalClasses)
 {
     if (totalClasses < 1) return Qt::black;

@@ -1,30 +1,36 @@
-﻿#include "TemplateGenerator.h"
+﻿//-----------------------------------------------------------------------------
+// Script para generar plantillas a partir de imagenes segmentadas
+//-----------------------------------------------------------------------------
+
+#include "TemplateGenerator.h"
 #include <QRegularExpression>
 #include <QFileInfo>
 #include <QDebug>
 #include <QFile>
 
-// Función equivalente a 'normalizeMaskedPatch' de Matlab
+// ----------------------------------------------------------------------------
+// Método de preprocesamiento de imagenes
+// ----------------------------------------------------------------------------
 bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, int size) {
     if (input.empty()) return false;
 
-    // --- 1. Preparación ---
+    //  1. Preparación 
     cv::Mat gray;
     if (input.channels() == 3) cv::cvtColor(input, gray, cv::COLOR_BGR2GRAY);
     else gray = input.clone();
 
-    // --- 2. Umbral Fijo ---
+    //  2. Umbral Fijo 
     cv::Mat mask;
     cv::threshold(gray, mask, 8, 255, cv::THRESH_BINARY);
 
-    // --- 3. Limpieza Morfológica ---
+    //  3. Limpieza Morfológica 
     cv::Mat kernelClose = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
     cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernelClose);
 
     cv::Mat kernelOpen = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
     cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernelOpen);
 
-    // --- 4. Componente Mayor y Relleno ---
+    //  4. Componente Mayor y Relleno 
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
@@ -45,19 +51,19 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
 
     if (maxIdx == -1) return false;
 
-    // --- 5. Generar Máscara Final Limpia ---
+    //  5. Generar Máscara Final Limpia 
     cv::Mat finalMask = cv::Mat::zeros(mask.size(), CV_8UC1);
     cv::drawContours(finalMask, contours, maxIdx, cv::Scalar(255), cv::FILLED);
 
-    // --- 6. Aplicar Máscara ---
+    //  6. Aplicar Máscara 
     cv::Mat maskedGray;
     cv::bitwise_and(gray, gray, maskedGray, finalMask);
 
-    // --- 7. Recorte ---
+    //  7. Recorte 
     cv::Rect maxRect = cv::boundingRect(contours[maxIdx]);
     cv::Mat cropped = maskedGray(maxRect);
 
-    // --- 8. Padding ---
+    //  8. Padding 
     int h = cropped.rows;
     int w = cropped.cols;
     int dim = std::max(h, w);
@@ -70,10 +76,10 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
     cv::Mat padded;
     cv::copyMakeBorder(cropped, padded, top, bottom, left, right, cv::BORDER_CONSTANT, cv::Scalar(0));
 
-    // --- 9. Resize ---
+    //  9. Resize 
     cv::resize(padded, output, cv::Size(size, size), 0, 0, cv::INTER_LINEAR);
 
-    // --- 10. Normalización ---
+    //  10. Normalización 
     output.convertTo(output, CV_32F);
     cv::Scalar meanVal = cv::mean(output);
     output -= meanVal;
@@ -83,6 +89,9 @@ bool TemplateGenerator::PreprocessImage(const cv::Mat& input, cv::Mat& output, i
     return true;
 }
 
+// ----------------------------------------------------------------------------
+// Método principal de generación de plantillas
+// ----------------------------------------------------------------------------
 void TemplateGenerator::Generate(const TemplateConfig& config, std::function<void(QString)> logCallback, std::function<void(int)> progressCallback) {
     QDir inDir(config.inputFolder);
     if (!inDir.exists()) {

@@ -1,3 +1,7 @@
+//------------------------------------------------------------------------------------------------------------------------------
+//Script para generar nombres de archivos de fotos con combinaciones específicas (usado para generar la base de datos de fotos).
+//------------------------------------------------------------------------------------------------------------------------------
+
 #include "NameHelper.h"
 #include <string>
 #include <iomanip>
@@ -9,6 +13,9 @@ std::string padCeros(int numero, int anchura) {
     return ss.str();
 }
 
+//-------------------------------------------------------------------------------
+// Genera una lista de nombres de archivos basados en combinaciones específicas
+//-------------------------------------------------------------------------------
 std::vector<std::string> NameHelper::GenerarNombres()
 {
     std::vector<std::string> nameList;

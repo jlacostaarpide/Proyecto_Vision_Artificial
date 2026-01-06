@@ -1,4 +1,7 @@
-﻿#include "ProyectoPSM.h"
+﻿//-----------------------------------------------------------------------------------------
+// Script principal para la gestion del procesamiento de imagenes y de la interfaz gráfica
+//-----------------------------------------------------------------------------------------
+#include "ProyectoPSM.h"
 #include <filesystem>
 #include <QFileDialog>
 #include <QFile>
@@ -23,7 +26,9 @@ Q_DECLARE_METATYPE(std::vector<QRectF>)
 Q_DECLARE_METATYPE(std::vector<QImage>)
 Q_DECLARE_METATYPE(std::vector<cv::Mat>)
 
-// Función auxiliar para convertir cv::Mat a QPixmap y ponerlo en un Label
+//----------------------------------------------------------------------------
+//Funciones Auxiliares
+//----------------------------------------------------------------------------
 void DisplayMat(QLabel* lbl, const cv::Mat& mat, bool isBinary = false) {
     if (mat.empty()) { lbl->clear(); return; }
 
@@ -94,7 +99,168 @@ void DrawHistogram(QLabel* lbl, const cv::Mat& src) {
     DisplayMat(lbl, histImg);
 }
 
-// Segmentación en Segundo Plano
+//----------------------------------------------------------------------------
+// Clase Principal
+//----------------------------------------------------------------------------
+ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
+{
+    ui.setupUi(this);
+
+    svmClf_ = std::make_unique<Clasificador>();
+
+    // Inicializar pestañas
+    ui.tabWidget->setCurrentIndex(0);
+    ui.tabWidgetAnalysis->setCurrentIndex(0);
+    ui.tabWidgetDebug->setCurrentIndex(0);
+
+    qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
+    qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
+    qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
+    qRegisterMetaType<std::vector<cv::Mat>>("std::vector<cv::Mat>");
+
+    if (!filesystem::exists("Database")) filesystem::create_directory("Database");
+
+    NameList = NameHelper::GenerarNombres();
+    LiveSegmentationEnabled = false;
+    SegProcessing = false;
+    LiveClassificationEnabled = false;
+    ClassProcessing = false;
+    segInFlight = 0;
+    SegmentationIntervalMs = 40;
+    LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
+    m_featureNames = {
+        "Extent", "Solidity", "V_mean", "Eccentricity", "SkelLenNorm", "Circularity",
+        "H_mean_circ", "S_mean", "V_IQR", "S_median", "FD5", "EulerNumber"
+    };
+
+    // Cargar rutas iniciales en los textbox
+    LoadDefaultSettings(); 
+
+	// Cargar Clasificador de Orientación
+    EnsureOrientTemplatesLoaded();
+
+    // 1. Inicializar Cámara
+    Camera = new CVideoAcquisition();
+
+    // 2. Configurar Segmentation Worker
+    segWorker = new SegmentationWorker();
+    segThread = new QThread(this);
+    segWorker->moveToThread(segThread);
+    connect(segThread, &QThread::finished, segWorker, &QObject::deleteLater);
+    connect(segWorker, &SegmentationWorker::finishedResult, this, &ProyectoPSM::UpdateSegmentationResults, Qt::QueuedConnection);
+    connect(this, &ProyectoPSM::requestSegmentation, segWorker, &SegmentationWorker::process, Qt::QueuedConnection);
+    segThread->start();
+
+	// 3. Configurar Clasification Worker
+    classWorker = new ClasificationWorker(svmClf_.get(), orientClf_.get());
+    classThread = new QThread(this);
+    classWorker->moveToThread(classThread);
+    connect(classThread, &QThread::finished, classWorker, &QObject::deleteLater);
+    connect(this, &ProyectoPSM::requestClassification, classWorker, &ClasificationWorker::process);
+    connect(classWorker, &ClasificationWorker::finishedResult, this, &ProyectoPSM::UpdateClassificationResults);
+    classThread->start();
+
+    // 4. Timers
+    segTimer = new QTimer(this);
+    segTimer->setInterval(SegmentationIntervalMs);
+    connect(segTimer, &QTimer::timeout, this, &ProyectoPSM::onSegmentationTimer);
+    segTimer->start();
+
+    // Watchdog Timer
+    statusTimer = new QTimer(this);
+    statusTimer->setInterval(2000);
+    connect(statusTimer, &QTimer::timeout, this, &ProyectoPSM::CheckCameraStatus);
+    statusTimer->start();
+
+    // 5. Conexiones UI Principales
+    connect(ui.pbtnEncender, SIGNAL(toggled(bool)), this, SLOT(EnableButtons(bool)));
+    connect(ui.chkLiveSeg, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
+    connect(ui.chkLiveClass, &QCheckBox::toggled, this, &ProyectoPSM::onCheckLiveClass);
+    connect(ui.btnCapturarAnalizar, SIGNAL(clicked()), this, SLOT(CapturarYAnalizar()));
+
+    // Botón Reconectar
+    connect(ui.btnReconectar, SIGNAL(clicked()), this, SLOT(ReconectarCamara()));
+
+    connect(ui.btnCargarDisco, SIGNAL(clicked()), this, SLOT(CargarImagenDisco()));
+    connect(ui.btnRecalcSeg, SIGNAL(clicked()), this, SLOT(RecalcularSegmentacion()));
+    connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
+    connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
+    connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
+    connect(ui.btnRecalcClass, SIGNAL(clicked()), this, SLOT(ProcesarClasificacionOffline()));
+
+    ui.chkLiveSeg->setEnabled(false);
+    ui.chkLiveClass->setEnabled(false);
+    ui.chkLiveSeg->setChecked(false);
+    ui.chkLiveClass->setChecked(false);
+
+    // 6. Configurar estado inicial Cámara
+    bool camOk = (Camera && Camera->CameraOK);
+    SetCameraStatusUI(camOk);
+    if (camOk) {
+        connect(ui.pbtnEncender, SIGNAL(toggled(bool)), Camera, SLOT(StartStopCapture(bool)));
+        connect(Camera, SIGNAL(NewImageSignal(Mat)), this, SLOT(NewImage(Mat)));
+        Camera->SetCameraAutoExposure();
+    }
+
+
+	// 7. Conexiones Pestaña Entrenamiento
+    // Botones de examinar (Browse)
+    connect(ui.btnBrowseRaw, &QPushButton::clicked, this, &ProyectoPSM::onBrowseRaw);
+    connect(ui.btnBrowseSeg, &QPushButton::clicked, this, &ProyectoPSM::onBrowseSeg);
+    connect(ui.btnBrowseFeatures, &QPushButton::clicked, this, &ProyectoPSM::onBrowseFeatures);
+    connect(ui.btnBrowseTemplates, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTemplates);
+    connect(ui.btnBrowseModel, &QPushButton::clicked, this, &ProyectoPSM::onBrowseModel);
+    connect(ui.btnBrowseTest, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTest);
+
+    // Checkboxes (Saltar pasos)
+    connect(ui.chkSkipSeg, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipSeg);
+    connect(ui.chkSkipExtract, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipExtract);
+    connect(ui.chkSkipTrain, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipTrain);
+    connect(ui.chkSkipEval, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipEval);
+
+    // Botón Iniciar Proceso
+    connect(ui.btnStartTraining, &QPushButton::clicked, this, &ProyectoPSM::onStartTrainingClicked);
+
+	// 8. Conexiones Pestaña Análisis
+    connect(ui.btnLoadEval, &QPushButton::clicked, this, &ProyectoPSM::onLoadEvaluationFile);
+    connect(ui.btnSaveConfusion, &QPushButton::clicked, this, &ProyectoPSM::onSaveConfusionMatrix);
+
+    connect(ui.btnLoadFeaturesPlot, &QPushButton::clicked, this, &ProyectoPSM::onLoadFeaturesPlot);
+    connect(ui.btnGenerateScatter, &QPushButton::clicked, this, &ProyectoPSM::onGenerateScatter);
+    connect(ui.btnSaveScatter, &QPushButton::clicked, this, &ProyectoPSM::onSaveScatter);
+    connect(ui.rbPCAGlobal, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
+    connect(ui.rbPCACompare, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
+    connect(ui.rbManualFeat, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
+
+    ImageIndex = 0;
+    SavedImageIndex = 1;
+    ui.boxImageNumber->setValue(SavedImageIndex);
+    UpdateFileNameLabel();
+
+    connect(ui.btnSetTemplates, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseTemplates);
+    connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
+    connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
+    connect(ui.chkUseDbNames, &QCheckBox::toggled, this, &ProyectoPSM::UpdateFileNameLabel);
+}
+
+ProyectoPSM::~ProyectoPSM()
+{
+    if (segThread) {
+        segThread->quit();
+        segThread->wait();
+    }
+    if (classThread) {
+        classThread->quit();
+        classThread->wait();
+    }
+    if (Camera) {
+        delete Camera;
+    }
+}
+
+//----------------------------------------------------------------------------
+// Workers para procesamiento en segundo plano de SEGMENTACIÓN Y CLASIFICACIÓN
+//----------------------------------------------------------------------------
 void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
 {
     std::vector<QRectF> outBoxes;
@@ -169,8 +335,7 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
     emit finishedResult(outBoxes, outThumbs, outCrops);
 }
 
-// Clasificación en Segundo Plano
-void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF> boxes) 
+void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF> boxes)
 {
     std::vector<QString> outLabels;
 
@@ -225,163 +390,9 @@ void ClasificationWorker::process(std::vector<cv::Mat> crops, std::vector<QRectF
     emit finishedResult(boxes, outLabels);
 }
 
-// Clase Principal
-ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
-{
-    ui.setupUi(this);
-
-    svmClf_ = std::make_unique<Clasificador>();
-
-    // Inicializar pestañas
-    ui.tabWidget->setCurrentIndex(0);
-    ui.tabWidgetAnalysis->setCurrentIndex(0);
-    ui.tabWidgetDebug->setCurrentIndex(0);
-
-    qRegisterMetaType<shared_ptr<Mat>>("std::shared_ptr<cv::Mat>");
-    qRegisterMetaType<std::vector<QRectF>>("std::vector<QRectF>");
-    qRegisterMetaType<std::vector<QImage>>("std::vector<QImage>");
-    qRegisterMetaType<std::vector<cv::Mat>>("std::vector<cv::Mat>");
-
-    if (!filesystem::exists("Database")) filesystem::create_directory("Database");
-
-    NameList = NameHelper::GenerarNombres();
-    LiveSegmentationEnabled = false;
-    SegProcessing = false;
-    LiveClassificationEnabled = false;
-    ClassProcessing = false;
-    segInFlight = 0;
-    SegmentationIntervalMs = 40;
-    LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
-    m_featureNames = {
-        "Extent", "Solidity", "V_mean", "Eccentricity", "SkelLenNorm", "Circularity",
-        "H_mean_circ", "S_mean", "V_IQR", "S_median", "FD5", "EulerNumber"
-    };
-
-    LoadDefaultSettings(); // Cargar rutas iniciales en los textbox
-
-	// Cargar Clasificador de Orientación
-    EnsureOrientTemplatesLoaded();
-
-    // 1. Inicializar Cámara
-    Camera = new CVideoAcquisition();
-
-    // 2. Configurar Segmentation Worker
-    segWorker = new SegmentationWorker();
-    segThread = new QThread(this);
-    segWorker->moveToThread(segThread);
-    connect(segThread, &QThread::finished, segWorker, &QObject::deleteLater);
-    connect(segWorker, &SegmentationWorker::finishedResult, this, &ProyectoPSM::UpdateSegmentationResults, Qt::QueuedConnection);
-    connect(this, &ProyectoPSM::requestSegmentation, segWorker, &SegmentationWorker::process, Qt::QueuedConnection);
-    segThread->start();
-
-	// Configurar Clasification Worker
-    classWorker = new ClasificationWorker(svmClf_.get(), orientClf_.get());
-    classThread = new QThread(this);
-    classWorker->moveToThread(classThread);
-    connect(classThread, &QThread::finished, classWorker, &QObject::deleteLater);
-    connect(this, &ProyectoPSM::requestClassification, classWorker, &ClasificationWorker::process);
-    connect(classWorker, &ClasificationWorker::finishedResult, this, &ProyectoPSM::UpdateClassificationResults);
-    classThread->start();
-
-    // 3. Timers
-    segTimer = new QTimer(this);
-    segTimer->setInterval(SegmentationIntervalMs);
-    connect(segTimer, &QTimer::timeout, this, &ProyectoPSM::onSegmentationTimer);
-    segTimer->start();
-
-    // Watchdog Timer
-    statusTimer = new QTimer(this);
-    statusTimer->setInterval(2000);
-    connect(statusTimer, &QTimer::timeout, this, &ProyectoPSM::CheckCameraStatus);
-    statusTimer->start();
-
-    // 4. Conexiones UI Principales
-    connect(ui.pbtnEncender, SIGNAL(toggled(bool)), this, SLOT(EnableButtons(bool)));
-    connect(ui.chkLiveSeg, SIGNAL(toggled(bool)), this, SLOT(EnableLiveSegmentation(bool)));
-    connect(ui.chkLiveClass, &QCheckBox::toggled, this, &ProyectoPSM::onCheckLiveClass);
-    connect(ui.btnCapturarAnalizar, SIGNAL(clicked()), this, SLOT(CapturarYAnalizar()));
-
-    // Botón Reconectar
-    connect(ui.btnReconectar, SIGNAL(clicked()), this, SLOT(ReconectarCamara()));
-
-    connect(ui.btnCargarDisco, SIGNAL(clicked()), this, SLOT(CargarImagenDisco()));
-    connect(ui.btnRecalcSeg, SIGNAL(clicked()), this, SLOT(RecalcularSegmentacion()));
-    connect(ui.pbtnGuardar, SIGNAL(clicked()), this, SLOT(SaveImage()));
-    connect(ui.btnGuardarComo, SIGNAL(clicked()), this, SLOT(SaveImageAs()));
-    connect(ui.boxImageNumber, SIGNAL(valueChanged(int)), this, SLOT(UpdateFileNameLabel()));
-    connect(ui.btnRecalcClass, SIGNAL(clicked()), this, SLOT(ProcesarClasificacionOffline()));
-
-    ui.chkLiveSeg->setEnabled(false);
-    ui.chkLiveClass->setEnabled(false);
-    ui.chkLiveSeg->setChecked(false);
-    ui.chkLiveClass->setChecked(false);
-
-    // 5. Configurar estado inicial Cámara
-    bool camOk = (Camera && Camera->CameraOK);
-    SetCameraStatusUI(camOk);
-    if (camOk) {
-        connect(ui.pbtnEncender, SIGNAL(toggled(bool)), Camera, SLOT(StartStopCapture(bool)));
-        connect(Camera, SIGNAL(NewImageSignal(Mat)), this, SLOT(NewImage(Mat)));
-        Camera->SetCameraAutoExposure();
-    }
-
-
-    // 7. CONEXIONES NUEVA PESTAÑA ENTRENAMIENTO
-    // Botones de examinar (Browse)
-    connect(ui.btnBrowseRaw, &QPushButton::clicked, this, &ProyectoPSM::onBrowseRaw);
-    connect(ui.btnBrowseSeg, &QPushButton::clicked, this, &ProyectoPSM::onBrowseSeg);
-    connect(ui.btnBrowseFeatures, &QPushButton::clicked, this, &ProyectoPSM::onBrowseFeatures);
-    connect(ui.btnBrowseTemplates, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTemplates);
-    connect(ui.btnBrowseModel, &QPushButton::clicked, this, &ProyectoPSM::onBrowseModel);
-    connect(ui.btnBrowseTest, &QPushButton::clicked, this, &ProyectoPSM::onBrowseTest);
-
-    // Checkboxes (Saltar pasos)
-    connect(ui.chkSkipSeg, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipSeg);
-    connect(ui.chkSkipExtract, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipExtract);
-    connect(ui.chkSkipTrain, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipTrain);
-    connect(ui.chkSkipEval, &QCheckBox::toggled, this, &ProyectoPSM::onCheckSkipEval);
-
-    // Botón Iniciar Proceso
-    connect(ui.btnStartTraining, &QPushButton::clicked, this, &ProyectoPSM::onStartTrainingClicked);
-
-    // 8. CONEXIONES NUEVA PESTAÑA CLASIFICACIÓN (VISUALIZACIÓN)
-    connect(ui.btnLoadEval, &QPushButton::clicked, this, &ProyectoPSM::onLoadEvaluationFile);
-    connect(ui.btnSaveConfusion, &QPushButton::clicked, this, &ProyectoPSM::onSaveConfusionMatrix);
-
-    connect(ui.btnLoadFeaturesPlot, &QPushButton::clicked, this, &ProyectoPSM::onLoadFeaturesPlot);
-    connect(ui.btnGenerateScatter, &QPushButton::clicked, this, &ProyectoPSM::onGenerateScatter);
-    connect(ui.btnSaveScatter, &QPushButton::clicked, this, &ProyectoPSM::onSaveScatter);
-    connect(ui.rbPCAGlobal, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
-    connect(ui.rbPCACompare, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
-    connect(ui.rbManualFeat, &QRadioButton::toggled, this, &ProyectoPSM::onScatterModeChanged);
-
-    ImageIndex = 0;
-    SavedImageIndex = 1;
-    ui.boxImageNumber->setValue(SavedImageIndex);
-    UpdateFileNameLabel();
-
-    connect(ui.btnSetTemplates, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseTemplates);
-    connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
-    connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
-    connect(ui.chkUseDbNames, &QCheckBox::toggled, this, &ProyectoPSM::UpdateFileNameLabel);
-}
-
-ProyectoPSM::~ProyectoPSM()
-{
-    if (segThread) {
-        segThread->quit();
-        segThread->wait();
-    }
-    if (classThread) {
-        classThread->quit();
-        classThread->wait();
-    }
-    if (Camera) {
-        delete Camera;
-    }
-}
-
-// Funciones de la pestaña de entrenamiento
+//----------------------------------------------------------------------------
+// Funciones de la pestaña de entrenamiento en la interfaz gráfica
+//----------------------------------------------------------------------------
 QString getSmartStartDir(const QString& currentText, const QString& rutaPorDefecto) {
     if (!currentText.isEmpty()) {
         QFileInfo info(currentText);
@@ -456,7 +467,7 @@ void ProyectoPSM::onBrowseTemplates() {
     QString defaultDir = "Database/Templates";
     QString startPath = getSmartStartDir(ui.txtPathTemplates->text(), defaultDir);
 
-    // Lógica dinámica: Cambiamos el TÍTULO según el checkbox
+    // Lógica dinámica: Cambiamos el titulo según el checkbox
     QString title;
     if (ui.chkSkipTemplates->isChecked()) {
         // Caso INPUT: El usuario busca plantillas ya existentes para cargar
@@ -497,7 +508,9 @@ void ProyectoPSM::onBrowseModel() {
     if (!file.isEmpty()) ui.txtPathModel->setText(file);
 }
 
-// Lógica visual de los Checkboxes
+//---------------------------------------------------------------------------
+// Funciones para actualizar la UI según los checkboxes
+//---------------------------------------------------------------------------
 void ProyectoPSM::onCheckSkipSeg(bool checked) {
     ui.txtPathRaw->setEnabled(!checked);
     ui.btnBrowseRaw->setEnabled(!checked);
@@ -508,7 +521,7 @@ void ProyectoPSM::onCheckSkipSeg(bool checked) {
 
 void ProyectoPSM::onCheckSkipExtract(bool checked) {
     // Si saltamos extracción, necesitamos cargar features, pero no necesitamos la carpeta de segmentadas
-    // Esto depende de cómo quieras encadenarlo.
+    // Esto depende de cómo se quiera encadena.
     // Por simplicidad visual:
     if (checked) ui.label_3->setText("Cargar Features (.xml):");
     else ui.label_3->setText("Guardar Features (.xml):");
@@ -524,6 +537,7 @@ void ProyectoPSM::onCheckSkipEval(bool checked) {
     ui.btnBrowseTest->setEnabled(!checked);
 }
 
+//Funcion para iniciar el proceso de entrenamiento en un hilo separado
 void ProyectoPSM::onStartTrainingClicked() {
     // 1. Configurar rutas desde la UI
     TrainingConfig config;
@@ -550,7 +564,6 @@ void ProyectoPSM::onStartTrainingClicked() {
     ui.btnStartTraining->setEnabled(false); // Bloquear botón
 
     // 2. Crear Worker y Thread
-    // Nota: QThread gestiona la memoria si lo configuramos bien
     QThread* thread = new QThread;
     TrainingWorker* worker = new TrainingWorker(config);
     worker->moveToThread(thread);
@@ -596,9 +609,9 @@ void ProyectoPSM::onStartTrainingClicked() {
     thread->start();
 }
 
-
-// --- LÓGICA DE RECONEXIÓN ---
-
+//---------------------------------------------------------------------------
+// Logica de gestión de la cámara
+//---------------------------------------------------------------------------
 void ProyectoPSM::ReconectarCamara()
 {
     // Desactivar botón para evitar pulsaciones múltiples
@@ -681,6 +694,10 @@ void ProyectoPSM::CheckCameraStatus()
     }
 }
 
+
+//----------------------------------------------------------------------------
+// Lógica de captura y visualización de imágenes
+//----------------------------------------------------------------------------
 void ProyectoPSM::EnableButtons(bool StartCapture)
 {
     if (StartCapture) {
@@ -728,6 +745,7 @@ void ProyectoPSM::NewImage(cv::Mat Img)
     ++ImageIndex;
 }
 
+// Mostrar la imagen actuaL con las cajas dibujadas y el resultado de clasificación
 void ProyectoPSM::ShowImage()
 {
     if (LastImage.empty()) return;
@@ -747,7 +765,7 @@ void ProyectoPSM::ShowImage()
     QPixmap scaled = pix.scaled(labelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     QPainter p(&scaled);
 
-    // DIBUJAR CAJAS VERDES (Segmentación en vivo)
+    // Dibujar los bonding boxes (Segmentación en vivo)
     if (LiveSegmentationEnabled && !lastBoxesNormalized.empty()) {
         QPen pen(Qt::green);
         pen.setWidth(3);
@@ -763,7 +781,7 @@ void ProyectoPSM::ShowImage()
             p.drawRect(x, y, w, h);
         }
     }
-    // DIBUJAR CLASIFICACIÓN
+	// Dibujar clasificaciones en vivo
     if (LiveClassificationEnabled && !lastClassBoxes.empty()) {
         QPen pen(Qt::green);
         pen.setWidth(2);
@@ -799,6 +817,9 @@ void ProyectoPSM::ShowImage()
     ui.lblVideoLive->setPixmap(scaled);
 }
 
+//----------------------------------------------------------------------------
+// Lógica de Segmentación y Clasificación en Vivo
+//----------------------------------------------------------------------------
 void ProyectoPSM::onSegmentationTimer()
 {
     if (!LiveSegmentationEnabled || SegProcessing.load() || LastImage.empty()) return;
@@ -902,7 +923,6 @@ void ProyectoPSM::onCheckLiveClass(bool checked)
     }
 }
 
-
 void ProyectoPSM::UpdateClassificationResults(std::vector<QRectF> boxes, std::vector<QString> labels)
 {
     lastClassBoxes = boxes;
@@ -911,7 +931,9 @@ void ProyectoPSM::UpdateClassificationResults(std::vector<QRectF> boxes, std::ve
     // ShowImage se actualizará automáticamente en el siguiente frame de video (NewImage)
 }
 
-// CAPTURA Y ANÁLISIS OFFLINE
+//----------------------------------------------------------------------------
+// Logica de Captura y Análisis Offline
+//----------------------------------------------------------------------------
 void ProyectoPSM::CapturarYAnalizar()
 {
     // 1. Verificar imagen
@@ -924,11 +946,6 @@ void ProyectoPSM::CapturarYAnalizar()
     CapturedImage = LastImage.clone();
     lastResultados_.clear();
 
-    //// APAGADO AUTOMÁTICO
-    //    if (ui.pbtnEncender->isChecked()) {
-    //        ui.pbtnEncender->setChecked(false);
-    //    }
-
     // 3. Cambiar a la pestaña de Análisis
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
 
@@ -936,7 +953,7 @@ void ProyectoPSM::CapturarYAnalizar()
     ui.lblOfflineMain->clear();
     ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
 
-    // Mostrar la imagen capturada TAL CUAL (sin procesar aún)
+    // 5. Mostrar la imagen capturada tal cual
     DisplayMat(ui.lblOfflineMain, CapturedImage);
 }
 
@@ -947,7 +964,7 @@ void ProyectoPSM::CargarImagenDisco()
     QString fileName = QFileDialog::getOpenFileName(this, tr("Abrir Imagen"), startDir, tr("Images (*.png *.jpg *.bmp);;All (*)"));
     if (fileName.isEmpty()) return;
 
-    // 2. Cargar con QFile (robusto)
+    // 2. Cargar con QFile
     QFile f(fileName);
     if (!f.open(QIODevice::ReadOnly)) return;
     QByteArray fileData = f.readAll();
@@ -964,13 +981,13 @@ void ProyectoPSM::CargarImagenDisco()
     // 3. Guardar como imagen capturada
     CapturedImage = image.clone();
 
-	// Limpiar segmentación previa
+	// 4. Limpiar segmentación previa
     lastResultados_.clear();
 
-    // Asegurar que estamos en la pestaña correcta
+    // 5. Asegurar que estamos en la pestaña correcta
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
 
-    // Limpiar y mostrar imagen cruda
+    // 6. Limpiar y mostrar imagen cruda
     ui.lblOfflineMain->clear();
     ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
     DisplayMat(ui.lblOfflineMain, CapturedImage);
@@ -986,7 +1003,7 @@ void ProyectoPSM::RecalcularSegmentacion()
     ProcesarImagenOffline(CapturedImage);    
 }
 
-// Lógica central de Análisis (Segmentación pura)
+//Funcion principal de segmentación offline 
 void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 {
     if (img.empty()) return;
@@ -1000,7 +1017,6 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     QApplication::processEvents();
 
     // Recorrer sub-pestañas
-    // Obliga a Qt a calcular el tamaño de los labels
     int originalSubTab = ui.tabWidgetDebug->currentIndex();
     for (int i = 0; i < ui.tabWidgetDebug->count(); i++) {
         ui.tabWidgetDebug->setCurrentIndex(i);
@@ -1015,7 +1031,7 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     // Guardar resultados para clasificación posterior (botón independiente)
     lastResultados_ = resultados;
 
-    // RELLENAR PESTAÑAS
+	// Rellenar las pestañas de debug
     DisplayMat(ui.lblHSV_1_Orig, debugData.I_orig);
     DisplayMat(ui.lblHSV_2_Norm, debugData.I_norm);
     DisplayMat(ui.lblHSV_3_H, debugData.H, true);
@@ -1057,7 +1073,7 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     }
 }
 
-// Clasifica las piezas guardadas en lastResultados_ y actualiza miniaturas y vista principal
+// Funcion principal de clasificación offline
 void ProyectoPSM::ProcesarClasificacionOffline()
 {
     // 1. Validación de imagen capturada
@@ -1075,7 +1091,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         }
     }
 
-    // 2. CARGA DEL SVM
+	// 2. Carga de SVM si no está cargado
     if (!svmClf_->IsLoaded()) {
         std::string pathModel = ui.txtSetModel->text().toStdString();
         std::string pathScaler = ui.txtSetScaler->text().toStdString();
@@ -1092,26 +1108,27 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         }
     }
 
-    // 1. Convertir Mat (BGR) a formato compatible con Qt (RGB)
+    // 3. Convertir Mat (BGR) a formato compatible con Qt (RGB)
     cv::Mat rgbMat;
     cv::cvtColor(CapturedImage, rgbMat, cv::COLOR_BGR2RGB);
 
-    // 2. Crear una QImage sobre la que pintaremos
+    // 4. Crear una QImage sobre la que pintaremos
     // Hacemos .copy() para tener una copia profunda y poder modificarla sin tocar la original
     QImage displayImg = QImage(rgbMat.data, rgbMat.cols, rgbMat.rows,
         static_cast<int>(rgbMat.step), QImage::Format_RGB888).copy();
 
-    // 3. Iniciar el pintor
+  
+    // 5. Iniciar el pintor
     QPainter p(&displayImg);
 
-    // Configurar fuente dinámica según tamaño de imagen
+    // 6. Configurar fuente dinámica según tamaño de imagen
     QFont font = p.font();
     int pixelSize = std::max<double>(12, displayImg.width() / 40); // Ajusta el divisor para cambiar tamaño
     font.setPixelSize(pixelSize);
     font.setBold(true);
     p.setFont(font);
 
-    // Limpiamos miniaturas
+    // 7. Limpiamos miniaturas
     QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
     for (int k = 0; k < 3; ++k) thumbs[k]->clear();
     
@@ -1123,7 +1140,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         int clasePredicha = -1;
         bool svmExito = false;
 
-        // --- PASO A: SVM ---
+        // --- Paso A: SVM ---
         if (svmClf_->IsLoaded()) {
             clasePredicha = svmClf_->Predict(res.imagenRecortada);
             if (clasePredicha > 0) {
@@ -1134,7 +1151,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
             }
         }
 
-        // --- PASO B: ORIENTACIÓN ---
+        // --- Paso B: ORIENTACIÓN ---
         QString labelInfo = "Desc."; // Ahora usamos QString directamente
 
         if (svmExito) {
@@ -1164,7 +1181,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
             labelInfo = "Desconocido";
         }
 
-        // --- VISUALIZACIÓN ---
+        // --- Parte de visualizacion ---
 
         // 1. Miniatura (se mantiene igual usando DisplayMat)
         if (i < 3) {
@@ -1204,13 +1221,17 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         p.drawText(textX + padding, textY, labelInfo);
     }
 
-    p.end(); // Finalizar pintura
+    p.end(); 
 
     // Mostrar resultado final en el Label
     ui.lblOfflineMain->setPixmap(QPixmap::fromImage(displayImg)
         .scaled(ui.lblOfflineMain->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
+
+//----------------------------------------------------------------------------
+// Funciones para actulizar imagenes y mostrar graficas en la interfaz grafica
+//----------------------------------------------------------------------------
 void ProyectoPSM::UpdateFileNameLabel()
 {
     int idx = ui.boxImageNumber->value();
@@ -1241,12 +1262,12 @@ void ProyectoPSM::SaveImageAs()
     QString fileName = QFileDialog::getSaveFileName(this, tr("Guardar Imagen"), "", tr("JPEG Image (*.jpg);;All Files (*)"));
     if (fileName.isEmpty()) return;
 
-    // 2. AUTO-CORRECCIÓN: Si el usuario no escribió ".jpg", se lo ponemos nosotros
+    // 2. Auto-correcion: Si el usuario no escribió ".jpg", se lo ponemos nosotros
     if (!fileName.endsWith(".jpg", Qt::CaseInsensitive) && !fileName.endsWith(".jpeg", Qt::CaseInsensitive)) {
         fileName += ".jpg";
     }
 
-    // 3. GUARDADO ROBUSTO (Buffer OpenCV -> QFile Qt)
+    // 3. Guardado robusto (Buffer OpenCV -> QFile Qt)
     // Esto evita problemas con tildes, ñ o rutas largas en Windows que hacen fallar a imwrite
     std::vector<uchar> buffer;
     try {
@@ -1260,7 +1281,7 @@ void ProyectoPSM::SaveImageAs()
             file.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
             file.close();
 
-            // 4. Feedback Visual (Cambiar texto del botón)
+            // Feedback Visual (Cambiar texto del botón)
             ui.btnGuardarComo->setText("¡Guardado!");
             ui.btnGuardarComo->setEnabled(false);
             QTimer::singleShot(1500, [this]() {
@@ -1312,8 +1333,7 @@ void ProyectoPSM::SaveImage()
 
 void ProyectoPSM::LoadDefaultSettings()
 {
-    // Rutas por defecto (ajusta esto a tu estructura real)
-    // Usamos rutas relativas a Database si es posible
+    // Rutas por defecto (relativas)
     if (ui.txtSetTemplates->text().isEmpty())
         ui.txtSetTemplates->setText("Database/Templates");
 
@@ -1341,7 +1361,7 @@ void ProyectoPSM::onSetBrowseModel() {
     if (!file.isEmpty()) {
         ui.txtSetModel->setText(file);
 
-        // AUTO-DETECTAR SCALER: Si seleccionan "model.yml", buscamos "model_scaler.yml"
+        // Auto-detectar scaler: Si seleccionan "model.yml", buscamos "model_scaler.yml"
         QFileInfo info(file);
         QString scalerName = info.absolutePath() + "/" + info.baseName() + "_scaler.yml";
         if (QFile::exists(scalerName)) {
@@ -1358,7 +1378,6 @@ void ProyectoPSM::onSetBrowseScaler() {
         "YAML Files (*.yml *.yaml)");
     if (!file.isEmpty()) ui.txtSetScaler->setText(file);
 }
-
 
 bool ProyectoPSM::EnsureOrientTemplatesLoaded()
 {
@@ -1409,7 +1428,7 @@ void ProyectoPSM::onLoadEvaluationFile()
         return;
     }
 
-    // 2. PARSEAR (Ajustando índices de 1-12 a 0-11)
+    // 2. Parseae (Ajustando índices de 1-12 a 0-11)
     QVector<int> trueLabels;
     QVector<int> predLabels;
     QTextStream in(&file);
@@ -1421,11 +1440,12 @@ void ProyectoPSM::onLoadEvaluationFile()
         QStringList parts = line.split(',');
         if (parts.size() >= 3) {
             bool ok1, ok2;
-            // IMPORTANTE: Restamos 1 para pasar de rango 1..12 a 0..11
+            // Restamos 1 para pasar de rango 1..12 a 0..11
             int t = parts[1].toInt(&ok1) - 1;
             int p = parts[2].toInt(&ok2) - 1;
 
-            if (ok1 && ok2 && t >= 0 && p >= 0) { // Ignoramos negativos si los hubiera
+            // Ignoramos negativos si los hubiera
+            if (ok1 && ok2 && t >= 0 && p >= 0) { 
                 trueLabels.push_back(t);
                 predLabels.push_back(p);
             }
@@ -1589,10 +1609,10 @@ void ProyectoPSM::onScatterModeChanged()
         ui.cboY->setEnabled(true);
         ui.lblX->setText("Eje X:");
         ui.lblY->setText("Eje Y:");
-        ui.lblVs->setText("vs"); // minúscula queda mejor aquí
+        ui.lblVs->setText("vs"); 
 
         for (int i = 0; i < m_featureNames.size(); ++i) {
-            ui.cboX->addItem(m_featureNames[i], i); // Data = indice columna (0..11)
+            ui.cboX->addItem(m_featureNames[i], i); 
             ui.cboY->addItem(m_featureNames[i], i);
         }
         // Seleccionar 2 características típicas por defecto (ej: Matiz vs Circularidad)
@@ -1622,14 +1642,14 @@ void ProyectoPSM::onGenerateScatter()
     bool usePCA = true;
     QStringList axisLabels;
 
-    // --- OPCIÓN 1: GLOBAL ---
+    // --- Opción 1: GLOBAL 
     if (ui.rbPCAGlobal->isChecked()) {
         dataToShow = m_featuresLoaded;
         labelsToShow = m_labelsLoaded;
         usePCA = true;
         axisLabels << "Componente Principal 1" << "Componente Principal 2";
     }
-    // --- OPCIÓN 2: COMPARAR CLASES ---
+    // --- Opción 2: COMPARAR CLASES 
     else if (ui.rbPCACompare->isChecked()) {
         int classA = ui.cboX->currentData().toInt();
         int classB = ui.cboY->currentData().toInt();
@@ -1655,7 +1675,7 @@ void ProyectoPSM::onGenerateScatter()
         usePCA = true;
         axisLabels << "PC1 (Discriminante)" << "PC2";
     }
-    // --- OPCIÓN 3: MANUAL (FEATURES) ---
+    // --- OPCIÓN 3: Manual (Caracteristicas) 
     else if (ui.rbManualFeat->isChecked()) {
         int colX = ui.cboX->currentData().toInt(); // Índice de columna 0..11
         int colY = ui.cboY->currentData().toInt(); // Índice de columna 0..11
@@ -1673,7 +1693,7 @@ void ProyectoPSM::onGenerateScatter()
         m_featuresLoaded.col(colY).copyTo(dataToShow.col(1));
 
         labelsToShow = m_labelsLoaded; // Usamos todos los puntos
-        usePCA = false; // NO hacemos PCA, pintamos directo
+        usePCA = false; // No hacemos PCA, pintamos directo
 
         // Nombres para los ejes
         axisLabels << m_featureNames.value(colX, "Eje X") << m_featureNames.value(colY, "Eje Y");

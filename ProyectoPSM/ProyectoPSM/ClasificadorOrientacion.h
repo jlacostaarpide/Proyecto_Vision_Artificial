@@ -9,19 +9,19 @@ struct OrientationResult {
     float bestScore = std::numeric_limits<float>::quiet_NaN();
     float gap = std::numeric_limits<float>::quiet_NaN();
     bool ok = false;
-    std::string matchedCode;   // por si quieres saber qué code ganó
-    std::string matchedFile;   // fichero template ganador
+	std::string matchedCode;   // para saber contra qué code se ha comparado
+	std::string matchedFile;   // fichero template usado
 };
 
 class ClasificadorOrientacion {
 public:
     explicit ClasificadorOrientacion(std::string templatesFolder, int outSize = 128);
 
-    // Carga todas las plantillas *.yml/*.yaml del folder (una vez)
+    // Carga todas las plantillas *.yml/*.yaml del folder solo un vez
     bool loadAllTemplates();
 
     // Predice usando todas las plantillas cargadas.
-    // Si filterCode != "" (por ej "03"), solo compite contra ese code.
+    // Si filterCode != "" (por ej "03"), solo compara con ese code.
     OrientationResult predict(const cv::Mat& Ipiece, const std::string& filterCode = "") const;
 
 private:
