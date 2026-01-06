@@ -1,3 +1,7 @@
+//---------------------------------------------------------
+// Script de Segmentación de Piezas
+//---------------------------------------------------------
+
 #include "Segmentacion.h"
 #include <vector>
 #include <algorithm>
@@ -8,7 +12,9 @@
 using namespace cv;
 using namespace std;
 
-// --- MÉTODO PRINCIPAL ---
+//---------------------------------------------------------
+// Método Principal de Segmentación
+//---------------------------------------------------------
 vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* debug)
 {
     vector<ResultadoPieza> resultados;
@@ -17,9 +23,9 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     // Guardar original si se pide debug
     if (debug) debug->I_orig = inputBGR.clone();
 
-    // =========================================================
-    // 1. PRE-PROCESAMIENTO: CORRECCIÓN DE COLOR Y FONDO
-    // =========================================================
+	//--------------------------------------------------
+	// 1. Pre-procesamiento: Balance de Blancos
+	//--------------------------------------------------
 
     // Convertir a float [0..1]
     Mat imgFloat;
@@ -57,9 +63,9 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     // Clampear valores > 1.0
     threshold(I_balanced, I_balanced, 1.0, 1.0, THRESH_TRUNC);
 
-    // =========================================================
-    // 2. TRANSFORMACIÓN Y MEJORA HSV
-    // =========================================================
+	// ----------------------------------------------------------
+	// 2. Transformación a HSV y Correcciones
+	// ----------------------------------------------------------
 
     Mat hsv_temp;
     cvtColor(I_balanced, hsv_temp, COLOR_BGR2HSV);
@@ -99,7 +105,7 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     Mat I_corrected;
     cvtColor(hsv_temp, I_corrected, COLOR_HSV2BGR);
 
-    // GUARDAR DEBUG: Normalizada
+    // Guardar debug: Normalizada
     if (debug) {
         Mat debugNorm;
         I_corrected.convertTo(debugNorm, CV_8U, 255.0);
@@ -114,18 +120,18 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     Mat S_final = channelsHSV[1]; // Este es el S que usaremos
     Mat V = channelsHSV[2];
 
-    // GUARDAR DEBUG: Canales HSV
+    // Guardar debug: Canales HSV
     if (debug) {
         H.convertTo(debug->H, CV_8U, 1.0);
         S_final.convertTo(debug->S, CV_8U, 255.0);
         V.convertTo(debug->V, CV_8U, 255.0);
     }
 
-    // =========================================================
-    // 3. SEGMENTACIÓN (OTSU EN CANAL S)
-    // =========================================================
+	// ----------------------------------------------------------
+	// 3. Segmentación por Otsu en S
+	//  ----------------------------------------------------------
 
-    // Convertir S a 8-bit [0..255] para usar Otsu de OpenCV
+    // Convertir S a 8-bit [0..255] para usar Otsu
     Mat S_8u;
     S_final.convertTo(S_8u, CV_8U, 255.0);
     if (debug) debug->S_proc = S_8u.clone();
@@ -135,9 +141,9 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     threshold(S_8u, mask_S, 0, 255, THRESH_BINARY | THRESH_OTSU);
     if (debug) debug->mask_otsu = mask_S.clone();
 
-    // =========================================================
-    // 4. MORFOLOGÍA
-    // =========================================================
+	// ----------------------------------------------------------
+	// 4. Morfología
+	// ----------------------------------------------------------
 
     // A. Sutura inicial (imclose disk 3 -> Size 7x7)
     Mat se_suture = getStructuringElement(MORPH_ELLIPSE, Size(7, 7));
@@ -171,9 +177,9 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     morphologyEx(mask_morph, mask_final, MORPH_OPEN, se_smooth);
     if (debug) debug->mask_final = mask_final.clone();
 
-    // =========================================================
-    // 5. EXTRACCIÓN Y FILTRADO
-    // =========================================================
+	// ----------------------------------------------------------
+	// 5. Extracción de Contornos y Filtrado
+	// ----------------------------------------------------------
 
     vector<vector<Point>> contours;
     findContours(mask_final, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
@@ -190,7 +196,7 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
         if (a > max_area) max_area = a;
     }
 
-    // Umbrales definidos en MATLAB
+    // Umbrales definidos
     double umbral_area_rel = 0.15 * max_area;
     double umbral_area_abs = 1000.0;
     double umbral_ratio_max = 4.0;
@@ -205,7 +211,7 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
 
         // 1. Filtro Área
         if (area <= umbral_area_rel || area <= umbral_area_abs) {
-            // qDebug() << "  [Descartado] Area insuficiente:" << area;
+           // qDebug() << "  [Descartado] Area insuficiente:" << area;
             continue;
         }
 
@@ -235,7 +241,7 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
             continue;
         }
 
-        // --- OBJETO ACEPTADO ---
+        // OBJETO ACEPTADO 
         qDebug() << "  [ACEPTADO] ID:" << id_counter << " | Area:" << area << " | Sat:" << meanSat;
 
         // Calcular métricas adicionales
@@ -279,15 +285,15 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
         resultados.push_back(pieza);
     }
 
-    // =========================================================
-    // 6. ORDENAR RESULTADOS POR ÁREA
-    // =========================================================
+	// ----------------------------------------------------------
+	// 6. Ordenar resultados por área (mayor a menor)
+	// ----------------------------------------------------------
     std::sort(resultados.begin(), resultados.end(),
         [](const ResultadoPieza& a, const ResultadoPieza& b) {
             return a.area > b.area;
         });
 
-    // Reasignar IDs en orden (opcional, para que 1 sea el más grande)
+    // Reasignar IDs en orden (para que 1 sea el más grande)
     for (size_t i = 0; i < resultados.size(); ++i) {
         resultados[i].id = (int)(i + 1);
     }
@@ -295,7 +301,9 @@ vector<ResultadoPieza> Segmentacion::Segmentar(const Mat& inputBGR, DebugInfo* d
     return resultados;
 }
 
-// --- IMPLEMENTACIONES AUXILIARES---
+// ---------------------------------------------------------
+// Métodos Auxiliares
+// ---------------------------------------------------------
 Mat Segmentacion::ImFillHoles(const Mat& mask)
 {
     Mat mask_padded;
@@ -354,7 +362,7 @@ void Segmentacion::MejorarContrasteV(cv::Mat& imgBGR)
     cv::split(hsv, chans);
     cv::Mat& V = chans[2]; // float [0..1]
 
-    // Recolectar TODOS los valores (incluye ceros, como MATLAB)
+    // Recolectar todos los valores
     std::vector<float> values;
     values.reserve(V.total());
     for (int r = 0; r < V.rows; ++r) {
@@ -372,7 +380,7 @@ void Segmentacion::MejorarContrasteV(cv::Mat& imgBGR)
     float denom = p95 - p1;
     if (std::abs(denom) < 1e-6f) denom = 1e-6f;
 
-    // Ecualización idéntica a MATLAB
+    // Ecualización
     for (int r = 0; r < V.rows; ++r) {
         float* p = V.ptr<float>(r);
         for (int c = 0; c < V.cols; ++c) {

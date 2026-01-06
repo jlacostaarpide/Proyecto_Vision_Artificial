@@ -1,3 +1,7 @@
+//-------------------------------------------------------------------------------------------
+// Script para la pestaña de Entrenamiento en la interfaz
+//-------------------------------------------------------------------------------------------
+
 #include "TrainingWorker.h"
 #include "Segmentacion.h"
 #include "ExtractCaracteristicas.h"
@@ -12,7 +16,9 @@
 #include <iomanip>
 #include <fstream>
 
-
+//-------------------------------------------------------------------------------------------
+// Implementación de TrainingWorker con todos los pasos
+//-------------------------------------------------------------------------------------------
 void TrainingWorker::process()
 {
     // Solo ejecutamos segmentación
@@ -28,6 +34,10 @@ void TrainingWorker::process()
     emit finished();
 }
 
+
+//-------------------------------------------------------------------------------------------
+// Paso 1: Segmentación por lotes
+//-------------------------------------------------------------------------------------------
 void TrainingWorker::runStepSegmentation()
 {
     if (cfg.skipSegmentation) {
@@ -104,7 +114,7 @@ void TrainingWorker::runStepSegmentation()
             continue;
         }
 
-        // B. Llamar a TU función de segmentación existente
+        // B. Llamar a la función de segmentación existente
         // No necesitamos pasarle &debugInfo porque no queremos pintar gráficos, solo resultados
         std::vector<ResultadoPieza> resultados = Segmentacion::Segmentar(rawImg, nullptr);
 
@@ -149,6 +159,9 @@ void TrainingWorker::runStepSegmentation()
     }
 }
 
+//-------------------------------------------------------------------------------------------
+// Paso 2: Extracción de características
+//-------------------------------------------------------------------------------------------
 void TrainingWorker::runStepExtraction()
 {
     // 1. Verificar si el usuario quiere saltar este paso
@@ -267,7 +280,7 @@ void TrainingWorker::runStepExtraction()
     emit logMessage(QString("Extraccion completada. Muestras: %1. Saltadas: %2").arg(processed).arg(skipped));
 
     // 4. Guardar a Archivo
-    // IMPORTANTE: Convertimos la ruta a Local8Bit para que Windows acepte la "ñ" en OpenCV
+    // Convertimos la ruta a Local8Bit para que Windows acepte la "ñ" en OpenCV
     // Si la ruta del archivo features tiene directorios que no existen, hay que crearlos antes.
     QFileInfo featureFileInfo(cfg.featuresFile);
     QDir featureDir = featureFileInfo.absoluteDir();
@@ -295,6 +308,9 @@ void TrainingWorker::runStepExtraction()
     }
 }
 
+//-------------------------------------------------------------------------------------------
+// Paso 3: Generación de Plantillas de Orientación
+//-------------------------------------------------------------------------------------------
 void TrainingWorker::runStepTemplates()
 {
     if (cfg.skipTemplates) {
@@ -319,6 +335,9 @@ void TrainingWorker::runStepTemplates()
     emit progressTemplates(100);
 }
 
+//-------------------------------------------------------------------------------------------
+// Paso 4: Entrenamiento del modelo SVM con Grid Search y K-Fold CV
+//-------------------------------------------------------------------------------------------
 void TrainingWorker::runStepTraining()
 {
     // 1. Verificar si saltamos el paso
@@ -378,7 +397,7 @@ void TrainingWorker::runStepTraining()
     samples.convertTo(samples, CV_32F);
     responses.convertTo(responses, CV_32S); // Etiquetas a entero
 
-    // 3. Normalización (Scaling) - LÓGICA IDÉNTICA A RUNTRAIN
+    // 3. Normalización 
     // Calculamos media y desviación típica
     cv::Mat meanVec = cv::Mat::zeros(1, samples.cols, CV_64F);
     cv::Mat stdVec = cv::Mat::zeros(1, samples.cols, CV_64F);
@@ -448,7 +467,7 @@ void TrainingWorker::runStepTraining()
                 return;
             }
 
-            // --- INICIO K-FOLD MANUAL ---
+            //  Inicio k-fold 
             int correctTotal = 0;
             int totalSamples = 0;
 
@@ -492,12 +511,11 @@ void TrainingWorker::runStepTraining()
                     totalSamples++;
                 }
             }
-            // --- FIN K-FOLD ---
+			// Fin k-fold
 
             double acc = (totalSamples > 0) ? (100.0 * correctTotal / totalSamples) : 0.0;
 
-            // Log detallado (opcional, puede saturar si hay muchos)
-            // emit logMessage(QString("C=%1 Gamma=%2 -> Acc=%3%").arg(C).arg(gamma).arg(acc, 0, 'f', 2));
+          
 
             if (acc > bestAcc) {
                 bestAcc = acc;
@@ -516,7 +534,7 @@ void TrainingWorker::runStepTraining()
         .arg(bestC).arg(bestGamma).arg(bestAcc, 0, 'f', 2));
 
     // 5. Entrenamiento Final
-    // Re-entrenamos con TODOS los datos usando los mejores parámetros encontrados
+    // Re-entrenamos con todos los datos usando los mejores parámetros encontrados
     emit logMessage("Entrenando modelo final con todos los datos...");
 
     cv::Ptr<cv::ml::SVM> finalSvm = cv::ml::SVM::create();
@@ -545,6 +563,9 @@ void TrainingWorker::runStepTraining()
     emit progressTrain(100);
 }
 
+//-------------------------------------------------------------------------------------------
+// Paso 5: Evaluación del modelo entrenado
+//-------------------------------------------------------------------------------------------
 void TrainingWorker::runStepEvaluation()
 {
     // 1. Verificar si saltamos el paso

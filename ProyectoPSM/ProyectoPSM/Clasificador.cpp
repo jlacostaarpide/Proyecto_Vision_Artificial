@@ -1,5 +1,6 @@
-// Clasificador.cpp
-// Único ejecutable con subcomandos: train, eval, extract
+//----------------------------------------------------------------
+// Script para la implementación de la clase Clasificador
+//----------------------------------------------------------------
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/ml.hpp>
@@ -33,6 +34,9 @@ Clasificador::Clasificador() {
     hasScaler = false;
 }
 
+//----------------------------------------------------------------
+// Carga el modelo SVM y opcionalmente el scaler (mean/stdv)
+//----------------------------------------------------------------
 bool Clasificador::Load(const std::string& modelPath, const std::string& scalerPath) {
     svmLoaded = false;
     hasScaler = false;
@@ -67,6 +71,9 @@ bool Clasificador::Load(const std::string& modelPath, const std::string& scalerP
     return true;
 }
 
+//----------------------------------------------------------------
+// Predice la clase de una imagen recortada
+//----------------------------------------------------------------
 int Clasificador::Predict(const cv::Mat& img) {
     if (!svmLoaded || img.empty()) return -1;
 

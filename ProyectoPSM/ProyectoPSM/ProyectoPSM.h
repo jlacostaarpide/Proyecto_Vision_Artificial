@@ -97,7 +97,7 @@ private:
     SegmentationWorker* segWorker = nullptr;
     QThread* segThread = nullptr;
 
-    // AHORA guardamos una LISTA de cajas para dibujar
+    // Ahoara guardamos una lista de cajas para dibujar
     std::vector<QRectF> lastBoxesNormalized;
 
     QString fileName;
@@ -132,14 +132,14 @@ private slots:
         const std::vector<QImage>& thumbnails,
         const std::vector<cv::Mat>& crops);
 
-    // timer slot que pide un frame para segmentar (no bloqueante)
+    // Timer slot que pide un frame para segmentar (no bloqueante)
     void onSegmentationTimer();
 
     // Clasificación
     void onCheckLiveClass(bool checked);
     void UpdateClassificationResults(std::vector<QRectF> boxes, std::vector<QString> labels);
 
-    // selección/procesado de imagen desde fichero (offline)
+    // Selección/procesado de imagen desde fichero (offline)
     void CapturarYAnalizar();
     void CargarImagenDisco();
     void RecalcularSegmentacion();
