@@ -922,6 +922,7 @@ void ProyectoPSM::CapturarYAnalizar()
 
     // 2. Congelar imagen actual
     CapturedImage = LastImage.clone();
+    lastResultados_.clear();
 
     //// APAGADO AUTOMÁTICO
     //    if (ui.pbtnEncender->isChecked()) {
