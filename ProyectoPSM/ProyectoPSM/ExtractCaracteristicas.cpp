@@ -9,7 +9,6 @@
 #include <numeric>
 #include <cmath>
 #include <vector>
-#include <QDebug>
 
 using namespace cv;
 
@@ -52,13 +51,13 @@ namespace FeatureExtractor {
     // ----------------- Extrae las 8 caracteristicas de color --------------------
 	//-----------------------------------------------------------------------------
     static std::vector<double> local_extractColorFeatures(const Mat& I_float01) {
-        
+
         std::vector<double> feat(8, 0.0);
         if (I_float01.empty()) return feat;
 
         Mat I = I_float01.clone();
 
-        // Convierte BGR (0..1) a Lab 
+        // Convierte BGR (0..1) a Lab
         Mat Ilab;
         cvtColor(I, Ilab, COLOR_BGR2Lab); // float -> L in [0..100]
         std::vector<Mat> labChannels;
@@ -84,27 +83,26 @@ namespace FeatureExtractor {
         merge(lab2, Ilab2);
         Mat I_corr;
         cvtColor(Ilab2, I_corr, COLOR_Lab2BGR);
-      
+
         cv::min(I_corr, 1.0f, I_corr);
         cv::max(I_corr, 0.0f, I_corr);
 
-        // HSV 
+        // HSV
         Mat hsv;
         cvtColor(I_corr, hsv, COLOR_BGR2HSV);
         std::vector<Mat> hsvC;
         split(hsv, hsvC);
 
-        Mat H = hsvC[0]; 
+        Mat H = hsvC[0];
         Mat S = hsvC[1];
         Mat V = hsvC[2];
 
-        // Normalizar H a [0..1] si viene en grados 
+        // Normalizar H a [0..1] si viene en grados
         double hmin, hmax;
         minMaxLoc(H, &hmin, &hmax);
 
         // Si es float y el max parece "grados", lo normalizamos
         if ((H.depth() == CV_32F || H.depth() == CV_64F) && hmax > 2.0) {
-            qDebug() << "AVISO [ExtractCaracteristicas]: Canal H detectado en grados (Max:" << hmax << "). Normalizando a 0-1...";
             H = H * (1.0 / 360.0);
         }
 
@@ -176,7 +174,7 @@ namespace FeatureExtractor {
 
 	//----------------------------------------------------------------------------------------------------
 	//Funciones auxiliares para características de forma:
-    // (bwareaopen_u8,fillSmallHoles, eccentricityFromMoments, morphologicalSkeleton, computeFD5_fromMask) 
+    // (bwareaopen_u8,fillSmallHoles, eccentricityFromMoments, morphologicalSkeleton, computeFD5_fromMask)
 	//----------------------------------------------------------------------------------------------------
     static cv::Mat bwareaopen_u8(const cv::Mat& binU8, int minArea)
     {
@@ -199,7 +197,7 @@ namespace FeatureExtractor {
         cv::Mat floodInv; cv::bitwise_not(flood, floodInv);
 
         cv::Mat filled = maskU8 | floodInv;
-        cv::Mat holes = filled & (~maskU8); 
+        cv::Mat holes = filled & (~maskU8);
 
 		//Rellenar solo los pequeños
         std::vector<std::vector<cv::Point>> hc;
@@ -249,7 +247,7 @@ namespace FeatureExtractor {
 
     static cv::Mat morphologicalSkeleton(const cv::Mat& binU8)
     {
-        // skeleton aproximado 
+        // skeleton aproximado
         cv::Mat skel(binU8.size(), CV_8U, cv::Scalar(0));
         cv::Mat m = binU8.clone();
         cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(3, 3));
@@ -268,7 +266,7 @@ namespace FeatureExtractor {
 
     static double computeFD5_fromMask(const cv::Mat& maskU8, int Nboundary = 128)
     {
-        
+
         std::vector<std::vector<cv::Point>> cnts;
         cv::findContours(maskU8.clone(), cnts, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
         if (cnts.empty()) return 0.0;
@@ -283,7 +281,7 @@ namespace FeatureExtractor {
         const auto& b = cnts[imax];
         if (b.size() < 2) return 0.0;
 
-      
+
         int M = (int)b.size();
         std::vector<std::complex<double>> z0(M);
         for (int i = 0; i < M; ++i) z0[i] = { (double)b[i].x, (double)b[i].y };
@@ -403,7 +401,7 @@ namespace FeatureExtractor {
         }
 
         // 7. Orientación usando momentos
-       
+
         double angleDeg = 0.0;
         {
             cv::Moments mu = cv::moments(mask, true);
@@ -442,7 +440,7 @@ namespace FeatureExtractor {
             maskR = maskR(bb).clone();
         }
 
-    
+
         double A = (double)cv::countNonZero(maskR);
         if (A <= 1.0) return feat;
 
@@ -492,7 +490,7 @@ namespace FeatureExtractor {
         }
         double Solidity = A / ConvexArea;
 
-        // Eccentricity 
+        // Eccentricity
         double Eccentricity = eccentricityFromMoments(maskR);
 
         // EulerNumber = 1 - numHoles
