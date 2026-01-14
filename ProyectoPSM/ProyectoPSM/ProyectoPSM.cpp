@@ -126,7 +126,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     LiveClassificationEnabled = false;
     ClassProcessing = false;
     segInFlight = 0;
-    SegmentationIntervalMs = 40;
+    SegmentationIntervalMs = 10;
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
     m_featureNames = {
         "Extent", "Solidity", "V_mean", "Eccentricity", "SkelLenNorm", "Circularity",
