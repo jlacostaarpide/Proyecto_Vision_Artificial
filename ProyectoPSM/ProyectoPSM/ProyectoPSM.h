@@ -11,6 +11,7 @@
 #include <QRectF>
 #include <QString>
 #include <memory>
+#include <QElapsedTimer>
 
 #include "ui_ProyectoPSM.h"
 #include "VideoAcquisition.h"
@@ -92,6 +93,14 @@ private:
     QTimer* segTimer = nullptr;
     int SegmentationIntervalMs = 40;
     std::chrono::steady_clock::time_point LastSegmentationTime;
+
+    // Contador de FPS
+    int fpsCounter = 0;
+    int procCounter = 0;
+    double fpsSmoothed = 0.0;
+    double procSmoothed = 0.0;
+    QTimer* fpsTimer = nullptr;
+    QElapsedTimer perfTimer;
 
     // Worker threads
     SegmentationWorker* segWorker = nullptr;
@@ -178,4 +187,7 @@ private slots:
     void onGenerateScatter();
     void onSaveScatter();
     void onScatterModeChanged();
+
+    // Contador de FPS
+    void onFpsTimerTimeout();
 };

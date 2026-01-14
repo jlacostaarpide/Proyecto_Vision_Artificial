@@ -82,6 +82,35 @@
            </widget>
           </item>
           <item>
+           <widget class="QLabel" name="lblFPS">
+            <property name="styleSheet">
+             <string>font-weight: bold; color: #333; margin-top: 5px;</string>
+            </property>
+            <property name="text">
+             <string>FPS: 0</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="lblProcRate">
+            <property name="toolTip">
+             <string>Tasa de procesamiento real (Segmentación + Clasificación)</string>
+            </property>
+            <property name="styleSheet">
+             <string>font-weight: bold; color: #0055ff; margin-top: 2px;</string>
+            </property>
+            <property name="text">
+             <string>Proc: 0 img/s</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
            <spacer name="verticalSpacer">
             <property name="orientation">
              <enum>Qt::Orientation::Vertical</enum>

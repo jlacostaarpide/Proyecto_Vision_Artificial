@@ -241,6 +241,19 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     connect(ui.btnSetModel, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseModel);
     connect(ui.btnSetScaler, &QPushButton::clicked, this, &ProyectoPSM::onSetBrowseScaler);
     connect(ui.chkUseDbNames, &QCheckBox::toggled, this, &ProyectoPSM::UpdateFileNameLabel);
+
+    // Configuración de métricas FPS y Procesamiento
+    fpsCounter = 0;
+    procCounter = 0;
+    fpsSmoothed = 0.0;
+    procSmoothed = 0.0;
+
+    fpsTimer = new QTimer(this);
+    fpsTimer->setInterval(500);
+    connect(fpsTimer, &QTimer::timeout, this, &ProyectoPSM::onFpsTimerTimeout);
+
+    fpsTimer->start();
+    perfTimer.start();
 }
 
 ProyectoPSM::~ProyectoPSM()
@@ -737,9 +750,48 @@ void ProyectoPSM::EnableButtons(bool StartCapture)
     }
 }
 
+void ProyectoPSM::onFpsTimerTimeout()
+{
+    // Calcular tiempo real
+    qint64 elapsedMs = perfTimer.restart();
+
+    if (elapsedMs == 0) return;
+
+    double currentFps = (fpsCounter * 1000.0) / static_cast<double>(elapsedMs);
+    double currentProc = (procCounter * 1000.0) / static_cast<double>(elapsedMs);
+
+    // Elimina los saltos bruscos.
+    double alpha = 0.15;
+
+    if (fpsSmoothed < 0.1) fpsSmoothed = currentFps;
+    else fpsSmoothed = (fpsSmoothed * (1.0 - alpha)) + (currentFps * alpha);
+
+    if (procSmoothed < 0.1) procSmoothed = currentProc;
+    else procSmoothed = (procSmoothed * (1.0 - alpha)) + (currentProc * alpha);
+
+    // Actualizar UI
+    if (ui.lblFPS) {
+        ui.lblFPS->setText(QString("FPS: %1").arg(fpsSmoothed, 0, 'f', 1));
+
+        // Color
+        if (fpsSmoothed < 10.0) ui.lblFPS->setStyleSheet("font-weight: bold; color: red; margin-top: 5px;");
+        else if (fpsSmoothed < 20.0) ui.lblFPS->setStyleSheet("font-weight: bold; color: orange; margin-top: 5px;");
+        else ui.lblFPS->setStyleSheet("font-weight: bold; color: #333; margin-top: 5px;");
+    }
+
+    if (ui.lblProcRate) {
+        ui.lblProcRate->setText(QString("Proc: %1 img/s").arg(procSmoothed, 0, 'f', 1));
+    }
+
+    // Resetear contadores crudos
+    fpsCounter = 0;
+    procCounter = 0;
+}
+
 void ProyectoPSM::NewImage(cv::Mat Img)
 {
     if (Img.empty()) return;
+    fpsCounter++;
     LastImage = std::move(Img);
     ShowImage(); // Muestra en lblVideoLive
     ++ImageIndex;
@@ -900,6 +952,11 @@ void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes,
     SegProcessing = false;
     segInFlight.fetch_sub(1);
 
+	// Contador de frames procesados
+    if (!LiveClassificationEnabled) {
+        procCounter++;
+    }
+
     // Si la clasificación está activa y el worker está libre, le pasamos los datos
     if (LiveClassificationEnabled && !ClassProcessing.load()) {
         ClassProcessing = true;
@@ -946,10 +1003,10 @@ void ProyectoPSM::onCheckLiveClass(bool checked)
 
 void ProyectoPSM::UpdateClassificationResults(std::vector<QRectF> boxes, std::vector<QString> labels)
 {
+    procCounter++;
     lastClassBoxes = boxes;
     lastClassLabels = labels;
     ClassProcessing = false;
-    // ShowImage se actualizará automáticamente en el siguiente frame de video (NewImage)
 }
 
 //----------------------------------------------------------------------------
