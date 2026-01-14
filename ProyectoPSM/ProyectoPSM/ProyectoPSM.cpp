@@ -801,17 +801,38 @@ void ProyectoPSM::ShowImage()
             int w = static_cast<int>(boxNorm.width() * scaled.width());
             int h = static_cast<int>(boxNorm.height() * scaled.height());
 
-            // Dibujar caja
-            //p.drawRect(x, y, w, h);
-
-            // Dibujar texto con fondo
+            // Preparar texto y métricas
             QString text = lastClassLabels[i];
             QFontMetrics fm(font);
             int tw = fm.horizontalAdvance(text);
             int th = fm.height();
+            int padding = 4;
 
-            p.fillRect(x, y - th - 4, tw + 4, th + 4, QColor(0, 0, 0, 150));
-            p.drawText(x + 2, y - 4, text);
+            // Dimensiones totales del rectángulo de fondo
+            int labelW = tw + padding;
+            int labelH = th + padding;
+
+            // Calcular posición inicial
+            // Encima de la caja, alineado a la izquierda
+            int labelX = x;
+            int labelY = y - labelH;
+
+            // Si la etiqueta se sale por la derecha
+            if (labelX + labelW > scaled.width()) {
+                labelX = scaled.width() - labelW;
+            }
+            if (labelX < 0) labelX = 0;
+
+            // Si la etiqueta se sale por arriba
+            if (labelY < 0) {
+                labelY = y;
+            }
+
+            // Dibujar fondo negro
+            p.fillRect(labelX, labelY, labelW, labelH, QColor(0, 0, 0, 150));
+
+            // Dibujar texto
+            p.drawText(labelX + 2, labelY + th, text);
         }
     }
     ui.lblVideoLive->setPixmap(scaled);
