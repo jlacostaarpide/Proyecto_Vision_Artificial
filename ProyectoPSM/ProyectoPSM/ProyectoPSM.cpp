@@ -1112,7 +1112,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         }
     }
 
-	// 2. Carga de SVM si no está cargado
+    // 2. Carga de SVM si no está cargado
     if (!svmClf_->IsLoaded()) {
         std::string pathModel = ui.txtSetModel->text().toStdString();
         std::string pathScaler = ui.txtSetScaler->text().toStdString();
@@ -1138,7 +1138,6 @@ void ProyectoPSM::ProcesarClasificacionOffline()
     QImage displayImg = QImage(rgbMat.data, rgbMat.cols, rgbMat.rows,
         static_cast<int>(rgbMat.step), QImage::Format_RGB888).copy();
 
-  
     // 5. Iniciar el pintor
     QPainter p(&displayImg);
 
@@ -1152,7 +1151,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
     // 7. Limpiamos miniaturas
     QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
     for (int k = 0; k < 3; ++k) thumbs[k]->clear();
-    
+
     for (size_t i = 0; i < lastResultados_.size(); ++i) {
         ResultadoPieza& res = lastResultados_[i];
         if (res.imagenRecortada.empty()) continue;
@@ -1173,7 +1172,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         }
 
         // --- Paso B: ORIENTACIÓN ---
-        QString labelInfo = "Desc."; // Ahora usamos QString directamente
+        QString labelInfo = "Desc.";
 
         if (svmExito) {
             OrientationResult orr;
@@ -1187,7 +1186,6 @@ void ProyectoPSM::ProcesarClasificacionOffline()
                 catch (...) {}
             }
 
-            // Usamos QString::arg para formatear
             if (orientExito) {
                 labelInfo = QString("Cód: %1 Orientación: %2º")
                     .arg(QString::fromStdString(codigoPieza))
@@ -1204,45 +1202,59 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 
         // --- Parte de visualizacion ---
 
-        // 1. Miniatura (se mantiene igual usando DisplayMat)
+        // 1. Miniatura
         if (i < 3) {
             DisplayMat(thumbs[i], res.imagenRecortada);
         }
 
         // 2. Dibujar sobre la imagen principal usando QPainter
 
-        // Convertir coordenadas de OpenCV a Qt
+        // Convertir coordenadas
         int x = res.boundingBox.x;
         int y = res.boundingBox.y;
         int w = res.boundingBox.width;
         int h = res.boundingBox.height;
 
-        // A. Dibujar rectángulo verde
+        // Dibujar rectángulo verde
         QPen pen(Qt::green);
         pen.setWidth(3);
         p.setPen(pen);
         p.drawRect(x, y, w, h);
 
-        // B. Calcular tamaño del texto para el fondo negro
+        // Calcular métricas para el fondo y posición
         QFontMetrics fm(font);
-        int textWidth = fm.horizontalAdvance(labelInfo);
-        int textHeight = fm.height();
+        int tw = fm.horizontalAdvance(labelInfo);
+        int th = fm.height();
         int padding = 4;
 
-        // Posición del texto (arriba de la caja, o abajo si se sale)
-        int textX = x;
-        int textY = y - padding;
-        if (textY < textHeight) textY = y + h + textHeight + padding;
+        int labelW = tw + padding;
+        int labelH = th + padding;
 
-        // C. Dibujar fondo negro semi-transparente
-        p.fillRect(textX, textY - textHeight, textWidth + (padding * 2), textHeight + padding, QColor(0, 0, 0, 180));
+        // Posición inicial
+        int labelX = x;
+        int labelY = y - labelH;
 
-        // D. Dibujar texto
+
+        // Si la etiqueta se sale por la derecha
+        if (labelX + labelW > displayImg.width()) {
+            labelX = displayImg.width() - labelW;
+        }
+        if (labelX < 0) labelX = 0;
+
+        // Si la etiqueta se sale por arriba
+        if (labelY < 0) {
+            labelY = y;
+        }
+
+        // Dibujar fondo negro
+        p.fillRect(labelX, labelY, labelW, labelH, QColor(0, 0, 0, 150));
+
+        // Dibujar texto encima
         p.setPen(Qt::green);
-        p.drawText(textX + padding, textY, labelInfo);
+        p.drawText(labelX + 2, labelY + th, labelInfo);
     }
 
-    p.end(); 
+    p.end();
 
     // Mostrar resultado final en el Label
     ui.lblOfflineMain->setPixmap(QPixmap::fromImage(displayImg)
