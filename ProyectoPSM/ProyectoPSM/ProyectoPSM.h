@@ -91,7 +91,7 @@ private:
     std::vector<QString> lastClassLabels;
 
     QTimer* segTimer = nullptr;
-    int SegmentationIntervalMs = 40;
+    int SegmentationIntervalMs = 10;
     std::chrono::steady_clock::time_point LastSegmentationTime;
 
     // Contador de FPS
