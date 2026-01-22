@@ -190,4 +190,7 @@ private slots:
 
     // Contador de FPS
     void onFpsTimerTimeout();
+
+    // Función desactivar botones
+    void ToggleAnalysisUI(bool enabled);
 };

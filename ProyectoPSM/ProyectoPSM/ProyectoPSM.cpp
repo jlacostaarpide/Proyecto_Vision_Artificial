@@ -1121,6 +1121,8 @@ void ProyectoPSM::CargarImagenDisco()
     QString fileName = QFileDialog::getOpenFileName(this, tr("Abrir Imagen"), startDir, tr("Images (*.png *.jpg *.bmp);;All (*)"));
     if (fileName.isEmpty()) return;
 
+    ToggleAnalysisUI(false);
+
     // 2. Cargar con QFile
     QFile f(fileName);
     if (!f.open(QIODevice::ReadOnly)) return;
@@ -1160,6 +1162,8 @@ void ProyectoPSM::CargarImagenDisco()
 
 	// Mostrar la imagen cargada
     DisplayMat(ui.lblOfflineMain, CapturedImage);
+
+	ToggleAnalysisUI(true);
 }
 
 void ProyectoPSM::RecalcularSegmentacion()
@@ -1169,7 +1173,9 @@ void ProyectoPSM::RecalcularSegmentacion()
         QMessageBox::warning(this, "Error", "No hay ninguna imagen cargada para clasificar.");
         return;
     }
+    ToggleAnalysisUI(false);
     ProcesarImagenOffline(CapturedImage);    
+    ToggleAnalysisUI(true);
 }
 
 //Funcion principal de segmentación offline 
@@ -1178,6 +1184,8 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
     if (img.empty()) return;
 
     ui.lblOfflineMain->setText("Procesando...");
+
+    ToggleAnalysisUI(false);
 
     // Actualizar tamaños de las labels sin que el usuario lo note
     this->setUpdatesEnabled(false);
@@ -1240,6 +1248,8 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
             else { thumbs[i]->clear(); thumbs[i]->setText("---"); }
         }
     }
+
+    ToggleAnalysisUI(true);
 }
 
 // Funcion principal de clasificación offline
@@ -1251,11 +1261,14 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         return;
     }
 
+    ToggleAnalysisUI(false);
+
     // Si no se ha segmentado aún, forzamos la segmentación primero
     if (lastResultados_.empty()) {
         RecalcularSegmentacion();
         if (lastResultados_.empty()) {
             QMessageBox::information(this, "Clasificar", "No se detectaron piezas en la imagen.");
+            ToggleAnalysisUI(true);
             return;
         }
     }
@@ -1267,12 +1280,14 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 
         if (!QFile::exists(QString::fromStdString(pathModel))) {
             QMessageBox::warning(this, "Error", "Configura la ruta del modelo en la pestaña Ajustes.");
+            ToggleAnalysisUI(true);
             return;
         }
 
         bool ok = svmClf_->Load(pathModel, pathScaler);
         if (!ok) {
             QMessageBox::warning(this, "Error Crítico", "No se pudo cargar el modelo SVM.\nVerifica las rutas en Ajustes.");
+            ToggleAnalysisUI(true);
             return;
         }
     }
@@ -1448,6 +1463,8 @@ void ProyectoPSM::ProcesarClasificacionOffline()
     // Mostrar resultado final en el Label
     ui.lblOfflineMain->setPixmap(QPixmap::fromImage(displayImg)
         .scaled(ui.lblOfflineMain->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+
+    ToggleAnalysisUI(true);
 }
 
 
@@ -1945,4 +1962,20 @@ void ProyectoPSM::onSaveScatter()
 
     QString fileName = QFileDialog::getSaveFileName(this, "Guardar Gráfico", "ScatterPlot.png", "Images (*.png *.jpg)");
     if (!fileName.isEmpty()) pix.save(fileName);
+}
+
+void ProyectoPSM::ToggleAnalysisUI(bool enabled)
+{
+    // Botones del panel de control de Análisis
+    ui.btnCargarDisco->setEnabled(enabled);
+    ui.btnRecalcSeg->setEnabled(enabled);
+    ui.btnRecalcClass->setEnabled(enabled);
+    ui.pbtnGuardar->setEnabled(enabled);
+    ui.btnGuardarComo->setEnabled(enabled);
+
+    // Botón de captura (para que no te manden otra foto mientras procesas)
+    ui.btnCapturarAnalizar->setEnabled(enabled);
+
+    // Forzamos que se pinten los cambios visuales (botones grises)
+    QApplication::processEvents();
 }
