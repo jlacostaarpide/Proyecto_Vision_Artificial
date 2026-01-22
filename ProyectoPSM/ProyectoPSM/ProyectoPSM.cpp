@@ -1032,6 +1032,16 @@ void ProyectoPSM::CapturarYAnalizar()
     ui.lblOfflineMain->clear();
     ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear(); ui.lblOfflineThumb4->clear();
 
+    // Limpiar pestañas de depuración
+    ui.lblHSV_1_Orig->clear(); ui.lblHSV_2_Norm->clear();
+    ui.lblHSV_3_H->clear(); ui.lblHSV_4_S->clear(); ui.lblHSV_5_V->clear();
+
+    ui.lblOtsu_1_S->clear(); ui.lblOtsu_2_Hist->clear(); ui.lblOtsu_3_Mask->clear();
+
+    ui.lblMorph_1_Bin->clear(); ui.lblMorph_2_Fill->clear();
+    ui.lblMorph_3_Clean->clear(); ui.lblMorph_4_Border->clear();
+    ui.lblMorph_5_Close->clear(); ui.lblMorph_6_Final->clear();
+
     // 5. Mostrar la imagen capturada tal cual
     DisplayMat(ui.lblOfflineMain, CapturedImage);
 }
@@ -1066,9 +1076,21 @@ void ProyectoPSM::CargarImagenDisco()
     // 5. Asegurar que estamos en la pestaña correcta
     ui.tabWidget->setCurrentWidget(ui.tabAnalysis);
 
-    // 6. Limpiar y mostrar imagen cruda
+    // 6. Limpiar
     ui.lblOfflineMain->clear();
     ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear(); ui.lblOfflineThumb4->clear();
+
+    // Limpiar pestañas de depuración
+    ui.lblHSV_1_Orig->clear(); ui.lblHSV_2_Norm->clear();
+    ui.lblHSV_3_H->clear(); ui.lblHSV_4_S->clear(); ui.lblHSV_5_V->clear();
+
+    ui.lblOtsu_1_S->clear(); ui.lblOtsu_2_Hist->clear(); ui.lblOtsu_3_Mask->clear();
+
+    ui.lblMorph_1_Bin->clear(); ui.lblMorph_2_Fill->clear();
+    ui.lblMorph_3_Clean->clear(); ui.lblMorph_4_Border->clear();
+    ui.lblMorph_5_Close->clear(); ui.lblMorph_6_Final->clear();
+
+	// Mostrar la imagen cargada
     DisplayMat(ui.lblOfflineMain, CapturedImage);
 }
 
