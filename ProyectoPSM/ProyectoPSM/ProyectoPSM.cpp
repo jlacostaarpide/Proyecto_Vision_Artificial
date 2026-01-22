@@ -1253,28 +1253,22 @@ void ProyectoPSM::ProcesarClasificacionOffline()
 
         // --- Paso B: ORIENTACIÓN ---
         QString labelInfo = "Desc.";
+        int yawDetectado = 0;
+        bool orientExito = false;
 
         if (svmExito) {
-            OrientationResult orr;
-            bool orientExito = false;
-
+            // Predicción de Orientación
             if (orientTemplatesLoaded_) {
                 try {
-                    orr = orientClf_->predict(res.imagenRecortada, codigoPieza);
+                    OrientationResult orr = orientClf_->predict(res.imagenRecortada, codigoPieza);
                     orientExito = orr.ok;
+                    if (orientExito) yawDetectado = orr.yaw;
                 }
                 catch (...) {}
             }
 
-            if (orientExito) {
-                labelInfo = QString("Cód: %1 Orientación: %2º")
-                    .arg(QString::fromStdString(codigoPieza))
-                    .arg(orr.yaw);
-            }
-            else {
-                labelInfo = QString("Cód: %1")
-                    .arg(QString::fromStdString(codigoPieza));
-            }
+            // Mostramos el Código
+            labelInfo = QString("Cód: %1").arg(QString::fromStdString(codigoPieza));
         }
         else {
             labelInfo = "Desconocido";
@@ -1295,43 +1289,89 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         int w = res.boundingBox.width;
         int h = res.boundingBox.height;
 
-        // Dibujar rectángulo verde
-        QPen pen(Qt::green);
+        // A. Dibujar rectángulo
+        QColor colorGuia = Qt::green;
+
+        QPen pen(colorGuia);
         pen.setWidth(3);
         p.setPen(pen);
         p.drawRect(x, y, w, h);
 
-        // Calcular métricas para el fondo y posición
-        QFontMetrics fm(font);
-        int tw = fm.horizontalAdvance(labelInfo);
-        int th = fm.height();
-        int padding = 4;
+        // B. Flecha de orientación
+        QColor colorIndicador = Qt::yellow;
 
-        int labelW = tw + padding;
-        int labelH = th + padding;
+        if (orientExito) {
+            // 1. Calcular centro de la pieza
+        int cx = x + w / 2;
+        int cy = y + h / 2;
 
-        // Posición inicial
-        int labelX = x;
-        int labelY = y - labelH;
+        // 2. Calcular longitud de la flecha
+        double radio = std::min<double>(w, h) / 2.0;
+
+        // 3. Calcular ángulo final en radianes
+        // 225 grados (Arriba-Izquierda) es el 0 del sistema
+        double anguloBase = 225.0;
+        double anguloRad = qDegreesToRadians(anguloBase + yawDetectado);
+
+        // 4. Calcular punto final
+        int endX = cx + static_cast<int>(radio * qCos(anguloRad));
+        int endY = cy + static_cast<int>(radio * qSin(anguloRad));
+
+        // 5. Dibujar línea central (eje)
+        QPen penArrow(colorIndicador);
+        penArrow.setWidth(4);
+        p.setPen(penArrow);
+        p.drawLine(cx, cy, endX, endY);
+
+        // 6. Dibujar círculo en el origen (centro) y la punta
+        double arrowSize = 30.0;
+        double angleWing1 = anguloRad + M_PI + 0.5;
+        double angleWing2 = anguloRad + M_PI - 0.5;
+
+        QPoint p1(endX + static_cast<int>(arrowSize * qCos(angleWing1)),
+            endY + static_cast<int>(arrowSize * qSin(angleWing1)));
+        QPoint p2(endX + static_cast<int>(arrowSize * qCos(angleWing2)),
+            endY + static_cast<int>(arrowSize * qSin(angleWing2)));
+
+        QPolygon arrowHead;
+        arrowHead << QPoint(endX, endY) << p1 << p2;
+
+        p.setBrush(colorIndicador);
+        p.setPen(Qt::NoPen);
+        p.drawPolygon(arrowHead);
+        p.drawEllipse(QPoint(cx, cy), 5, 5);
+    }
+
+    // C. Etiqueta de Texto
+    QFontMetrics fm(font);
+    int tw = fm.horizontalAdvance(labelInfo);
+    int th = fm.height();
+    int padding = 4;
+
+    int labelW = tw + padding;
+    int labelH = th + padding;
+
+    // Posición inicial
+    int labelX = x;
+    int labelY = y - labelH;
 
 
-        // Si la etiqueta se sale por la derecha
-        if (labelX + labelW > displayImg.width()) {
-            labelX = displayImg.width() - labelW;
-        }
-        if (labelX < 0) labelX = 0;
+    // Si la etiqueta se sale por la derecha
+    if (labelX + labelW > displayImg.width()) {
+        labelX = displayImg.width() - labelW;
+    }
+    if (labelX < 0) labelX = 0;
 
-        // Si la etiqueta se sale por arriba
-        if (labelY < 0) {
-            labelY = y;
-        }
+    if (labelY < 0) {
+        labelY = y;
+    }
 
-        // Dibujar fondo negro
-        p.fillRect(labelX, labelY, labelW, labelH, QColor(0, 0, 0, 150));
+    // Fondo negro opaco para legibilidad
+    p.fillRect(labelX, labelY, labelW, labelH, QColor(0, 0, 0, 200));
 
-        // Dibujar texto encima
-        p.setPen(Qt::green);
-        p.drawText(labelX + 2, labelY + th, labelInfo);
+    // Texto en color destacado
+    p.setPen(colorGuia);
+    p.drawText(labelX + 2, labelY + th, labelInfo);
     }
 
     p.end();
