@@ -819,25 +819,23 @@ void ProyectoPSM::ShowImage()
 
     // Dibujar los bonding boxes (Segmentación en vivo)
     if (LiveSegmentationEnabled && !lastBoxesNormalized.empty()) {
-        QPen pen(Qt::green);
-        pen.setWidth(3);
-        p.setPen(pen);
-
-        for (size_t i = 0; i < lastBoxesNormalized.size(); ++i) {
-            const auto& boxNorm = lastBoxesNormalized[i];
-            int x = static_cast<int>(boxNorm.x() * scaled.width());
-            int y = static_cast<int>(boxNorm.y() * scaled.height());
-            int w = static_cast<int>(boxNorm.width() * scaled.width());
-            int h = static_cast<int>(boxNorm.height() * scaled.height());
-
-            p.drawRect(x, y, w, h);
+        // Solo cajas verdes simples si no hay clasificación
+        if (!LiveClassificationEnabled) {
+            QPen pen(Qt::green);
+            pen.setWidth(3);
+            p.setPen(pen);
+            for (const auto& boxNorm : lastBoxesNormalized) {
+                int x = static_cast<int>(boxNorm.x() * scaled.width());
+                int y = static_cast<int>(boxNorm.y() * scaled.height());
+                int w = static_cast<int>(boxNorm.width() * scaled.width());
+                int h = static_cast<int>(boxNorm.height() * scaled.height());
+                p.drawRect(x, y, w, h);
+            }
         }
     }
-	// Dibujar clasificaciones en vivo
+
+    // Dibujar clasificaciones en vivo
     if (LiveClassificationEnabled && !lastClassBoxes.empty()) {
-        QPen pen(Qt::green);
-        pen.setWidth(2);
-        p.setPen(pen);
 
         QFont font = p.font();
         font.setPixelSize(std::max<double>(14, scaled.height() / 20));
@@ -848,24 +846,93 @@ void ProyectoPSM::ShowImage()
             if (i >= lastClassLabels.size()) break;
 
             const auto& boxNorm = lastClassBoxes[i];
+
+            // Convertir coordenadas normalizadas a píxeles
             int x = static_cast<int>(boxNorm.x() * scaled.width());
             int y = static_cast<int>(boxNorm.y() * scaled.height());
             int w = static_cast<int>(boxNorm.width() * scaled.width());
             int h = static_cast<int>(boxNorm.height() * scaled.height());
 
-            // Preparar texto y métricas
-            QString text = lastClassLabels[i];
+			// Parsear datos de la etiqueta
+            QString fullText = lastClassLabels[i];
+            QString labelInfo = fullText;
+            int yawDetectado = 0;
+            bool orientExito = false;
+
+            if (fullText.contains("Orientación:")) {
+                orientExito = true;
+                int idx = fullText.indexOf("Orientación:");
+                QString angStr = fullText.mid(idx + 12).remove("º").trimmed();
+                yawDetectado = angStr.toInt();
+
+                labelInfo = fullText.left(idx).trimmed();
+            }
+
+            // DIBUJO
+
+            // A. Dibujar rectángulo
+            QColor colorGuia = Qt::green;
+
+            QPen pen(colorGuia);
+            pen.setWidth(3);
+            p.setPen(pen);
+            p.drawRect(x, y, w, h);
+
+            // B. Flecha de orientación
+            QColor colorIndicador = Qt::yellow;
+
+            if (orientExito) {
+                // 1. Calcular centro de la pieza
+                int cx = x + w / 2;
+                int cy = y + h / 2;
+
+                // 2. Calcular longitud de la flecha
+                double radio = std::min<double>(w, h) / 2.0;
+
+                // 3. Calcular ángulo final en radianes
+                // 225 grados (Arriba-Izquierda) es el 0 del sistema
+                double anguloBase = 225.0;
+                double anguloRad = qDegreesToRadians(anguloBase + yawDetectado);
+
+                // 4. Calcular punto final
+                int endX = cx + static_cast<int>(radio * qCos(anguloRad));
+                int endY = cy + static_cast<int>(radio * qSin(anguloRad));
+
+                // 5. Dibujar línea central (eje)
+                QPen penArrow(colorIndicador);
+                penArrow.setWidth(4);
+                p.setPen(penArrow);
+                p.drawLine(cx, cy, endX, endY);
+
+                // 6. Dibujar círculo en el origen (centro) y la punta
+                double arrowSize = 30.0;
+                double angleWing1 = anguloRad + M_PI + 0.5;
+                double angleWing2 = anguloRad + M_PI - 0.5;
+
+                QPoint p1(endX + static_cast<int>(arrowSize * qCos(angleWing1)),
+                    endY + static_cast<int>(arrowSize * qSin(angleWing1)));
+                QPoint p2(endX + static_cast<int>(arrowSize * qCos(angleWing2)),
+                    endY + static_cast<int>(arrowSize * qSin(angleWing2)));
+
+                QPolygon arrowHead;
+                arrowHead << QPoint(endX, endY) << p1 << p2;
+
+                p.setBrush(colorIndicador);
+                p.setPen(Qt::NoPen);
+                p.drawPolygon(arrowHead);
+                p.drawEllipse(QPoint(cx, cy), 5, 5);
+            }
+
+            // C. Etiqueta de Texto
             QFontMetrics fm(font);
-            int tw = fm.horizontalAdvance(text);
+            int tw = fm.horizontalAdvance(labelInfo);
             int th = fm.height();
             int padding = 4;
 
-            // Dimensiones totales del rectángulo de fondo
             int labelW = tw + padding;
             int labelH = th + padding;
 
-            // Calcular posición inicial
-            // Encima de la caja, alineado a la izquierda
+            // Posición inicial
             int labelX = x;
             int labelY = y - labelH;
 
@@ -875,16 +942,16 @@ void ProyectoPSM::ShowImage()
             }
             if (labelX < 0) labelX = 0;
 
-            // Si la etiqueta se sale por arriba
             if (labelY < 0) {
                 labelY = y;
             }
 
-            // Dibujar fondo negro
-            p.fillRect(labelX, labelY, labelW, labelH, QColor(0, 0, 0, 150));
+            // Fondo negro opaco para legibilidad
+            p.fillRect(labelX, labelY, labelW, labelH, QColor(0, 0, 0, 200));
 
-            // Dibujar texto
-            p.drawText(labelX + 2, labelY + th, text);
+            // Texto en color destacado
+            p.setPen(colorIndicador);
+            p.drawText(labelX + 2, labelY + th, labelInfo);
         }
     }
     ui.lblVideoLive->setPixmap(scaled);
