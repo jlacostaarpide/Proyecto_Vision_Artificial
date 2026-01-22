@@ -876,6 +876,7 @@ void ProyectoPSM::ShowImage()
             QPen pen(colorGuia);
             pen.setWidth(3);
             p.setPen(pen);
+            p.setBrush(Qt::NoBrush);
             p.drawRect(x, y, w, h);
 
             // B. Flecha de orientación
@@ -1362,6 +1363,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         QPen pen(colorGuia);
         pen.setWidth(3);
         p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
         p.drawRect(x, y, w, h);
 
         // B. Flecha de orientación
