@@ -292,8 +292,8 @@ void SegmentationWorker::process(std::shared_ptr<cv::Mat> snapshotPtr)
         double iw = static_cast<double>(snapshotPtr->cols);
         double ih = static_cast<double>(snapshotPtr->rows);
 
-        // 2. Procesar las N mejores piezas (Ahora 3 para la UI)
-        int max_thumbs = 3;
+        // 2. Procesar las N mejores piezas
+        int max_thumbs = 4;
 
         for (size_t i = 0; i < resultados.size(); i++) {
             const ResultadoPieza& pieza = resultados[i];
@@ -925,6 +925,7 @@ void ProyectoPSM::EnableLiveSegmentation(bool enabled)
         if (ui.lblLiveThumb1) ui.lblLiveThumb1->clear();
         if (ui.lblLiveThumb2) ui.lblLiveThumb2->clear();
         if (ui.lblLiveThumb3) ui.lblLiveThumb3->clear();
+        if (ui.lblLiveThumb4) ui.lblLiveThumb4->clear();
     }
 }
 
@@ -936,8 +937,8 @@ void ProyectoPSM::UpdateSegmentationResults(const std::vector<QRectF>& boxes,
     // NewImage se encarga de llamar a ShowImage para pintar las cajas
 
     // Actualizar Thumbnails en Vivo (derecha)
-    QLabel* labels[] = { ui.lblLiveThumb1, ui.lblLiveThumb2, ui.lblLiveThumb3 };
-    int numLabels = 3;
+    QLabel* labels[] = { ui.lblLiveThumb1, ui.lblLiveThumb2, ui.lblLiveThumb3, ui.lblLiveThumb4 };
+    int numLabels = 4;
 
     for (int i = 0; i < numLabels; i++) {
         if (i < thumbnails.size()) {
@@ -1029,7 +1030,7 @@ void ProyectoPSM::CapturarYAnalizar()
 
     // 4. Limpiar visualización anterior para evitar confusión
     ui.lblOfflineMain->clear();
-    ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
+    ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear(); ui.lblOfflineThumb4->clear();
 
     // 5. Mostrar la imagen capturada tal cual
     DisplayMat(ui.lblOfflineMain, CapturedImage);
@@ -1067,7 +1068,7 @@ void ProyectoPSM::CargarImagenDisco()
 
     // 6. Limpiar y mostrar imagen cruda
     ui.lblOfflineMain->clear();
-    ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
+    ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear(); ui.lblOfflineThumb4->clear();
     DisplayMat(ui.lblOfflineMain, CapturedImage);
 }
 
@@ -1138,13 +1139,13 @@ void ProyectoPSM::ProcesarImagenOffline(const cv::Mat& img)
 
     // Miniaturas (sin texto de clasificación; se actualizarán al pulsar Clasificar)
     if (resultados.empty()) {
-        ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear();
+        ui.lblOfflineThumb1->clear(); ui.lblOfflineThumb2->clear(); ui.lblOfflineThumb3->clear(); ui.lblOfflineThumb4->clear();
         ui.pbtnGuardar->setEnabled(false);
     }
     else {
         ui.pbtnGuardar->setEnabled(true);
-        QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
-        for (int i = 0; i < 3; i++) {
+        QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3, ui.lblOfflineThumb4 };
+        for (int i = 0; i < 4; i++) {
             if (i < resultados.size()) DisplayMat(thumbs[i], resultados[i].imagenRecortada);
             else { thumbs[i]->clear(); thumbs[i]->setText("---"); }
         }
@@ -1206,8 +1207,8 @@ void ProyectoPSM::ProcesarClasificacionOffline()
     p.setFont(font);
 
     // 7. Limpiamos miniaturas
-    QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3 };
-    for (int k = 0; k < 3; ++k) thumbs[k]->clear();
+    QLabel* thumbs[] = { ui.lblOfflineThumb1, ui.lblOfflineThumb2, ui.lblOfflineThumb3, ui.lblOfflineThumb4 };
+    for (int k = 0; k < 4; ++k) thumbs[k]->clear();
 
     for (size_t i = 0; i < lastResultados_.size(); ++i) {
         ResultadoPieza& res = lastResultados_[i];
@@ -1260,7 +1261,7 @@ void ProyectoPSM::ProcesarClasificacionOffline()
         // --- Parte de visualizacion ---
 
         // 1. Miniatura
-        if (i < 3) {
+        if (i < 4) {
             DisplayMat(thumbs[i], res.imagenRecortada);
         }
 
