@@ -77,7 +77,7 @@ bool Clasificador::Load(const std::string& modelPath, const std::string& scalerP
 int Clasificador::Predict(const cv::Mat& img) {
     if (!svmLoaded || img.empty()) return -1;
 
-    // 1. Extraer Características
+    // 1. Extraer Características (ahora son 11)
     std::vector<double> feats;
     std::vector<std::string> dummyNames;
     FeatureExtractor::ExtractColorShapeFeatures(img, feats, dummyNames);

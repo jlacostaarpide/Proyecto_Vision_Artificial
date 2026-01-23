@@ -130,7 +130,7 @@ ProyectoPSM::ProyectoPSM(QWidget* parent) : QMainWindow(parent)
     LastSegmentationTime = chrono::steady_clock::now() - chrono::milliseconds(SegmentationIntervalMs);
     m_featureNames = {
         "Extent", "Solidity", "V_mean", "Eccentricity", "SkelLenNorm", "Circularity",
-        "H_mean_circ", "S_mean", "V_IQR", "S_median", "FD5", "EulerNumber"
+        "H_mean_circ", "S_mean", "V_IQR", "S_median", "FD5"
     };
 
     // Cargar rutas iniciales en los textbox
