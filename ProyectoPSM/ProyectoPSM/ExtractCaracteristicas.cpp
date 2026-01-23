@@ -1,5 +1,5 @@
 //-------------------------------------------------------------
-//Script para extraer caracteristicas de imagenes (SIN EulerNumber)
+//Script para extraer caracteristicas de imagenes
 //-------------------------------------------------------------
 
 #include "ExtractCaracteristicas.h"
@@ -304,7 +304,7 @@ namespace FeatureExtractor {
     }
 
     // -----------------------------------------------------------
-    // Extrae las 6 caracteristicas de forma (SIN EulerNumber)
+    // Extrae las 6 caracteristicas de forma
     // -----------------------------------------------------------
     static std::vector<double> local_extractShapeFeatures(const cv::Mat& I_in)
     {
@@ -492,7 +492,7 @@ namespace FeatureExtractor {
         Mat I = toFloat01(I_in); // BGR float 0..1
         if (I.channels() == 1) cvtColor(I, I, COLOR_GRAY2BGR);
 
-        std::vector<double> featColor = local_extractColorFeatures(I); // 5 que usamos
+        std::vector<double> featColor = local_extractColorFeatures(I); // 5 
         std::vector<double> featShape = local_extractShapeFeatures(I); // 6 (sin EulerNumber)
 
         // Color
