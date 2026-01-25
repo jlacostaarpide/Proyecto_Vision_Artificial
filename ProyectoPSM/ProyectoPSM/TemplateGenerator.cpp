@@ -3,10 +3,6 @@
 //-----------------------------------------------------------------------------
 
 #include "TemplateGenerator.h"
-#include <QRegularExpression>
-#include <QFileInfo>
-#include <QDebug>
-#include <QFile>
 
 // ----------------------------------------------------------------------------
 // Método de preprocesamiento de imagenes

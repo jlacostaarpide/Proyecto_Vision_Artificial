@@ -3,9 +3,6 @@
 //------------------------------------------------------------
 
 #include "ClasificadorOrientacion.h"
-#include <filesystem>
-#include <algorithm>
-#include <cmath>
 
 using namespace cv;
 

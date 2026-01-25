@@ -2,21 +2,6 @@
 // Script principal para la gestion del procesamiento de imagenes y de la interfaz gráfica
 //-----------------------------------------------------------------------------------------
 #include "ProyectoPSM.h"
-#include <filesystem>
-#include <QFileDialog>
-#include <QFile>
-#include <QComboBox>
-#include <chrono>
-#include <QMetaType>
-#include <QDebug>
-#include <QPainter>
-#include <QApplication>
-#include <iostream>
-
-#include <QMessageBox>
-#include <QFileInfo>
-#include <QRegularExpression>
-#include <QDateTime>
 
 namespace fs = std::filesystem;
 

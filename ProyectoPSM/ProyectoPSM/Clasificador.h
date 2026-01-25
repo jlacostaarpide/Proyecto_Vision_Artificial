@@ -4,6 +4,23 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <opencv2/ml.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/ml.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <filesystem>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <fstream>
+#include <regex>
+#include <algorithm>
+#include <numeric>
+#include <iomanip>
+#include <QDebug>
+#include <QString>
+#include <random>
+
+#include "ExtractCaracteristicas.h"
 
 
 class Clasificador {

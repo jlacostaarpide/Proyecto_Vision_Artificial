@@ -3,11 +3,6 @@
 //-----------------------------------------------------------------------------------------
 
 #include "classificationvisualizer.h"
-#include <QPainter>
-#include <QDebug>
-#include <algorithm>
-#include <opencv2/core.hpp> 
-#include <cmath>
 
 ClassificationVisualizer::ClassificationVisualizer(QObject* parent)
     : QObject(parent)

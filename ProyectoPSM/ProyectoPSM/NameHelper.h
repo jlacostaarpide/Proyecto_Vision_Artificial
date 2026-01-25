@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <string>
+#include <iomanip>
+#include <sstream>
 
 class NameHelper
 {

@@ -4,6 +4,10 @@
 #include <QDir>
 #include <QMap>
 #include <vector>
+#include <QRegularExpression>
+#include <QFileInfo>
+#include <QDebug>
+#include <QFile>
 
 struct TemplateConfig {
     QString inputFolder;    // Carpeta con imágenes segmentadas (crops)

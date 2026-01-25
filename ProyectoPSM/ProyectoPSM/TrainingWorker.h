@@ -1,9 +1,23 @@
 #pragma once
+
 #include <QObject>
 #include <QString>
 #include <QDir>
 #include <atomic>
 #include <vector>
+#include <opencv2/opencv.hpp>
+#include <QDebug>
+#include <QFileInfo>
+#include <QRegularExpression>
+#include <opencv2/ml.hpp>
+#include <random>
+#include <numeric>
+#include <iomanip>
+#include <fstream>
+
+#include "Segmentacion.h"
+#include "ExtractCaracteristicas.h"
+#include "TemplateGenerator.h"
 
 // Estructura simple para pasar configuración
 struct TrainingConfig {

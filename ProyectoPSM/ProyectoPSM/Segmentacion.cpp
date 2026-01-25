@@ -3,11 +3,6 @@
 //---------------------------------------------------------
 
 #include "Segmentacion.h"
-#include <vector>
-#include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <QDebug>
 
 using namespace cv;
 using namespace std;

@@ -3,18 +3,6 @@
 //-------------------------------------------------------------------------------------------
 
 #include "TrainingWorker.h"
-#include "Segmentacion.h"
-#include "ExtractCaracteristicas.h"
-#include "TemplateGenerator.h"
-#include <opencv2/opencv.hpp>
-#include <QDebug>
-#include <QFileInfo>
-#include <QRegularExpression>
-#include <opencv2/ml.hpp>
-#include <random>
-#include <numeric>
-#include <iomanip>
-#include <fstream>
 
 //-------------------------------------------------------------------------------------------
 // Implementación de TrainingWorker con todos los pasos

@@ -4,19 +4,30 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <iostream>
+#include <filesystem>
 
 #include <QtWidgets/QMainWindow>
 #include <QThread>
 #include <QTimer>
 #include <QRectF>
 #include <QString>
-#include <memory>
 #include <QElapsedTimer>
+#include <QFileDialog>
+#include <QFile>
+#include <QComboBox>
+#include <QMetaType>
+#include <QDebug>
+#include <QPainter>
+#include <QApplication>
+#include <QMessageBox>
+#include <QFileInfo>
+#include <QRegularExpression>
+#include <QDateTime>
 
 #include "ui_ProyectoPSM.h"
 #include "VideoAcquisition.h"
 #include "NameHelper.h"
-
 #include "Segmentacion.h"
 #include "Clasificador.h"
 #include "ClasificadorOrientacion.h"

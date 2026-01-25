@@ -1,6 +1,10 @@
 #pragma once
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <QDebug>
 
 // Estructura para extraer los pasos intermedios
 struct DebugInfo {

@@ -2,6 +2,9 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
+#include <filesystem>
+#include <algorithm>
+#include <cmath>
 
 struct OrientationResult {
     int yaw = -1;

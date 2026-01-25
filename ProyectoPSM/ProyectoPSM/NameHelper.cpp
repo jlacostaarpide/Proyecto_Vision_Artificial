@@ -3,9 +3,6 @@
 //------------------------------------------------------------------------------------------------------------------------------
 
 #include "NameHelper.h"
-#include <string>
-#include <iomanip>
-#include <sstream>
 
 std::string padCeros(int numero, int anchura) {
     std::stringstream ss;

@@ -3,12 +3,6 @@
 //-------------------------------------------------------------
 
 #include "ExtractCaracteristicas.h"
-#include <opencv2/opencv.hpp>
-#include <complex>
-#include <algorithm>
-#include <numeric>
-#include <cmath>
-#include <vector>
 
 using namespace cv;
 
